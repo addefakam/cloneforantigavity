@@ -1,0 +1,642 @@
+     1→   100→
+     2→   101→function formatCurrency(amount: number) {
+     3→   102→  return new Intl.NumberFormat("en-US", {
+     4→   103→    style: "currency",
+     5→   104→    currency: "ETB",
+     6→   105→    minimumFractionDigits: 0,
+     7→   106→    maximumFractionDigits: 0,
+     8→   107→  }).format(amount);
+     9→   108→}
+    10→   109→
+    11→   110→export default function ReportsPage() {
+    12→   111→  const { refreshKey } = useAppStore();
+    13→   112→  const today = new Date().toISOString().split("T")[0];
+    14→   113→  const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
+    15→   114→
+    16→   115→  const [from, setFrom] = useState(monthAgo);
+    17→   116→  const [to, setTo] = useState(today);
+    18→   117→  const [data, setData] = useState<ReportData | null>(null);
+    19→   118→  const [loading, setLoading] = useState(true);
+    20→   119→  const [showGuests, setShowGuests] = useState(false);
+    21→   120→  const [expandedGuestIdx, setExpandedGuestIdx] = useState<number | null>(null);
+    22→   121→
+    23→   122→  const fetchReports = useCallback(async () => {
+    24→   123→    setLoading(true);
+    25→   124→    try {
+    26→   125→      const params = new URLSearchParams();
+    27→   126→      if (from) params.set("from", from);
+    28→   127→      if (to) params.set("to", to);
+    29→   128→      const result = await apiGetReports(params.toString());
+    30→   129→      setData(result);
+    31→   130→    } catch {
+    32→   131→      toast.error("Failed to load reports");
+    33→   132→    } finally {
+    34→   133→      setLoading(false);
+    35→   134→    }
+    36→   135→  }, [from, to]);
+    37→   136→
+    38→   137→  useEffect(() => {
+    39→   138→    fetchReports();
+    40→   139→  }, [fetchReports, refreshKey]);
+    41→   140→
+    42→   141→  const statusBreakdown = useMemo(() => {
+    43→   142→    if (!data?.reservations) return [];
+    44→   143→    const map = new Map<string, { count: number; revenue: number }>();
+    45→   144→    for (const r of data.reservations) {
+    46→   145→      const existing = map.get(r.status) || { count: 0, revenue: 0 };
+    47→   146→      existing.count += 1;
+    48→   147→      existing.revenue += r.paidAmount;
+    49→   148→      map.set(r.status, existing);
+    50→   149→    }
+    51→   150→    return Array.from(map.entries()).map(([status, info]) => ({
+    52→   151→      status,
+    53→   152→      ...info,
+    54→   153→    }));
+    55→   154→  }, [data]);
+    56→   155→
+    57→   156→  const maxDailyRevenue = useMemo(() => {
+    58→   157→    if (!data?.dailyRevenue?.length) return 0;
+    59→   158→    return Math.max(...data.dailyRevenue.map((d) => d.amount), 1);
+    60→   159→  }, [data]);
+    61→   160→
+    62→   161→  const maxExpenseCategory = useMemo(() => {
+    63→   162→    if (!data?.expenseBreakdown?.length) return 0;
+    64→   163→    return Math.max(...data.expenseBreakdown.map((e) => e.amount), 1);
+    65→   164→  }, [data]);
+    66→   165→
+    67→   166→  // Unique guests served in the period
+    68→   167→  const servedGuests = useMemo(() => {
+    69→   168→    if (!data?.reservations?.length) return [];
+    70→   169→    const map = new Map<string, {
+    71→   170→      guestId: string;
+    72→   171→      name: string;
+    73→   172→      phone: string;
+    74→   173→      email: string;
+    75→   174→      idNumber: string;
+    76→   175→      idType: string;
+    77→   176→      nationality: string;
+    78→   177→      address: string;
+    79→   178→      notes: string;
+    80→   179→      vip: boolean;
+    81→   180→      guestSince: string;
+    82→   181→      visits: number;
+    83→   182→      totalSpent: number;
+    84→   183→      lastVisit: string;
+    85→   184→      rooms: { number: string; name: string; type: string; checkIn: string; checkOut: string; status: string }[];
+    86→   185→    }>();
+    87→   186→    for (const r of data.reservations) {
+    88→   187→      const g = r.guest;
+    89→   188→      const key = g?.id || g?.name || r.guestId || "unknown";
+    90→   189→      const existing = map.get(key) || {
+    91→   190→        guestId: g?.id || "",
+    92→   191→        name: g?.name || "Unknown",
+    93→   192→        phone: g?.phone || "",
+    94→   193→        email: g?.email || "",
+    95→   194→        idNumber: g?.idNumber || "",
+    96→   195→        idType: g?.idType || "",
+    97→   196→        nationality: g?.nationality || "",
+    98→   197→        address: g?.address || "",
+    99→   198→        notes: g?.notes || "",
+   100→   199→        vip: g?.vip || false,
+   101→   200→        guestSince: g?.createdAt || "",
+   102→   201→        visits: 0,
+   103→   202→        totalSpent: 0,
+   104→   203→        lastVisit: "",
+   105→   204→        rooms: [],
+   106→   205→      };
+   107→   206→      existing.visits += 1;
+   108→   207→      existing.totalSpent += r.paidAmount;
+   109→   208→      if (r.checkIn > existing.lastVisit) existing.lastVisit = r.checkIn;
+   110→   209→      existing.rooms.push({
+   111→   210→        number: r.room?.number || "",
+   112→   211→        name: r.room?.name || "",
+   113→   212→        type: r.room?.type || "",
+   114→   213→        checkIn: r.checkIn || "",
+   115→   214→        checkOut: r.checkOut || "",
+   116→   215→        status: r.status || "",
+   117→   216→      });
+   118→   217→      map.set(key, existing);
+   119→   218→    }
+   120→   219→    return Array.from(map.values()).sort((a, b) => b.lastVisit.localeCompare(a.lastVisit));
+   121→   220→  }, [data]);
+   122→   221→
+   123→   222→  const handleExport = () => {
+   124→   223→    if (!data) return;
+   125→   224→    const json = JSON.stringify(data, null, 2);
+   126→   225→    const blob = new Blob([json], { type: "application/json" });
+   127→   226→    const url = URL.createObjectURL(blob);
+   128→   227→    const a = document.createElement("a");
+   129→   228→    a.href = url;
+   130→   229→    a.download = `report-${from}-to-${to}.json`;
+   131→   230→    a.click();
+   132→   231→    URL.revokeObjectURL(url);
+   133→   232→    toast.success("Report exported");
+   134→   233→  };
+   135→   234→
+   136→   235→  return (
+   137→   236→    <div className="space-y-6 p-4 md:p-6">
+   138→   237→      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+   139→   238→        <div>
+   140→   239→          <h1 className="text-2xl font-bold tracking-tight">Reports</h1>
+   141→   240→          <p className="text-sm text-muted-foreground">
+   142→   241→            View financial summaries and analytics.
+   143→   242→          </p>
+   144→   243→        </div>
+   145→   244→        <div className="flex gap-2">
+   146→   245→          <Button variant={showGuests ? "default" : "outline"} onClick={() => setShowGuests(!showGuests)} disabled={loading || !data}>
+   147→   246→            <Users className="mr-2 h-4 w-4" />
+   148→   247→            Served Guests ({servedGuests.length})
+   149→   248→          </Button>
+   150→   249→          <Button variant="outline" onClick={handleExport} disabled={loading || !data}>
+   151→   250→            <Download className="mr-2 h-4 w-4" />
+   152→   251→            Export JSON
+   153→   252→          </Button>
+   154→   253→        </div>
+   155→   254→      </div>
+   156→   255→
+   157→   256→      {/* Date Range Picker */}
+   158→   257→      <Card>
+   159→   258→        <CardContent className="flex flex-col sm:flex-row items-end gap-4 pt-6">
+   160→   259→          <div className="grid gap-2 flex-1 w-full sm:w-auto">
+   161→   260→            <Label htmlFor="from">From</Label>
+   162→   261→            <Input
+   163→   262→              id="from"
+   164→   263→              type="date"
+   165→   264→              value={from}
+   166→   265→              onChange={(e) => setFrom(e.target.value)}
+   167→   266→            />
+   168→   267→          </div>
+   169→   268→          <div className="grid gap-2 flex-1 w-full sm:w-auto">
+   170→   269→            <Label htmlFor="to">To</Label>
+   171→   270→            <Input
+   172→   271→              id="to"
+   173→   272→              type="date"
+   174→   273→              value={to}
+   175→   274→              onChange={(e) => setTo(e.target.value)}
+   176→   275→            />
+   177→   276→          </div>
+   178→   277→          <Button onClick={fetchReports} disabled={loading}>
+   179→   278→            <CalendarDays className="mr-2 h-4 w-4" />
+   180→   279→            Apply
+   181→   280→          </Button>
+   182→   281→        </CardContent>
+   183→   282→      </Card>
+   184→   283→
+   185→   284→      {loading ? (
+   186→   285→        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+   187→   286→          {Array.from({ length: 4 }).map((_, i) => (
+   188→   287→            <Skeleton key={i} className="h-28 rounded-xl" />
+   189→   288→          ))}
+   190→   289→        </div>
+   191→   290→      ) : data ? (
+   192→   291→        <>
+   193→   292→          {/* Summary Cards */}
+   194→   293→          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+   195→   294→            <Card>
+   196→   295→              <CardHeader className="flex flex-row items-center justify-between pb-2">
+   197→   296→                <CardTitle className="text-sm font-medium text-muted-foreground">
+   198→   297→                  Total Revenue
+   199→   298→                </CardTitle>
+   200→   299→                <DollarSign className="h-4 w-4 text-emerald-500" />
+   201→   300→              </CardHeader>
+   202→   301→              <CardContent>
+   203→   302→                <p className="text-2xl font-bold text-emerald-600">{formatCurrency(data.revenue)}</p>
+   204→   303→              </CardContent>
+   205→   304→            </Card>
+   206→   305→            <Card>
+   207→   306→              <CardHeader className="flex flex-row items-center justify-between pb-2">
+   208→   307→                <CardTitle className="text-sm font-medium text-muted-foreground">
+   209→   308→                  Total Expenses
+   210→   309→                </CardTitle>
+   211→   310→                <TrendingDown className="h-4 w-4 text-rose-500" />
+   212→   311→              </CardHeader>
+   213→   312→              <CardContent>
+   214→   313→                <p className="text-2xl font-bold text-rose-600">{formatCurrency(data.expenses)}</p>
+   215→   314→              </CardContent>
+   216→   315→            </Card>
+   217→   316→            <Card>
+   218→   317→              <CardHeader className="flex flex-row items-center justify-between pb-2">
+   219→   318→                <CardTitle className="text-sm font-medium text-muted-foreground">
+   220→   319→                  Net Profit
+   221→   320→                </CardTitle>
+   222→   321→                <TrendingUp className="h-4 w-4 text-blue-500" />
+   223→   322→              </CardHeader>
+   224→   323→              <CardContent>
+   225→   324→                <p
+   226→   325→                  className={`text-2xl font-bold ${data.profit >= 0 ? "text-emerald-600" : "text-rose-600"}`}
+   227→   326→                >
+   228→   327→                  {formatCurrency(data.profit)}
+   229→   328→                </p>
+   230→   329→              </CardContent>
+   231→   330→            </Card>
+   232→   331→            <Card>
+   233→   332→              <CardHeader className="flex flex-row items-center justify-between pb-2">
+   234→   333→                <CardTitle className="text-sm font-medium text-muted-foreground">
+   235→   334→                  Avg Occupancy
+   236→   335→                </CardTitle>
+   237→   336→                <Percent className="h-4 w-4 text-violet-500" />
+   238→   337→              </CardHeader>
+   239→   338→              <CardContent>
+   240→   339→                <p className="text-2xl font-bold">{data.occupancyRate}%</p>
+   241→   340→              </CardContent>
+   242→   341→            </Card>
+   243→   342→          </div>
+   244→   343→
+   245→   344→          {/* Revenue vs Expenses Bar Chart */}
+   246→   345→          <Card>
+   247→   346→            <CardHeader>
+   248→   347→              <CardTitle className="flex items-center gap-2">
+   249→   348→                <BarChart3 className="h-5 w-5" />
+   250→   349→                Revenue vs Expenses (Daily)
+   251→   350→              </CardTitle>
+   252→   351→            </CardHeader>
+   253→   352→            <CardContent>
+   254→   353→              {data.dailyRevenue.length === 0 ? (
+   255→   354→                <p className="text-sm text-muted-foreground text-center py-8">
+   256→   355→                  No daily data available for this range.
+   257→   356→                </p>
+   258→   357→              ) : (
+   259→   358→                <div className="space-y-2 max-h-72 overflow-y-auto pr-2">
+   260→   359→                  {data.dailyRevenue.map((d) => (
+   261→   360→                    <div key={d.date} className="flex items-center gap-3 text-sm">
+   262→   361→                      <span className="w-24 shrink-0 text-muted-foreground truncate">
+   263→   362→                        {d.date}
+   264→   363→                      </span>
+   265→   364→                      <div className="flex-1 flex items-center gap-1">
+   266→   365→                        <div
+   267→   366→                          className="h-5 rounded bg-emerald-500 transition-all"
+   268→   367→                          style={{
+   269→   368→                            width: `${Math.max((d.amount / maxDailyRevenue) * 100, 2)}%`,
+   270→   369→                          }}
+   271→   370→                          title={`Revenue: ${formatCurrency(d.amount)}`}
+   272→   371→                        />
+   273→   372→                      </div>
+   274→   373→                      <span className="w-20 text-right font-medium">
+   275→   374→                        {formatCurrency(d.amount)}
+   276→   375→                      </span>
+   277→   376→                    </div>
+   278→   377→                  ))}
+   279→   378→                </div>
+   280→   379→              )}
+   281→   380→            </CardContent>
+   282→   381→          </Card>
+   283→   382→
+   284→   383→          {/* Served Guests Section */}
+   285→   384→          {showGuests && (
+   286→   385→            <Card>
+   287→   386→              <CardHeader>
+   288→   387→                <CardTitle className="flex items-center gap-2">
+   289→   388→                  <Users className="h-5 w-5" />
+   290→   389→                  Guests Served ({from} to {to})
+   291→   390→                </CardTitle>
+   292→   391→              </CardHeader>
+   293→   392→              <CardContent>
+   294→   393→                {servedGuests.length === 0 ? (
+   295→   394→                  <p className="text-sm text-muted-foreground text-center py-8">
+   296→   395→                    No guests served in this period.
+   297→   396→                  </p>
+   298→   397→                ) : (
+   299→   398→                  <>
+   300→   399→                    {/* Mobile cards */}
+   301→   400→                    <div className="md:hidden space-y-3">
+   302→   401→                      {servedGuests.map((g, i) => (
+   303→   402→                        <div key={i}>
+   304→   403→                          <div
+   305→   404→                            className="rounded-lg border p-3 space-y-2 cursor-pointer"
+   306→   405→                            onClick={() => setExpandedGuestIdx(expandedGuestIdx === i ? null : i)}
+   307→   406→                          >
+   308→   407→                            <div className="flex items-center justify-between">
+   309→   408→                              <div className="flex items-center gap-2">
+   310→   409→                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-100 text-violet-600 font-medium text-sm shrink-0">
+   311→   410→                                  {g.name.charAt(0).toUpperCase()}
+   312→   411→                                </div>
+   313→   412→                                <div>
+   314→   413→                                  <div className="flex items-center gap-1.5">
+   315→   414→                                    <p className="font-semibold text-sm">{g.name}</p>
+   316→   415→                                    {g.vip && <Star className="inline h-3.5 w-3.5 fill-amber-400 text-amber-400" />}
+   317→   416→                                  </div>
+   318→   417→                                  {g.phone && <p className="text-xs text-muted-foreground">{g.phone}</p>}
+   319→   418→                                </div>
+   320→   419→                              </div>
+   321→   420→                              <div className="flex items-center gap-2">
+   322→   421→                                <Badge variant="outline" className="text-xs">{g.visits} visit{g.visits !== 1 ? "s" : ""}</Badge>
+   323→   422→                                {expandedGuestIdx === i ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+   324→   423→                              </div>
+   325→   424→                            </div>
+   326→   425→                            <div className="flex items-center justify-between text-xs">
+   327→   426→                              <span className="text-muted-foreground">Last: {g.lastVisit}</span>
+   328→   427→                              <span className="font-medium">{formatCurrency(g.totalSpent)}</span>
+   329→   428→                            </div>
+   330→   429→                          </div>
+   331→   430→                          {expandedGuestIdx === i && (
+   332→   431→                            <div className="mt-2 ml-4 rounded-lg border border-amber-100 bg-amber-50 p-3 space-y-2">
+   333→   432→                              {g.email && (
+   334→   433→                                <div className="flex items-center gap-2 text-xs"><Mail className="h-3.5 w-3.5 text-gray-400" /><span className="text-gray-600">{g.email}</span></div>
+   335→   434→                              )}
+   336→   435→                              {(g.idType || g.idNumber) && (
+   337→   436→                                <div className="flex items-center gap-2 text-xs"><CreditCard className="h-3.5 w-3.5 text-gray-400" /><span className="text-gray-600">{g.idType}{g.idNumber ? ` · ${g.idNumber}` : ""}</span></div>
+   338→   437→                              )}
+   339→   438→                              {g.nationality && (
+   340→   439→                                <div className="flex items-center gap-2 text-xs"><Globe className="h-3.5 w-3.5 text-gray-400" /><span className="text-gray-600">{g.nationality}</span></div>
+   341→   440→                              )}
+   342→   441→                              {g.address && (
+   343→   442→                                <div className="flex items-center gap-2 text-xs"><MapPin className="h-3.5 w-3.5 text-gray-400" /><span className="text-gray-600">{g.address}</span></div>
+   344→   443→                              )}
+   345→   444→                              {g.notes && (
+   346→   445→                                <div className="flex items-start gap-2 text-xs mt-1"><FileText className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" /><span className="text-amber-700">{g.notes}</span></div>
+   347→   446→                              )}
+   348→   447→                              {g.guestSince && (
+   349→   448→                                <p className="text-[10px] text-gray-400 mt-1">Guest since {new Date(g.guestSince).toLocaleDateString()}</p>
+   350→   449→                              )}
+   351→   450→                              {g.rooms.length > 0 && (
+   352→   451→                                <div className="mt-2 pt-2 border-t border-amber-200">
+   353→   452→                                  <p className="text-[10px] font-medium text-gray-500 mb-1">Room History ({g.rooms.length})</p>
+   354→   453→                                  {g.rooms.map((rm, ri) => (
+   355→   454→                                    <div key={ri} className="flex items-center justify-between text-xs py-0.5">
+   356→   455→                                      <span className="text-gray-600">{rm.number}{rm.name ? ` · ${rm.name}` : ""}</span>
+   357→   456→                                      <span className="text-gray-400">{rm.checkIn} → {rm.checkOut}</span>
+   358→   457→                                    </div>
+   359→   458→                                  ))}
+   360→   459→                                </div>
+   361→   460→                              )}
+   362→   461→                            </div>
+   363→   462→                          )}
+   364→   463→                        </div>
+   365→   464→                      ))}
+   366→   465→                    </div>
+   367→   466→                    {/* Desktop table */}
+   368→   467→                    <div className="hidden md:block rounded-xl border bg-white max-h-[500px] overflow-y-auto">
+   369→   468→                      <Table>
+   370→   469→                        <TableHeader>
+   371→   470→                          <TableRow className="bg-gray-50/80">
+   372→   471→                            <TableHead className="w-12"></TableHead>
+   373→   472→                            <TableHead>Guest Name</TableHead>
+   374→   473→                            <TableHead>Phone</TableHead>
+   375→   474→                            <TableHead>ID Number</TableHead>
+   376→   475→                            <TableHead>Nationality</TableHead>
+   377→   476→                            <TableHead className="text-center">VIP</TableHead>
+   378→   477→                            <TableHead className="text-center">Visits</TableHead>
+   379→   478→                            <TableHead>Last Visit</TableHead>
+   380→   479→                            <TableHead className="text-right">Total Spent</TableHead>
+   381→   480→                          </TableRow>
+   382→   481→                        </TableHeader>
+   383→   482→                        <TableBody>
+   384→   483→                          {servedGuests.map((g, i) => (
+   385→   484→                            <Fragment key={i}>
+   386→   485→                              <TableRow
+   387→   486→                                className="cursor-pointer"
+   388→   487→                                onClick={() => setExpandedGuestIdx(expandedGuestIdx === i ? null : i)}
+   389→   488→                              >
+   390→   489→                                <TableCell>
+   391→   490→                                  {expandedGuestIdx === i ? (
+   392→   491→                                    <ChevronUp className="h-4 w-4 text-gray-400" />
+   393→   492→                                  ) : (
+   394→   493→                                    <ChevronDown className="h-4 w-4 text-gray-400" />
+   395→   494→                                  )}
+   396→   495→                                </TableCell>
+   397→   496→                                <TableCell>
+   398→   497→                                  <div className="flex items-center gap-2">
+   399→   498→                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-100 text-violet-600 font-medium text-sm">
+   400→   499→                                      {g.name.charAt(0).toUpperCase()}
+   401→   500→                                    </div>
+   402→   501→                                    <div>
+   403→   502→                                      <span className="font-medium text-gray-900">{g.name}</span>
+   404→   503→                                      {g.vip && (
+   405→   504→                                        <span className="ml-1.5">
+   406→   505→                                          <Star className="inline h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+   407→   506→                                        </span>
+   408→   507→                                      )}
+   409→   508→                                    </div>
+   410→   509→                                  </div>
+   411→   510→                                </TableCell>
+   412→   511→                                <TableCell className="text-gray-600">{g.phone || "—"}</TableCell>
+   413→   512→                                <TableCell className="text-gray-600 text-xs">{g.idNumber || "—"}</TableCell>
+   414→   513→                                <TableCell className="text-gray-600">{g.nationality || "—"}</TableCell>
+   415→   514→                                <TableCell className="text-center">
+   416→   515→                                  {g.vip ? (
+   417→   516→                                    <Badge className="bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100">
+   418→   517→                                      <Star className="mr-1 h-3 w-3 fill-amber-500 text-amber-500" />
+   419→   518→                                      VIP
+   420→   519→                                    </Badge>
+   421→   520→                                  ) : (
+   422→   521→                                    <span className="text-gray-400 text-xs">—</span>
+   423→   522→                                  )}
+   424→   523→                                </TableCell>
+   425→   524→                                <TableCell className="text-center">
+   426→   525→                                  <Badge variant="secondary" className="text-xs">{g.visits}</Badge>
+   427→   526→                                </TableCell>
+   428→   527→                                <TableCell>{g.lastVisit}</TableCell>
+   429→   528→                                <TableCell className="text-right font-medium">{formatCurrency(g.totalSpent)}</TableCell>
+   430→   529→                              </TableRow>
+   431→   530→                              {/* Expanded details row */}
+   432→   531→                              {expandedGuestIdx === i && (
+   433→   532→                                <TableRow className="bg-gray-50/50">
+   434→   533→                                  <TableCell colSpan={9}>
+   435→   534→                                    <div className="grid grid-cols-1 gap-4 py-4 sm:grid-cols-2 lg:grid-cols-4">
+   436→   535→                                      <div className="flex items-start gap-2">
+   437→   536→                                        <Mail className="mt-0.5 h-4 w-4 text-gray-400 shrink-0" />
+   438→   537→                                        <div>
+   439→   538→                                          <p className="text-xs text-gray-500">Email</p>
+   440→   539→                                          <p className="text-sm text-gray-900">{g.email || "—"}</p>
+   441→   540→                                        </div>
+   442→   541→                                      </div>
+   443→   542→                                      <div className="flex items-start gap-2">
+   444→   543→                                        <CreditCard className="mt-0.5 h-4 w-4 text-gray-400 shrink-0" />
+   445→   544→                                        <div>
+   446→   545→                                          <p className="text-xs text-gray-500">ID Type / Number</p>
+   447→   546→                                          <p className="text-sm text-gray-900">
+   448→   547→                                            {g.idType}{g.idNumber ? ` · ${g.idNumber}` : ""}
+   449→   548→                                          </p>
+   450→   549→                                        </div>
+   451→   550→                                      </div>
+   452→   551→                                      <div className="flex items-start gap-2">
+   453→   552→                                        <Globe className="mt-0.5 h-4 w-4 text-gray-400 shrink-0" />
+   454→   553→                                        <div>
+   455→   554→                                          <p className="text-xs text-gray-500">Nationality</p>
+   456→   555→                                          <p className="text-sm text-gray-900">{g.nationality || "—"}</p>
+   457→   556→                                        </div>
+   458→   557→                                      </div>
+   459→   558→                                      <div className="flex items-start gap-2">
+   460→   559→                                        <MapPin className="mt-0.5 h-4 w-4 text-gray-400 shrink-0" />
+   461→   560→                                        <div>
+   462→   561→                                          <p className="text-xs text-gray-500">Address</p>
+   463→   562→                                          <p className="text-sm text-gray-900">{g.address || "—"}</p>
+   464→   563→                                        </div>
+   465→   564→                                      </div>
+   466→   565→                                    </div>
+   467→   566→                                    {g.notes && (
+   468→   567→                                      <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 p-3 border border-amber-100">
+   469→   568→                                        <FileText className="mt-0.5 h-4 w-4 text-amber-500 shrink-0" />
+   470→   569→                                        <div>
+   471→   570→                                          <p className="text-xs font-medium text-amber-800">Notes</p>
+   472→   571→                                          <p className="text-sm text-amber-700">{g.notes}</p>
+   473→   572→                                        </div>
+   474→   573→                                      </div>
+   475→   574→                                    )}
+   476→   575→                                    {g.rooms.length > 0 && (
+   477→   576→                                      <div className="mt-3 rounded-lg border p-3">
+   478→   577→                                        <p className="text-xs font-medium text-gray-500 mb-2">Room History ({g.rooms.length} stay{g.rooms.length !== 1 ? "s" : ""})</p>
+   479→   578→                                        <div className="space-y-1">
+   480→   579→                                          {g.rooms.map((rm, ri) => (
+   481→   580→                                            <div key={ri} className="flex items-center justify-between text-sm py-1 border-b border-gray-100 last:border-0">
+   482→   581→                                              <div className="flex items-center gap-2">
+   483→   582→                                                <span className="font-medium text-gray-900">{rm.number}</span>
+   484→   583→                                                {rm.name && <span className="text-gray-400 text-xs">{rm.name}</span>}
+   485→   584→                                                {rm.type && <Badge variant="outline" className="text-[10px] px-1.5 py-0">{rm.type}</Badge>}
+   486→   585→                                              </div>
+   487→   586→                                              <div className="flex items-center gap-3 text-xs text-gray-500">
+   488→   587→                                                <span>{rm.checkIn} → {rm.checkOut}</span>
+   489→   588→                                                <Badge variant="outline" className={STATUS_COLORS[rm.status] || ""}>{rm.status.replace(/_/g, " ")}</Badge>
+   490→   589→                                              </div>
+   491→   590→                                            </div>
+   492→   591→                                          ))}
+   493→   592→                                        </div>
+   494→   593→                                      </div>
+   495→   594→                                    )}
+   496→   595→                                    {g.guestSince && (
+   497→   596→                                      <p className="mt-3 text-xs text-gray-400">
+   498→   597→                                        Guest since {new Date(g.guestSince).toLocaleDateString()}
+   499→   598→                                      </p>
+   500→   599→                                    )}
+   501→   600→                                  </TableCell>
+   502→   601→                                </TableRow>
+   503→   602→                              )}
+   504→   603→                            </Fragment>
+   505→   604→                          ))}
+   506→   605→                        </TableBody>
+   507→   606→                      </Table>
+   508→   607→                    </div>
+   509→   608→                    <p className="text-xs text-muted-foreground mt-3 text-center">
+   510→   609→                      {servedGuests.length} unique guest{servedGuests.length !== 1 ? "s" : ""} served · Total spent: {formatCurrency(servedGuests.reduce((s, g) => s + g.totalSpent, 0))}
+   511→   610→                    </p>
+   512→   611→                  </>
+   513→   612→                )}
+   514→   613→              </CardContent>
+   515→   614→            </Card>
+   516→   615→          )}
+   517→   616→
+   518→   617→          {/* Expense Breakdown + Reservation Summary */}
+   519→   618→          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+   520→   619→            {/* Expense Breakdown */}
+   521→   620→            <Card>
+   522→   621→              <CardHeader>
+   523→   622→                <CardTitle>Expense Breakdown</CardTitle>
+   524→   623→              </CardHeader>
+   525→   624→              <CardContent>
+   526→   625→                {data.expenseBreakdown.length === 0 ? (
+   527→   626→                  <p className="text-sm text-muted-foreground text-center py-8">
+   528→   627→                    No expenses recorded.
+   529→   628→                  </p>
+   530→   629→                ) : (
+   531→   630→                  <div className="space-y-3">
+   532→   631→                    {data.expenseBreakdown.map((item, i) => (
+   533→   632→                      <div key={item.category} className="space-y-1">
+   534→   633→                        <div className="flex items-center justify-between text-sm">
+   535→   634→                          <span className="font-medium">{item.category}</span>
+   536→   635→                          <span>{formatCurrency(item.amount)}</span>
+   537→   636→                        </div>
+   538→   637→                        <div className="h-3 w-full rounded-full bg-muted">
+   539→   638→                          <div
+   540→   639→                            className={`h-3 rounded-full ${EXPENSE_COLORS[i % EXPENSE_COLORS.length]}`}
+   541→   640→                            style={{
+   542→   641→                              width: `${(item.amount / maxExpenseCategory) * 100}%`,
+   543→   642→                            }}
+   544→   643→                          />
+   545→   644→                        </div>
+   546→   645→                      </div>
+   547→   646→                    ))}
+   548→   647→                  </div>
+   549→   648→                )}
+   550→   649→              </CardContent>
+   551→   650→            </Card>
+   552→   651→
+   553→   652→            {/* Reservations Summary */}
+   554→   653→            <Card>
+   555→   654→              <CardHeader>
+   556→   655→                <CardTitle>Reservations by Status</CardTitle>
+   557→   656→              </CardHeader>
+   558→   657→              <CardContent>
+   559→   658→                {statusBreakdown.length === 0 ? (
+   560→   659→                  <p className="text-sm text-muted-foreground text-center py-8">
+   561→   660→                    No reservations in this period.
+   562→   661→                  </p>
+   563→   662→                ) : (
+   564→   663→                  <div className="rounded-lg border">
+   565→   664→                    <Table>
+   566→   665→                      <TableHeader>
+   567→   666→                        <TableRow>
+   568→   667→                          <TableHead>Status</TableHead>
+   569→   668→                          <TableHead className="text-right">Count</TableHead>
+   570→   669→                          <TableHead className="text-right">Revenue</TableHead>
+   571→   670→                        </TableRow>
+   572→   671→                      </TableHeader>
+   573→   672→                      <TableBody>
+   574→   673→                        {statusBreakdown.map((row) => (
+   575→   674→                          <TableRow key={row.status}>
+   576→   675→                            <TableCell>
+   577→   676→                              <Badge
+   578→   677→                                variant="outline"
+   579→   678→                                className={STATUS_COLORS[row.status] || ""}
+   580→   679→                              >
+   581→   680→                                {row.status.replace(/_/g, " ")}
+   582→   681→                              </Badge>
+   583→   682→                            </TableCell>
+   584→   683→                            <TableCell className="text-right">{row.count}</TableCell>
+   585→   684→                            <TableCell className="text-right font-medium">
+   586→   685→                              {formatCurrency(row.revenue)}
+   587→   686→                            </TableCell>
+   588→   687→                          </TableRow>
+   589→   688→                        ))}
+   590→   689→                      </TableBody>
+   591→   690→                    </Table>
+   592→   691→                  </div>
+   593→   692→                )}
+   594→   693→              </CardContent>
+   595→   694→            </Card>
+   596→   695→          </div>
+   597→   696→
+   598→   697→          {/* Daily Revenue Trend Table */}
+   599→   698→          <Card>
+   600→   699→            <CardHeader>
+   601→   700→              <CardTitle>Daily Revenue Trend</CardTitle>
+   602→   701→            </CardHeader>
+   603→   702→            <CardContent>
+   604→   703→              {data.dailyRevenue.length === 0 ? (
+   605→   704→                <p className="text-sm text-muted-foreground text-center py-8">
+   606→   705→                  No daily data available.
+   607→   706→                </p>
+   608→   707→              ) : (
+   609→   708→                <div className="rounded-lg border max-h-72 overflow-y-auto">
+   610→   709→                  <Table>
+   611→   710→                    <TableHeader>
+   612→   711→                      <TableRow>
+   613→   712→                        <TableHead>Date</TableHead>
+   614→   713→                        <TableHead className="text-right">Revenue</TableHead>
+   615→   714→                      </TableRow>
+   616→   715→                    </TableHeader>
+   617→   716→                    <TableBody>
+   618→   717→                      {data.dailyRevenue.map((d) => (
+   619→   718→                        <TableRow key={d.date}>
+   620→   719→                          <TableCell>{d.date}</TableCell>
+   621→   720→                          <TableCell className="text-right font-medium">
+   622→   721→                            {formatCurrency(d.amount)}
+   623→   722→                          </TableCell>
+   624→   723→                        </TableRow>
+   625→   724→                      ))}
+   626→   725→                    </TableBody>
+   627→   726→                  </Table>
+   628→   727→                </div>
+   629→   728→              )}
+   630→   729→            </CardContent>
+   631→   730→          </Card>
+   632→   731→        </>
+   633→   732→      ) : (
+   634→   733→        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+   635→   734→          <BarChart3 className="mb-3 h-10 w-10 opacity-40" />
+   636→   735→          <p className="font-medium">No report data</p>
+   637→   736→          <p className="text-sm">Select a date range and click Apply.</p>
+   638→   737→        </div>
+   639→   738→      )}
+   640→   739→    </div>
+   641→   740→  );
+   642→   741→}
