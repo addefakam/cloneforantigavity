@@ -1,0 +1,23 @@
+
+          /\      |‾‾| /‾‾/   /‾‾/   
+     /\  /  \     |  |/  /   /  /    
+    /  \/    \    |     (   /   ‾‾\  
+   /          \   |  |\  \ |  (‾)  | 
+  / __________ \  |__| \__\ \_____/ .io
+
+     execution: local
+        script: scripts/stress-test.js
+        output: -
+
+     scenarios: (100.00%) 4 scenarios, 50 max VUs, 2m20s max duration (incl. graceful stop):
+              * auth: Up to 50 looping VUs for 30s over 3 stages (gracefulRampDown: 30s, exec: authScenario, gracefulStop: 5s)
+              * list: Up to 50 looping VUs for 30s over 3 stages (gracefulRampDown: 30s, exec: listScenario, startTime: 35s, gracefulStop: 5s)
+              * export: Up to 20 looping VUs for 30s over 3 stages (gracefulRampDown: 30s, exec: exportScenario, startTime: 1m10s, gracefulStop: 5s)
+              * freq: Up to 20 looping VUs for 30s over 3 stages (gracefulRampDown: 30s, exec: freqScenario, startTime: 1m45s, gracefulStop: 5s)
+
+
+running (0m01.0s), 04/50 VUs, 0 complete and 0 interrupted iterations
+auth     [   3% ] 04/50 VUs  01.0s/30.0s
+list   • [   0% ] waiting    34.0s
+export • [   0% ] waiting    1m09.0s
+freq   • [   0% ] waiting    1m44.0s
