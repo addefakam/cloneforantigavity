@@ -181,3 +181,24 @@ Stage Summary:
 - System preferences: app name, currency, language
 - OPERATOR/STAFF settings unchanged — still see guest house settings
 - Commit: eb4d2ff
+---
+Task ID: 1-7
+Agent: Main Agent
+Task: Fix Internal Server Error and improve API response time
+
+Work Log:
+- Investigated root cause of internal server error via thorough codebase analysis
+- Identified 7 distinct issues causing 500 errors (cold-start race condition, missing timeouts, AuthError mishandling, Turso-incompatible upsert, sequential queries)
+- Fixed db.ts: Made schema migration awaitable via getDbReady() function
+- Fixed db.ts: Added queryTimeout (15s) to PrismaClient config
+- Fixed all 60+ API routes: Added AuthError catch blocks (401 instead of 500)
+- Fixed data/route.ts: Replaced upsert() with findFirst+create/update (Turso compatible)
+- Fixed data/route.ts GET: Parallelized 16 sequential queries into Promise.all
+- Fixed reports/route.ts: Parallelized 6 sequential queries into Promise.all
+- Committed and pushed to trigger Vercel rebuild
+
+Stage Summary:
+- 65 files modified, 585 insertions, 331 deletions
+- Push triggered Vercel deployment (commit a21c9da)
+- Key improvements: cold-start race condition eliminated, proper auth error codes, query parallelization
+
