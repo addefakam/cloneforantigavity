@@ -56,3 +56,30 @@ Stage Summary:
 - Debug patches reverted, codebase clean
 - Vercel env vars confirmed working: JWT_SECRET, TURSO_DATABASE_URL, TURSO_AUTH_TOKEN (all scoped to Production)
 - Commits added during this task: 9a8d9d0, 39b5ef4, d8c7036, 5cc267b, 6ce4257 (final state on main is 6ce4257)
+---
+Task ID: 7
+Agent: main
+Task: Add police provider suspension with reason + notification, and pagination
+
+Work Log:
+- Explored GHMS police module: Provider model, ensureSchema, police-room-availability page, providers API, notification system
+- Added 3 suspension columns to Provider in ensureSchema(): suspensionReason, suspendedAt, suspendedBy
+- Created POST /api/police-suspend-provider API route with: reason validation (min 5 chars), provider lookup, status change to SUSPENDED, auto-create WARNING notification to provider, audit log entry
+- Added apiPoliceSuspendProvider() function to api.ts
+- Added Ban + Send icons and Textarea import to police-room-availability-page.tsx
+- Added suspension dialog state (suspendProvider, suspensionReason, providerMessage, susppending)
+- Added handleOpenSuspend() and handleSuspend() async functions
+- Added Suspend button (red Ban icon) in table Actions column next to Eye button
+- Added "Suspend This Guesthouse" button inside the detail dialog
+- Added full Suspension Dialog with: provider info summary, reason textarea (required, 1000 char), message textarea (optional, 500 char), warning banner, Cancel + "Suspend & Send Notification" buttons with loading state
+- Pagination was already implemented from previous session
+- Deployed to Vercel production successfully
+
+Stage Summary:
+- Police can now suspend any APPROVED provider directly from the Room Availability page
+- Suspension records the reason, timestamp, and officer who suspended
+- A WARNING notification is auto-sent to the provider (custom message or default with reason)
+- An audit log entry is created for traceability
+- Suspended providers are excluded from room availability monitoring (API filters APPROVED only)
+- Pagination already working from previous session
+- Deployed: https://guesthousewithpolicemodule-ghjo-five.vercel.app

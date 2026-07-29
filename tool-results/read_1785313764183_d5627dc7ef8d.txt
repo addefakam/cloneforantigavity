@@ -1,0 +1,798 @@
+     1→     1→"use client";
+     2→     2→
+     3→     3→import { useState, useEffect, useCallback, useMemo } from "react";
+     4→     4→import { usePagination } from "@/hooks/use-pagination";
+     5→     5→import { PaginationControls } from "@/components/shared/pagination-controls";
+     6→     6→import {
+     7→     7→  BedDouble,
+     8→     8→  Bed,
+     9→     9→  Users,
+    10→    10→  Search,
+    11→    11→  Phone,
+    12→    12→  MapPin,
+    13→    13→  Building2,
+    14→    14→  AlertTriangle,
+    15→    15→  ChevronDown,
+    16→    16→  ChevronUp,
+    17→    17→  Loader2,
+    18→    18→  Eye,
+    19→    19→  RefreshCw,
+    20→    20→  CalendarDays,
+    21→    21→  BarChart3,
+    22→    22→  Wrench,
+    23→    23→  Lock,
+    24→    24→  Clock,
+    25→    25→  ShieldAlert,
+    26→    26→  TrendingUp,
+    27→    27→  PhoneCall,
+    28→    28→  Mail,
+    29→    29→  Copy,
+    30→    30→} from "lucide-react";
+    31→    31→import { toast } from "sonner";
+    32→    32→import { apiPoliceRoomAvailability } from "@/lib/api";
+    33→    33→
+    34→    34→import { Button } from "@/components/ui/button";
+    35→    35→import { Badge } from "@/components/ui/badge";
+    36→    36→import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+    37→    37→import { Input } from "@/components/ui/input";
+    38→    38→import {
+    39→    39→  Select,
+    40→    40→  SelectContent,
+    41→    41→  SelectItem,
+    42→    42→  SelectTrigger,
+    43→    43→  SelectValue,
+    44→    44→} from "@/components/ui/select";
+    45→    45→import {
+    46→    46→  Dialog,
+    47→    47→  DialogContent,
+    48→    48→  DialogHeader,
+    49→    49→  DialogTitle,
+    50→    50→  DialogDescription,
+    51→    51→} from "@/components/ui/dialog";
+    52→    52→import { Progress } from "@/components/ui/progress";
+    53→    53→import { Separator } from "@/components/ui/separator";
+    54→    54→
+    55→    55→// ── Types ──
+    56→    56→interface RoomInfo {
+    57→    57→  id: string;
+    58→    58→  number: string;
+    59→    59→  name: string;
+    60→    60→  type: string;
+    61→    61→  status: string;
+    62→    62→  floor: number;
+    63→    63→  capacity: number;
+    64→    64→  pricePerNight: number;
+    65→    65→}
+    66→    66→
+    67→    67→interface ProviderStats {
+    68→    68→  id: string;
+    69→    69→  name: string;
+    70→    70→  ownerName: string;
+    71→    71→  phone: string;
+    72→    72→  address: string;
+    73→    73→  licenseNo: string;
+    74→    74→  latitude: number;
+    75→    75→  longitude: number;
+    76→    76→  total: number;
+    77→    77→  available: number;
+    78→    78→  occupied: number;
+    79→    79→  reserved: number;
+    80→    80→  maintenance: number;
+    81→    81→  utilizationRate: number;
+    82→    82→  totalCapacity: number;
+    83→    83→  avgPrice: number;
+    84→    84→  rooms: RoomInfo[];
+    85→    85→}
+    86→    86→
+    87→    87→interface RoomTypeStat {
+    88→    88→  type: string;
+    89→    89→  count: number;
+    90→    90→}
+    91→    91→
+    92→    92→interface Summary {
+    93→    93→  totalProviders: number;
+    94→    94→  totalRooms: number;
+    95→    95→  totalCapacity: number;
+    96→    96→  availableRooms: number;
+    97→    97→  occupiedRooms: number;
+    98→    98→  reservedRooms: number;
+    99→    99→  maintenanceRooms: number;
+   100→   100→  utilizationRate: number;
+   101→   101→}
+   102→   102→
+   103→   103→// ── Suspicious provider detection ──
+   104→   104→interface SuspicionFlag {
+   105→   105→  type: "high_maintenance" | "zero_available" | "all_non_available";
+   106→   106→  message: string;
+   107→   107→  severity: "HIGH" | "MEDIUM";
+   108→   108→}
+   109→   109→
+   110→   110→function detectSuspicion(p: ProviderStats): SuspicionFlag[] {
+   111→   111→  const flags: SuspicionFlag[] = [];
+   112→   112→
+   113→   113→  if (p.total === 0) return flags;
+   114→   114→
+   115→   115→  // More than 30% rooms in maintenance = suspicious hiding
+   116→   116→  const maintPct = (p.maintenance / p.total) * 100;
+   117→   117→  if (maintPct >= 30 && p.maintenance > 0) {
+   118→   118→    flags.push({
+   119→   119→      type: "high_maintenance",
+   120→   120→      message: `${p.maintenance}/${p.total} rooms (${Math.round(maintPct)}%) in maintenance — possible room hiding`,
+   121→   121→      severity: maintPct >= 50 ? "HIGH" : "MEDIUM",
+   122→   122→    });
+   123→   123→  }
+   124→   124→
+   125→   125→  // All rooms occupied/reserved/maintenance with zero available — suspicious during festivals
+   126→   126→  if (p.available === 0 && p.total > 0) {
+   127→   127→    flags.push({
+   128→   128→      type: "zero_available",
+   129→   129→      message: "No available rooms — all occupied, reserved, or in maintenance",
+   130→   130→      severity: "MEDIUM",
+   131→   131→    });
+   132→   132→  }
+   133→   133→
+   134→   134→  return flags;
+   135→   135→}
+   136→   136→
+   137→   137→// ── Helpers ──
+   138→   138→function formatRoomType(type: string): string {
+   139→   139→  return type.charAt(0) + type.slice(1).toLowerCase().replace("_", "-");
+   140→   140→}
+   141→   141→
+   142→   142→function getRoomStatusColor(status: string): string {
+   143→   143→  switch (status) {
+   144→   144→    case "AVAILABLE": return "bg-emerald-100 text-emerald-800 border-emerald-200";
+   145→   145→    case "OCCUPIED": return "bg-blue-100 text-blue-800 border-blue-200";
+   146→   146→    case "RESERVED": return "bg-amber-100 text-amber-800 border-amber-200";
+   147→   147→    case "MAINTENANCE": return "bg-slate-200 text-slate-600 border-slate-300";
+   148→   148→    default: return "bg-slate-100 text-slate-600 border-slate-200";
+   149→   149→  }
+   150→   150→}
+   151→   151→
+   152→   152→function getUtilizationColor(rate: number): string {
+   153→   153→  if (rate >= 90) return "text-rose-600";
+   154→   154→  if (rate >= 70) return "text-amber-600";
+   155→   155→  return "text-emerald-600";
+   156→   156→}
+   157→   157→
+   158→   158→function getUtilizationBarColor(rate: number): string {
+   159→   159→  if (rate >= 90) return "bg-rose-500";
+   160→   160→  if (rate >= 70) return "bg-amber-500";
+   161→   161→  return "bg-emerald-500";
+   162→   162→}
+   163→   163→
+   164→   164→// ── Page ──
+   165→   165→export default function PoliceRoomAvailabilityPage() {
+   166→   166→  const [data, setData] = useState<{
+   167→   167→    summary: Summary;
+   168→   168→    roomTypes: RoomTypeStat[];
+   169→   169→    providers: ProviderStats[];
+   170→   170→  } | null>(null);
+   171→   171→  const [loading, setLoading] = useState(true);
+   172→   172→  const [searchTerm, setSearchTerm] = useState("");
+   173→   173→  const [sortBy, setSortBy] = useState("name");
+   174→   174→  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+   175→   175→  const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
+   176→   176→  const [detailProvider, setDetailProvider] = useState<ProviderStats | null>(null);
+   177→   177→  const [showSuspiciousOnly, setShowSuspiciousOnly] = useState(false);
+   178→   178→  const providerPagination = usePagination({ totalItems: 0, initialPageSize: 10, pageSizeOptions: [5, 10, 20, 50] });
+   179→   179→
+   180→   180→  const fetchData = useCallback(async () => {
+   181→   181→    try {
+   182→   182→      setLoading(true);
+   183→   183→      const result = await apiPoliceRoomAvailability();
+   184→   184→      setData(result);
+   185→   185→    } catch (err: unknown) {
+   186→   186→      toast.error(err instanceof Error ? err.message : "Failed to load data");
+   187→   187→    } finally {
+   188→   188→      setLoading(false);
+   189→   189→    }
+   190→   190→  }, []);
+   191→   191→
+   192→   192→  useEffect(() => {
+   193→   193→    fetchData();
+   194→   194→  }, [fetchData]);
+   195→   195→
+   196→   196→  // ── Compute suspicion for all providers ──
+   197→   197→  const suspicionMap = data?.providers
+   198→   198→    ? new Map(data.providers.map((p) => [p.id, detectSuspicion(p)]))
+   199→   199→    : new Map();
+   200→   200→
+   201→   201→  const suspiciousCount = data?.providers
+   202→   202→    ? data.providers.filter((p) => suspicionMap.get(p.id)?.length > 0).length
+   203→   203→    : 0;
+   204→   204→
+   205→   205→  const highAlertCount = data?.providers
+   206→   206→    ? data.providers.filter((p) =>
+   207→   207→        suspicionMap.get(p.id)?.some((f) => f.severity === "HIGH")
+   208→   208→      ).length
+   209→   209→    : 0;
+   210→   210→
+   211→   211→  // ── Sort providers ──
+   212→   212→  const sortedProviders = data?.providers
+   213→   213→    ? [...data.providers].sort((a, b) => {
+   214→   214→        let cmp = 0;
+   215→   215→        switch (sortBy) {
+   216→   216→          case "name": cmp = a.name.localeCompare(b.name); break;
+   217→   217→          case "rooms": cmp = a.total - b.total; break;
+   218→   218→          case "available": cmp = a.available - b.available; break;
+   219→   219→          case "occupied": cmp = a.occupied - b.occupied; break;
+   220→   220→          case "utilization": cmp = a.utilizationRate - b.utilizationRate; break;
+   221→   221→          case "capacity": cmp = a.totalCapacity - b.totalCapacity; break;
+   222→   222→          case "maintenance": cmp = a.maintenance - b.maintenance; break;
+   223→   223→          default: cmp = a.name.localeCompare(b.name);
+   224→   224→        }
+   225→   225→        return sortDir === "asc" ? cmp : -cmp;
+   226→   226→      })
+   227→   227→    : [];
+   228→   228→
+   229→   229→  // ── Filter by search and suspicious toggle ──
+   230→   230→  const filteredProviders = sortedProviders.filter((p) => {
+   231→   231→    if (showSuspiciousOnly && suspicionMap.get(p.id)?.length === 0) return false;
+   232→   232→    if (!searchTerm.trim()) return true;
+   233→   233→    const term = searchTerm.toLowerCase();
+   234→   234→    return (
+   235→   235→      p.name.toLowerCase().includes(term) ||
+   236→   236→      p.ownerName.toLowerCase().includes(term) ||
+   237→   237→      p.phone.includes(term) ||
+   238→   238→      p.address.toLowerCase().includes(term)
+   239→   239→    );
+   240→   240→  });
+   241→   241→
+   242→   242→  // Reset to page 1 when filters change
+   243→   243→  useEffect(() => {
+   244→   244→    providerPagination.resetToFirst();
+   245→   245→  }, [searchTerm, showSuspiciousOnly]);
+   246→   246→
+   247→   247→  // Update total items when filtered list changes
+   248→   248→  useEffect(() => {
+   249→   249→    providerPagination.setTotalItems(filteredProviders.length);
+   250→   250→  }, [filteredProviders.length]);
+   251→   251→
+   252→   252→  const paginatedProviders = useMemo(() => providerPagination.paginate(filteredProviders), [filteredProviders, providerPagination]);
+   253→   253→
+   254→   254→  if (loading) {
+   255→   255→    return (
+   256→   256→      <div className="flex h-full min-h-[60vh] items-center justify-center">
+   257→   257→        <Loader2 className="size-8 animate-spin text-primary/60" />
+   258→   258→      </div>
+   259→   259→    );
+   260→   260→  }
+   261→   261→
+   262→   262→  if (!data) return null;
+   263→   263→
+   264→   264→  const s = data.summary;
+   265→   265→
+   266→   266→  return (
+   267→   267→    <div className="space-y-6 p-4 md:p-6">
+   268→   268→      {/* ── Header ── */}
+   269→   269→      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+   270→   270→        <div>
+   271→   271→          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+   272→   272→            <BedDouble className="h-6 w-6 text-blue-600" />
+   273→   273→            City-Wide Room Availability
+   274→   274→          </h1>
+   275→   275→          <p className="mt-1 text-sm text-slate-500">
+   276→   276→            Monitor room availability across all guesthouses. Detect suspicious room hiding during festivals and verify through direct contact.
+   277→   277→          </p>
+   278→   278→        </div>
+   279→   279→        <div className="flex items-center gap-2">
+   280→   280→          <Button variant="outline" size="icon" onClick={fetchData} title="Refresh data">
+   281→   281→            <RefreshCw className="h-4 w-4" />
+   282→   282→          </Button>
+   283→   283→        </div>
+   284→   284→      </div>
+   285→   285→
+   286→   286→      {/* ── City Summary Cards ── */}
+   287→   287→      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+   288→   288→        <Card>
+   289→   289→          <CardContent className="p-3">
+   290→   290→            <div className="flex items-center gap-1.5">
+   291→   291→              <Building2 className="h-3.5 w-3.5 text-slate-400" />
+   292→   292→              <p className="text-[10px] text-slate-500">Providers</p>
+   293→   293→            </div>
+   294→   294→            <p className="mt-1 text-xl font-bold text-slate-900">{s.totalProviders}</p>
+   295→   295→          </CardContent>
+   296→   296→        </Card>
+   297→   297→        <Card>
+   298→   298→          <CardContent className="p-3">
+   299→   299→            <div className="flex items-center gap-1.5">
+   300→   300→              <BedDouble className="h-3.5 w-3.5 text-slate-400" />
+   301→   301→              <p className="text-[10px] text-slate-500">Total Rooms</p>
+   302→   302→            </div>
+   303→   303→            <p className="mt-1 text-xl font-bold text-slate-900">{s.totalRooms}</p>
+   304→   304→          </CardContent>
+   305→   305→        </Card>
+   306→   306→        <Card className="border-emerald-200">
+   307→   307→          <CardContent className="p-3">
+   308→   308→            <div className="flex items-center gap-1.5">
+   309→   309→              <Bed className="h-3.5 w-3.5 text-emerald-500" />
+   310→   310→              <p className="text-[10px] text-emerald-600">Available</p>
+   311→   311→            </div>
+   312→   312→            <p className="mt-1 text-xl font-bold text-emerald-700">{s.availableRooms}</p>
+   313→   313→          </CardContent>
+   314→   314→        </Card>
+   315→   315→        <Card className="border-blue-200">
+   316→   316→          <CardContent className="p-3">
+   317→   317→            <div className="flex items-center gap-1.5">
+   318→   318→              <Users className="h-3.5 w-3.5 text-blue-500" />
+   319→   319→              <p className="text-[10px] text-blue-600">Occupied</p>
+   320→   320→            </div>
+   321→   321→            <p className="mt-1 text-xl font-bold text-blue-700">{s.occupiedRooms}</p>
+   322→   322→          </CardContent>
+   323→   323→        </Card>
+   324→   324→        <Card className="border-amber-200">
+   325→   325→          <CardContent className="p-3">
+   326→   326→            <div className="flex items-center gap-1.5">
+   327→   327→              <CalendarDays className="h-3.5 w-3.5 text-amber-500" />
+   328→   328→              <p className="text-[10px] text-amber-600">Reserved</p>
+   329→   329→            </div>
+   330→   330→            <p className="mt-1 text-xl font-bold text-amber-700">{s.reservedRooms}</p>
+   331→   331→          </CardContent>
+   332→   332→        </Card>
+   333→   333→        <Card className="border-slate-300">
+   334→   334→          <CardContent className="p-3">
+   335→   335→            <div className="flex items-center gap-1.5">
+   336→   336→              <Wrench className="h-3.5 w-3.5 text-slate-400" />
+   337→   337→              <p className="text-[10px] text-slate-500">Maintenance</p>
+   338→   338→            </div>
+   339→   339→            <p className="mt-1 text-xl font-bold text-slate-600">{s.maintenanceRooms}</p>
+   340→   340→          </CardContent>
+   341→   341→        </Card>
+   342→   342→        <Card className="border-blue-200">
+   343→   343→          <CardContent className="p-3">
+   344→   344→            <div className="flex items-center gap-1.5">
+   345→   345→              <Users className="h-3.5 w-3.5 text-blue-500" />
+   346→   346→              <p className="text-[10px] text-blue-600">Capacity</p>
+   347→   347→            </div>
+   348→   348→            <p className="mt-1 text-xl font-bold text-blue-700">{s.totalCapacity}</p>
+   349→   349→          </CardContent>
+   350→   350→        </Card>
+   351→   351→        <Card className="border-violet-200">
+   352→   352→          <CardContent className="p-3">
+   353→   353→            <div className="flex items-center gap-1.5">
+   354→   354→              <BarChart3 className="h-3.5 w-3.5 text-violet-500" />
+   355→   355→              <p className="text-[10px] text-violet-600">Utilization</p>
+   356→   356→            </div>
+   357→   357→            <p className={`mt-1 text-xl font-bold ${getUtilizationColor(s.utilizationRate)}`}>
+   358→   358→              {s.utilizationRate}%
+   359→   359→            </p>
+   360→   360→          </CardContent>
+   361→   361→        </Card>
+   362→   362→      </div>
+   363→   363→
+   364→   364→      {/* ── Suspicious Activity Alert Banner ── */}
+   365→   365→      {suspiciousCount > 0 && (
+   366→   366→        <div className={`rounded-lg border p-4 ${
+   367→   367→          highAlertCount > 0
+   368→   368→            ? "border-rose-300 bg-rose-50"
+   369→   369→            : "border-amber-300 bg-amber-50"
+   370→   370→        }`}>
+   371→   371→          <div className="flex items-start gap-3">
+   372→   372→            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+   373→   373→              highAlertCount > 0 ? "bg-rose-100" : "bg-amber-100"
+   374→   374→            }`}>
+   375→   375→              <ShieldAlert className={`h-5 w-5 ${
+   376→   376→                highAlertCount > 0 ? "text-rose-600" : "text-amber-600"
+   377→   377→              }`} />
+   378→   378→            </div>
+   379→   379→            <div className="min-w-0 flex-1">
+   380→   380→              <p className={`text-sm font-bold ${
+   381→   381→                highAlertCount > 0 ? "text-rose-800" : "text-amber-800"
+   382→   382→              }`}>
+   383→   383→                {highAlertCount > 0
+   384→   384→                  ? `${highAlertCount} High Alert` + (highAlertCount !== suspiciousCount ? `, ${suspiciousCount - highAlertCount} Warning` : "")
+   385→   385→                  : `${suspiciousCount} Warning${suspiciousCount > 1 ? "s" : ""}`}
+   386→   386→                {" "}— Suspicious Room Activity Detected
+   387→   387→              </p>
+   388→   388→              <p className={`mt-0.5 text-xs ${
+   389→   389→                highAlertCount > 0 ? "text-rose-700" : "text-amber-700"
+   390→   390→              }`}>
+   391→   391→                {suspiciousCount} provider{suspiciousCount > 1 ? "s" : ""} flagged for potential room hiding. 
+   392→   392→                Providers with excessive maintenance rooms or zero availability may be withholding rooms during peak demand periods. 
+   393→   393→                Use the &quot;Suspicious Only&quot; filter below to investigate, and contact owners directly.
+   394→   394→              </p>
+   395→   395→            </div>
+   396→   396→          </div>
+   397→   397→        </div>
+   398→   398→      )}
+   399→   399→
+   400→   400→      {/* ── Utilization Overview Bar ── */}
+   401→   401→      <Card>
+   402→   402→        <CardContent className="p-4">
+   403→   403→          <div className="flex items-center justify-between text-sm font-medium text-slate-700 mb-2">
+   404→   404→            <span>City-Wide Room Utilization</span>
+   405→   405→            <span className={getUtilizationColor(s.utilizationRate)}>{s.utilizationRate}%</span>
+   406→   406→          </div>
+   407→   407→          <div className="flex h-4 w-full overflow-hidden rounded-full bg-slate-100">
+   408→   408→            {s.totalRooms > 0 && (
+   409→   409→              <>
+   410→   410→                <div className="bg-emerald-500 transition-all" style={{ width: `${(s.availableRooms / s.totalRooms) * 100}%` }} title={`Available: ${s.availableRooms}`} />
+   411→   411→                <div className="bg-blue-500 transition-all" style={{ width: `${(s.occupiedRooms / s.totalRooms) * 100}%` }} title={`Occupied: ${s.occupiedRooms}`} />
+   412→   412→                <div className="bg-amber-500 transition-all" style={{ width: `${(s.reservedRooms / s.totalRooms) * 100}%` }} title={`Reserved: ${s.reservedRooms}`} />
+   413→   413→                <div className="bg-slate-300 transition-all" style={{ width: `${(s.maintenanceRooms / s.totalRooms) * 100}%` }} title={`Maintenance: ${s.maintenanceRooms}`} />
+   414→   414→              </>
+   415→   415→            )}
+   416→   416→          </div>
+   417→   417→          <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-slate-500">
+   418→   418→            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-emerald-500" /> Available ({s.availableRooms})</span>
+   419→   419→            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-blue-500" /> Occupied ({s.occupiedRooms})</span>
+   420→   420→            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-amber-500" /> Reserved ({s.reservedRooms})</span>
+   421→   421→            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-slate-300" /> Maintenance ({s.maintenanceRooms})</span>
+   422→   422→          </div>
+   423→   423→        </CardContent>
+   424→   424→      </Card>
+   425→   425→
+   426→   426→      {/* ── Room Type Distribution ── */}
+   427→   427→      <Card>
+   428→   428→        <CardHeader className="pb-2">
+   429→   429→          <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+   430→   430→            <BedDouble className="h-4 w-4" />
+   431→   431→            Room Types Distribution
+   432→   432→          </CardTitle>
+   433→   433→        </CardHeader>
+   434→   434→        <CardContent>
+   435→   435→          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+   436→   436→            {data.roomTypes.map((rt) => {
+   437→   437→              const pct = s.totalRooms > 0 ? Math.round((rt.count / s.totalRooms) * 100) : 0;
+   438→   438→              return (
+   439→   439→                <div key={rt.type} className="rounded-lg border p-3 text-center">
+   440→   440→                  <p className="text-[11px] text-slate-500">{formatRoomType(rt.type)}</p>
+   441→   441→                  <p className="mt-1 text-xl font-bold text-slate-900">{rt.count}</p>
+   442→   442→                  <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+   443→   443→                    <div className="h-full rounded-full bg-blue-500" style={{ width: `${pct}%` }} />
+   444→   444→                  </div>
+   445→   445→                  <p className="mt-1 text-[10px] text-slate-400">{pct}%</p>
+   446→   446→                </div>
+   447→   447→              );
+   448→   448→            })}
+   449→   449→          </div>
+   450→   450→        </CardContent>
+   451→   451→      </Card>
+   452→   452→
+   453→   453→      {/* ── Provider List ── */}
+   454→   454→      <Card>
+   455→   455→        <CardHeader className="pb-2">
+   456→   456→          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+   457→   457→            <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+   458→   458→              <Building2 className="h-4 w-4" />
+   459→   459→              Provider Room Breakdown
+   460→   460→              <Badge variant="outline" className="ml-1 text-[10px]">{filteredProviders.length} providers</Badge>
+   461→   461→            </CardTitle>
+   462→   462→          </div>
+   463→   463→          <div className="flex flex-col gap-2 sm:flex-row sm:items-center mt-2">
+   464→   464→            <div className="relative flex-1">
+   465→   465→              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+   466→   466→              <Input
+   467→   467→                placeholder="Search by name, owner, phone, address..."
+   468→   468→                value={searchTerm}
+   469→   469→                onChange={(e) => setSearchTerm(e.target.value)}
+   470→   470→                className="pl-8 h-9 text-sm"
+   471→   471→              />
+   472→   472→            </div>
+   473→   473→            <div className="flex items-center gap-2">
+   474→   474→              <Select value={sortBy} onValueChange={(v) => { setSortBy(v); setSortDir("asc"); }}>
+   475→   475→                <SelectTrigger className="h-9 w-[140px] text-sm">
+   476→   476→                  <SelectValue />
+   477→   477→                </SelectTrigger>
+   478→   478→                <SelectContent>
+   479→   479→                  <SelectItem value="name">Name</SelectItem>
+   480→   480→                  <SelectItem value="rooms">Total Rooms</SelectItem>
+   481→   481→                  <SelectItem value="available">Available</SelectItem>
+   482→   482→                  <SelectItem value="occupied">Occupied</SelectItem>
+   483→   483→                  <SelectItem value="maintenance">Maintenance</SelectItem>
+   484→   484→                  <SelectItem value="utilization">Utilization %</SelectItem>
+   485→   485→                  <SelectItem value="capacity">Capacity</SelectItem>
+   486→   486→                </SelectContent>
+   487→   487→              </Select>
+   488→   488→              <Button
+   489→   489→                variant="outline"
+   490→   490→                size="icon"
+   491→   491→                className="h-9 w-9"
+   492→   492→                onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+   493→   493→                title={sortDir === "asc" ? "Sort ascending" : "Sort descending"}
+   494→   494→              >
+   495→   495→                {sortDir === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+   496→   496→              </Button>
+   497→   497→              {suspiciousCount > 0 && (
+   498→   498→                <Button
+   499→   499→                  variant={showSuspiciousOnly ? "default" : "outline"}
+   500→   500→                  size="sm"
+   501→   501→                  className={`h-9 gap-1.5 text-xs ${showSuspiciousOnly ? "bg-rose-600 hover:bg-rose-700" : ""}`}
+   502→   502→                  onClick={() => setShowSuspiciousOnly(!showSuspiciousOnly)}
+   503→   503→                >
+   504→   504→                  <ShieldAlert className="h-3.5 w-3.5" />
+   505→   505→                  {showSuspiciousOnly ? "Showing Suspicious" : `Suspicious (${suspiciousCount})`}
+   506→   506→                </Button>
+   507→   507→              )}
+   508→   508→            </div>
+   509→   509→          </div>
+   510→   510→        </CardHeader>
+   511→   511→        <CardContent className="p-0">
+   512→   512→          <div className="overflow-x-auto">
+   513→   513→            <table className="w-full text-sm">
+   514→   514→              <thead className="bg-slate-50 border-b">
+   515→   515→                <tr>
+   516→   516→                  <th className="px-4 py-2.5 text-left font-medium text-slate-600">Guesthouse</th>
+   517→   517→                  <th className="px-4 py-2.5 text-left font-medium text-slate-600">Owner / Contact</th>
+   518→   518→                  <th className="px-4 py-2.5 text-center font-medium text-slate-600">Rooms</th>
+   519→   519→                  <th className="px-4 py-2.5 text-center font-medium text-slate-600">
+   520→   520→                    <span className="text-emerald-600">Avail</span>
+   521→   521→                    <span className="text-slate-300 mx-0.5">/</span>
+   522→   522→                    <span className="text-blue-600">Occ</span>
+   523→   523→                    <span className="text-slate-300 mx-0.5">/</span>
+   524→   524→                    <span className="text-amber-600">Res</span>
+   525→   525→                    <span className="text-slate-300 mx-0.5">/</span>
+   526→   526→                    <span className="text-slate-400">Maint</span>
+   527→   527→                  </th>
+   528→   528→                  <th className="px-4 py-2.5 text-center font-medium text-slate-600">Capacity</th>
+   529→   529→                  <th className="px-4 py-2.5 text-left font-medium text-slate-600">Utilization</th>
+   530→   530→                  <th className="px-4 py-2.5 text-right font-medium text-slate-600">Actions</th>
+   531→   531→                </tr>
+   532→   532→              </thead>
+   533→   533→              <tbody>
+   534→   534→                {paginatedProviders.length === 0 ? (
+   535→   535→                  <tr>
+   536→   536→                    <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+   537→   537→                      {showSuspiciousOnly ? "No suspicious providers found." : "No providers found."}
+   538→   538→                    </td>
+   539→   539→                  </tr>
+   540→   540→                ) : (
+   541→   541→                  paginatedProviders.map((p) => {
+   542→   542→                    const flags = suspicionMap.get(p.id) || [];
+   543→   543→                    const hasHighAlert = flags.some((f) => f.severity === "HIGH");
+   544→   544→                    return (
+   545→   545→                      <tr
+   546→   546→                        key={p.id}
+   547→   547→                        className={`border-b hover:bg-slate-50 cursor-pointer ${
+   548→   548→                          hasHighAlert ? "bg-rose-50/50 hover:bg-rose-50" : flags.length > 0 ? "bg-amber-50/30" : ""
+   549→   549→                        }`}
+   550→   550→                        onClick={() => setExpandedProvider(expandedProvider === p.id ? null : p.id)}
+   551→   551→                      >
+   552→   552→                        <td className="px-4 py-3">
+   553→   553→                          <div className="flex items-center gap-2">
+   554→   554→                            <p className="font-medium text-slate-900">{p.name}</p>
+   555→   555→                            {hasHighAlert && (
+   556→   556→                              <Badge variant="outline" className="text-[9px] bg-rose-100 text-rose-700 border-rose-300">
+   557→   557→                                HIGH ALERT
+   558→   558→                              </Badge>
+   559→   559→                            )}
+   560→   560→                            {flags.length > 0 && !hasHighAlert && (
+   561→   561→                              <Badge variant="outline" className="text-[9px] bg-amber-100 text-amber-700 border-amber-300">
+   562→   562→                                FLAGGED
+   563→   563→                              </Badge>
+   564→   564→                            )}
+   565→   565→                          </div>
+   566→   566→                          <p className="text-[11px] text-slate-400 truncate max-w-[200px]">{p.address}</p>
+   567→   567→                        </td>
+   568→   568→                        <td className="px-4 py-3">
+   569→   569→                          <p className="text-slate-700">{p.ownerName}</p>
+   570→   570→                          <p className="text-[11px] text-slate-400 flex items-center gap-1">
+   571→   571→                            <Phone className="h-3 w-3" /> {p.phone}
+   572→   572→                          </p>
+   573→   573→                        </td>
+   574→   574→                        <td className="px-4 py-3 text-center">
+   575→   575→                          <span className="font-bold text-slate-900">{p.total}</span>
+   576→   576→                        </td>
+   577→   577→                        <td className="px-4 py-3">
+   578→   578→                          <div className="flex items-center justify-center gap-1.5">
+   579→   579→                            <span className="inline-flex items-center justify-center rounded-md bg-emerald-100 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700 min-w-[24px]">{p.available}</span>
+   580→   580→                            <span className="inline-flex items-center justify-center rounded-md bg-blue-100 px-1.5 py-0.5 text-[11px] font-semibold text-blue-700 min-w-[24px]">{p.occupied}</span>
+   581→   581→                            <span className="inline-flex items-center justify-center rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700 min-w-[24px]">{p.reserved}</span>
+   582→   582→                            <span className={`inline-flex items-center justify-center rounded-md px-1.5 py-0.5 text-[11px] font-semibold min-w-[24px] ${
+   583→   583→                              p.maintenance > 0 && (p.maintenance / p.total) >= 0.3
+   584→   584→                                ? "bg-rose-100 text-rose-700"
+   585→   585→                                : "bg-slate-100 text-slate-500"
+   586→   586→                            }`}>{p.maintenance}</span>
+   587→   587→                          </div>
+   588→   588→                        </td>
+   589→   589→                        <td className="px-4 py-3 text-center">
+   590→   590→                          <span className="text-slate-700">{p.totalCapacity} beds</span>
+   591→   591→                        </td>
+   592→   592→                        <td className="px-4 py-3">
+   593→   593→                          <div className="flex items-center gap-2">
+   594→   594→                            <div className="flex-1 h-1.5 overflow-hidden rounded-full bg-slate-100 max-w-[80px]">
+   595→   595→                              <div className={`h-full rounded-full ${getUtilizationBarColor(p.utilizationRate)}`} style={{ width: `${p.utilizationRate}%` }} />
+   596→   596→                            </div>
+   597→   597→                            <span className={`text-xs font-bold ${getUtilizationColor(p.utilizationRate)}`}>
+   598→   598→                              {p.utilizationRate}%
+   599→   599→                            </span>
+   600→   600→                          </div>
+   601→   601→                        </td>
+   602→   602→                        <td className="px-4 py-3 text-right">
+   603→   603→                          <div className="flex items-center justify-end gap-1">
+   604→   604→                            <Button
+   605→   605→                              variant="ghost"
+   606→   606→                              size="sm"
+   607→   607→                              onClick={(e) => { e.stopPropagation(); setDetailProvider(p); }}
+   608→   608→                              title="View details & contact info"
+   609→   609→                            >
+   610→   610→                              <Eye className="h-3.5 w-3.5" />
+   611→   611→                            </Button>
+   612→   612→                          </div>
+   613→   613→                        </td>
+   614→   614→                      </tr>
+   615→   615→                    );
+   616→   616→                  })
+   617→   617→                )}
+   618→   618→              </tbody>
+   619→   619→            </table>
+   620→   620→          </div>
+   621→   621→        </CardContent>
+   622→   622→      </Card>
+   623→   623→
+   624→   624→      {/* ── Detail Dialog ── */}
+   625→   625→      <Dialog open={!!detailProvider} onOpenChange={() => setDetailProvider(null)}>
+   626→   626→        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+   627→   627→          <DialogHeader>
+   628→   628→            <DialogTitle className="flex items-center gap-2">
+   629→   629→              <Building2 className="h-5 w-5 text-blue-600" />
+   630→   630→              {detailProvider?.name}
+   631→   631→            </DialogTitle>
+   632→   632→            <DialogDescription>
+   633→   633→              Room availability details and direct contact information for police follow-up
+   634→   634→            </DialogDescription>
+   635→   635→          </DialogHeader>
+   636→   636→          {detailProvider && (() => {
+   637→   637→            const flags = suspicionMap.get(detailProvider.id) || [];
+   638→   638→            const hasHighAlert = flags.some((f) => f.severity === "HIGH");
+   639→   639→            return (
+   640→   640→              <div className="space-y-4">
+   641→   641→                {/* Suspicion alerts */}
+   642→   642→                {flags.length > 0 && (
+   643→   643→                  <div className={`rounded-lg border p-3 ${
+   644→   644→                    hasHighAlert ? "border-rose-300 bg-rose-50" : "border-amber-300 bg-amber-50"
+   645→   645→                  }`}>
+   646→   646→                    <div className="flex items-center gap-2 mb-1.5">
+   647→   647→                      <AlertTriangle className={`h-4 w-4 ${hasHighAlert ? "text-rose-600" : "text-amber-600"}`} />
+   648→   648→                      <p className={`text-xs font-bold ${hasHighAlert ? "text-rose-800" : "text-amber-800"}`}>
+   649→   649→                        {hasHighAlert ? "HIGH ALERT" : "WARNING"} — Suspicious Room Activity
+   650→   650→                      </p>
+   651→   651→                    </div>
+   652→   652→                    {flags.map((flag, i) => (
+   653→   653→                      <p key={i} className={`text-xs ${hasHighAlert ? "text-rose-700" : "text-amber-700"}`}>
+   654→   654→                        • {flag.message}
+   655→   655→                      </p>
+   656→   656→                    ))}
+   657→   657→                  </div>
+   658→   658→                )}
+   659→   659→
+   660→   660→                {/* Contact Info */}
+   661→   661→                <div className="rounded-lg border p-4">
+   662→   662→                  <p className="text-xs font-semibold text-slate-700 mb-3 flex items-center gap-1.5">
+   663→   663→                    <PhoneCall className="h-3.5 w-3.5 text-blue-600" />
+   664→   664→                    Direct Contact Information
+   665→   665→                  </p>
+   666→   666→                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+   667→   667→                    <div className="rounded-lg border p-3">
+   668→   668→                      <p className="text-[10px] text-slate-500">Owner</p>
+   669→   669→                      <p className="text-sm font-semibold text-slate-900">{detailProvider.ownerName}</p>
+   670→   670→                    </div>
+   671→   671→                    <div className="rounded-lg border p-3">
+   672→   672→                      <p className="text-[10px] text-slate-500">Phone</p>
+   673→   673→                      <p className="text-sm font-semibold text-blue-700 flex items-center gap-1">
+   674→   674→                        <Phone className="h-3.5 w-3.5" />
+   675→   675→                        {detailProvider.phone}
+   676→   676→                        <button
+   677→   677→                          onClick={() => { navigator.clipboard.writeText(detailProvider.phone); toast.success("Phone copied"); }}
+   678→   678→                          className="ml-auto p-0.5 text-slate-400 hover:text-slate-600"
+   679→   679→                          title="Copy phone"
+   680→   680→                        >
+   681→   681→                          <Copy className="h-3 w-3" />
+   682→   682→                        </button>
+   683→   683→                      </p>
+   684→   684→                    </div>
+   685→   685→                    <div className="rounded-lg border p-3">
+   686→   686→                      <p className="text-[10px] text-slate-500">Address</p>
+   687→   687→                      <p className="text-sm font-semibold text-slate-900 flex items-center gap-1">
+   688→   688→                        <MapPin className="h-3.5 w-3.5 text-rose-500" />
+   689→   689→                        {detailProvider.address || "N/A"}
+   690→   690→                      </p>
+   691→   691→                    </div>
+   692→   692→                    <div className="rounded-lg border p-3">
+   693→   693→                      <p className="text-[10px] text-slate-500">License No.</p>
+   694→   694→                      <p className="text-sm font-semibold text-slate-900">{detailProvider.licenseNo || "N/A"}</p>
+   695→   695→                    </div>
+   696→   696→                  </div>
+   697→   697→                </div>
+   698→   698→
+   699→   699→                <Separator />
+   700→   700→
+   701→   701→                {/* Stats */}
+   702→   702→                <div className="grid grid-cols-5 gap-2">
+   703→   703→                  <div className="rounded-lg border p-2.5 text-center">
+   704→   704→                    <p className="text-[10px] text-slate-500">Total</p>
+   705→   705→                    <p className="text-lg font-bold text-slate-900">{detailProvider.total}</p>
+   706→   706→                  </div>
+   707→   707→                  <div className="rounded-lg border border-emerald-200 p-2.5 text-center">
+   708→   708→                    <p className="text-[10px] text-emerald-600">Available</p>
+   709→   709→                    <p className="text-lg font-bold text-emerald-700">{detailProvider.available}</p>
+   710→   710→                  </div>
+   711→   711→                  <div className="rounded-lg border border-blue-200 p-2.5 text-center">
+   712→   712→                    <p className="text-[10px] text-blue-600">Occupied</p>
+   713→   713→                    <p className="text-lg font-bold text-blue-700">{detailProvider.occupied}</p>
+   714→   714→                  </div>
+   715→   715→                  <div className="rounded-lg border border-amber-200 p-2.5 text-center">
+   716→   716→                    <p className="text-[10px] text-amber-600">Reserved</p>
+   717→   717→                    <p className="text-lg font-bold text-amber-700">{detailProvider.reserved}</p>
+   718→   718→                  </div>
+   719→   719→                  <div className={`rounded-lg border p-2.5 text-center ${
+   720→   720→                    detailProvider.maintenance > 0 && (detailProvider.maintenance / detailProvider.total) >= 0.3
+   721→   721→                      ? "border-rose-300 bg-rose-50"
+   722→   722→                      : "border-slate-300"
+   723→   723→                  }`}>
+   724→   724→                    <p className={`text-[10px] ${
+   725→   725→                      detailProvider.maintenance > 0 && (detailProvider.maintenance / detailProvider.total) >= 0.3
+   726→   726→                        ? "text-rose-600"
+   727→   727→                        : "text-slate-500"
+   728→   728→                    }`}>Maintenance</p>
+   729→   729→                    <p className={`text-lg font-bold ${
+   730→   730→                      detailProvider.maintenance > 0 && (detailProvider.maintenance / detailProvider.total) >= 0.3
+   731→   731→                        ? "text-rose-700"
+   732→   732→                        : "text-slate-600"
+   733→   733→                    }`}>{detailProvider.maintenance}</p>
+   734→   734→                  </div>
+   735→   735→                </div>
+   736→   736→
+   737→   737→                {/* Utilization */}
+   738→   738→                <div className="rounded-lg border p-3">
+   739→   739→                  <div className="flex items-center justify-between text-sm mb-1.5">
+   740→   740→                    <span className="text-slate-600 font-medium">Occupancy Utilization</span>
+   741→   741→                    <span className={`font-bold ${getUtilizationColor(detailProvider.utilizationRate)}`}>
+   742→   742→                      {detailProvider.utilizationRate}%
+   743→   743→                    </span>
+   744→   744→                  </div>
+   745→   745→                  <Progress value={detailProvider.utilizationRate} className="h-2" />
+   746→   746→                  <div className="mt-1.5 flex gap-3 text-[11px] text-slate-400">
+   747→   747→                    <span>Avg Price: {detailProvider.avgPrice.toLocaleString()} ETB/night</span>
+   748→   748→                    <span>Total Capacity: {detailProvider.totalCapacity} beds</span>
+   749→   749→                  </div>
+   750→   750→                </div>
+   751→   751→
+   752→   752→                {/* Room List */}
+   753→   753→                <div>
+   754→   754→                  <p className="text-xs font-semibold text-slate-700 mb-2">
+   755→   755→                    Room Details ({detailProvider.rooms.length})
+   756→   756→                  </p>
+   757→   757→                  <div className="max-h-[300px] overflow-y-auto space-y-1">
+   758→   758→                    {detailProvider.rooms.map((room) => (
+   759→   759→                      <div key={room.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+   760→   760→                        <div className="flex items-center gap-3">
+   761→   761→                          <span className="text-sm font-bold text-slate-900 w-10">#{room.number}</span>
+   762→   762→                          <span className="text-xs text-slate-600">{room.name}</span>
+   763→   763→                        </div>
+   764→   764→                        <div className="flex items-center gap-3">
+   765→   765→                          <span className="text-[11px] text-slate-400">
+   766→   766→                            {formatRoomType(room.type)} | F{room.floor} | {room.capacity} beds | {room.pricePerNight.toLocaleString()} ETB
+   767→   767→                          </span>
+   768→   768→                          <Badge variant="outline" className={`text-[10px] ${getRoomStatusColor(room.status)}`}>
+   769→   769→                            {room.status}
+   770→   770→                          </Badge>
+   771→   771→                        </div>
+   772→   772→                      </div>
+   773→   773→                    ))}
+   774→   774→                  </div>
+   775→   775→                </div>
+   776→   776→              </div>
+   777→   777→            );
+   778→   778→          })()}
+   779→   779→        </DialogContent>
+   780→   780→      </Dialog>
+   781→   781→
+   782→   782→      {/* ── Pagination Controls ── */}
+   783→   783→      {filteredProviders.length > 0 && (
+   784→   784→        <PaginationControls
+   785→   785→          currentPage={providerPagination.currentPage}
+   786→   786→          totalPages={providerPagination.totalPages}
+   787→   787→          pageSize={providerPagination.pageSize}
+   788→   788→          pageSizeOptions={providerPagination.pageSizeOptions}
+   789→   789→          totalItems={filteredProviders.length}
+   790→   790→          rangeInfo={providerPagination.rangeInfo}
+   791→   791→          goToPage={providerPagination.goToPage}
+   792→   792→          setPageSize={providerPagination.setPageSize}
+   793→   793→        />
+   794→   794→      )}
+   795→   795→    </div>
+   796→   796→  );
+   797→   797→}
+   798→   798→
