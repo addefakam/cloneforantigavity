@@ -1,0 +1,618 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect, useCallback } from "react";
+     4→import {
+     5→  BedDouble,
+     6→  Bed,
+     7→  Users,
+     8→  Search,
+     9→  Phone,
+    10→  MapPin,
+    11→  Building2,
+    12→  AlertTriangle,
+    13→  ChevronDown,
+    14→  ChevronUp,
+    15→  Loader2,
+    16→  Eye,
+    17→  RefreshCw,
+    18→  CalendarDays,
+    19→  BarChart3,
+    20→  Wrench,
+    21→  Lock,
+    22→  Clock,
+    23→} from "lucide-react";
+    24→import { toast } from "sonner";
+    25→import { apiPoliceRoomAvailability } from "@/lib/api";
+    26→
+    27→import { Button } from "@/components/ui/button";
+    28→import { Badge } from "@/components/ui/badge";
+    29→import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+    30→import { Input } from "@/components/ui/input";
+    31→import {
+    32→  Select,
+    33→  SelectContent,
+    34→  SelectItem,
+    35→  SelectTrigger,
+    36→  SelectValue,
+    37→} from "@/components/ui/select";
+    38→import {
+    39→  Dialog,
+    40→  DialogContent,
+    41→  DialogHeader,
+    42→  DialogTitle,
+    43→  DialogDescription,
+    44→} from "@/components/ui/dialog";
+    45→import { Progress } from "@/components/ui/progress";
+    46→
+    47→// ── Types ──
+    48→interface RoomInfo {
+    49→  id: string;
+    50→  number: string;
+    51→  name: string;
+    52→  type: string;
+    53→  status: string;
+    54→  floor: number;
+    55→  capacity: number;
+    56→  pricePerNight: number;
+    57→}
+    58→
+    59→interface ProviderStats {
+    60→  id: string;
+    61→  name: string;
+    62→  ownerName: string;
+    63→  phone: string;
+    64→  address: string;
+    65→  licenseNo: string;
+    66→  latitude: number;
+    67→  longitude: number;
+    68→  total: number;
+    69→  available: number;
+    70→  occupied: number;
+    71→  reserved: number;
+    72→  maintenance: number;
+    73→  utilizationRate: number;
+    74→  totalCapacity: number;
+    75→  avgPrice: number;
+    76→  rooms: RoomInfo[];
+    77→}
+    78→
+    79→interface RoomTypeStat {
+    80→  type: string;
+    81→  count: number;
+    82→}
+    83→
+    84→interface Summary {
+    85→  totalProviders: number;
+    86→  totalRooms: number;
+    87→  totalCapacity: number;
+    88→  availableRooms: number;
+    89→  occupiedRooms: number;
+    90→  reservedRooms: number;
+    91→  maintenanceRooms: number;
+    92→  utilizationRate: number;
+    93→}
+    94→
+    95→// ── Helpers ──
+    96→function formatRoomType(type: string): string {
+    97→  return type.charAt(0) + type.slice(1).toLowerCase().replace("_", "-");
+    98→}
+    99→
+   100→function getRoomStatusColor(status: string): string {
+   101→  switch (status) {
+   102→    case "AVAILABLE": return "bg-emerald-100 text-emerald-800 border-emerald-200";
+   103→    case "OCCUPIED": return "bg-blue-100 text-blue-800 border-blue-200";
+   104→    case "RESERVED": return "bg-amber-100 text-amber-800 border-amber-200";
+   105→    case "MAINTENANCE": return "bg-slate-200 text-slate-600 border-slate-300";
+   106→    default: return "bg-slate-100 text-slate-600 border-slate-200";
+   107→  }
+   108→}
+   109→
+   110→function getUtilizationColor(rate: number): string {
+   111→  if (rate >= 90) return "text-rose-600";
+   112→  if (rate >= 70) return "text-amber-600";
+   113→  return "text-emerald-600";
+   114→}
+   115→
+   116→function getUtilizationBarColor(rate: number): string {
+   117→  if (rate >= 90) return "bg-rose-500";
+   118→  if (rate >= 70) return "bg-amber-500";
+   119→  return "bg-emerald-500";
+   120→}
+   121→
+   122→// ── Page ──
+   123→export default function PoliceRoomAvailabilityPage() {
+   124→  const [data, setData] = useState<{
+   125→    summary: Summary;
+   126→    roomTypes: RoomTypeStat[];
+   127→    providers: ProviderStats[];
+   128→  } | null>(null);
+   129→  const [loading, setLoading] = useState(true);
+   130→  const [searchTerm, setSearchTerm] = useState("");
+   131→  const [sortBy, setSortBy] = useState("name");
+   132→  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+   133→  const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
+   134→  const [detailProvider, setDetailProvider] = useState<ProviderStats | null>(null);
+   135→
+   136→  const fetchData = useCallback(async () => {
+   137→    try {
+   138→      setLoading(true);
+   139→      const result = await apiPoliceRoomAvailability();
+   140→      setData(result);
+   141→    } catch (err: unknown) {
+   142→      toast.error(err instanceof Error ? err.message : "Failed to load data");
+   143→    } finally {
+   144→      setLoading(false);
+   145→    }
+   146→  }, []);
+   147→
+   148→  useEffect(() => {
+   149→    fetchData();
+   150→  }, [fetchData]);
+   151→
+   152→  // ── Sort providers ──
+   153→  const sortedProviders = data?.providers
+   154→    ? [...data.providers].sort((a, b) => {
+   155→        let cmp = 0;
+   156→        switch (sortBy) {
+   157→          case "name": cmp = a.name.localeCompare(b.name); break;
+   158→          case "rooms": cmp = a.total - b.total; break;
+   159→          case "available": cmp = a.available - b.available; break;
+   160→          case "occupied": cmp = a.occupied - b.occupied; break;
+   161→          case "utilization": cmp = a.utilizationRate - b.utilizationRate; break;
+   162→          case "capacity": cmp = a.totalCapacity - b.totalCapacity; break;
+   163→          default: cmp = a.name.localeCompare(b.name);
+   164→        }
+   165→        return sortDir === "asc" ? cmp : -cmp;
+   166→      })
+   167→    : [];
+   168→
+   169→  // ── Filter by search ──
+   170→  const filteredProviders = sortedProviders.filter((p) => {
+   171→    if (!searchTerm.trim()) return true;
+   172→    const term = searchTerm.toLowerCase();
+   173→    return (
+   174→      p.name.toLowerCase().includes(term) ||
+   175→      p.ownerName.toLowerCase().includes(term) ||
+   176→      p.phone.includes(term) ||
+   177→      p.address.toLowerCase().includes(term)
+   178→    );
+   179→  });
+   180→
+   181→  if (loading) {
+   182→    return (
+   183→      <div className="flex h-full min-h-[60vh] items-center justify-center">
+   184→        <Loader2 className="size-8 animate-spin text-primary/60" />
+   185→      </div>
+   186→    );
+   187→  }
+   188→
+   189→  if (!data) return null;
+   190→
+   191→  const s = data.summary;
+   192→
+   193→  return (
+   194→    <div className="space-y-6 p-4 md:p-6">
+   195→      {/* ── Header ── */}
+   196→      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+   197→        <div>
+   198→          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+   199→            <BedDouble className="h-6 w-6 text-blue-600" />
+   200→            City-Wide Room Availability
+   201→          </h1>
+   202→          <p className="mt-1 text-sm text-slate-500">
+   203→            Monitor room availability across all guesthouses. Track occupancy and identify suspicious room hiding during festivals.
+   204→          </p>
+   205→        </div>
+   206→        <div className="flex items-center gap-2">
+   207→          <Button variant="outline" size="icon" onClick={fetchData} title="Refresh">
+   208→            <RefreshCw className="h-4 w-4" />
+   209→          </Button>
+   210→        </div>
+   211→      </div>
+   212→
+   213→      {/* ── City Summary Cards ── */}
+   214→      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+   215→        <Card>
+   216→          <CardContent className="p-3">
+   217→            <div className="flex items-center gap-1.5">
+   218→              <Building2 className="h-3.5 w-3.5 text-slate-400" />
+   219→              <p className="text-[10px] text-slate-500">Providers</p>
+   220→            </div>
+   221→            <p className="mt-1 text-xl font-bold text-slate-900">{s.totalProviders}</p>
+   222→          </CardContent>
+   223→        </Card>
+   224→        <Card>
+   225→          <CardContent className="p-3">
+   226→            <div className="flex items-center gap-1.5">
+   227→              <BedDouble className="h-3.5 w-3.5 text-slate-400" />
+   228→              <p className="text-[10px] text-slate-500">Total Rooms</p>
+   229→            </div>
+   230→            <p className="mt-1 text-xl font-bold text-slate-900">{s.totalRooms}</p>
+   231→          </CardContent>
+   232→        </Card>
+   233→        <Card className="border-emerald-200">
+   234→          <CardContent className="p-3">
+   235→            <div className="flex items-center gap-1.5">
+   236→              <Bed className="h-3.5 w-3.5 text-emerald-500" />
+   237→              <p className="text-[10px] text-emerald-600">Available</p>
+   238→            </div>
+   239→            <p className="mt-1 text-xl font-bold text-emerald-700">{s.availableRooms}</p>
+   240→          </CardContent>
+   241→        </Card>
+   242→        <Card className="border-blue-200">
+   243→          <CardContent className="p-3">
+   244→            <div className="flex items-center gap-1.5">
+   245→              <Users className="h-3.5 w-3.5 text-blue-500" />
+   246→              <p className="text-[10px] text-blue-600">Occupied</p>
+   247→            </div>
+   248→            <p className="mt-1 text-xl font-bold text-blue-700">{s.occupiedRooms}</p>
+   249→          </CardContent>
+   250→        </Card>
+   251→        <Card className="border-amber-200">
+   252→          <CardContent className="p-3">
+   253→            <div className="flex items-center gap-1.5">
+   254→              <CalendarDays className="h-3.5 w-3.5 text-amber-500" />
+   255→              <p className="text-[10px] text-amber-600">Reserved</p>
+   256→            </div>
+   257→            <p className="mt-1 text-xl font-bold text-amber-700">{s.reservedRooms}</p>
+   258→          </CardContent>
+   259→        </Card>
+   260→        <Card className="border-slate-300">
+   261→          <CardContent className="p-3">
+   262→            <div className="flex items-center gap-1.5">
+   263→              <Wrench className="h-3.5 w-3.5 text-slate-400" />
+   264→              <p className="text-[10px] text-slate-500">Maintenance</p>
+   265→            </div>
+   266→            <p className="mt-1 text-xl font-bold text-slate-600">{s.maintenanceRooms}</p>
+   267→          </CardContent>
+   268→        </Card>
+   269→        <Card className="border-blue-200">
+   270→          <CardContent className="p-3">
+   271→            <div className="flex items-center gap-1.5">
+   272→              <Users className="h-3.5 w-3.5 text-blue-500" />
+   273→              <p className="text-[10px] text-blue-600">Total Capacity</p>
+   274→            </div>
+   275→            <p className="mt-1 text-xl font-bold text-blue-700">{s.totalCapacity}</p>
+   276→          </CardContent>
+   277→        </Card>
+   278→        <Card className="border-violet-200">
+   279→          <CardContent className="p-3">
+   280→            <div className="flex items-center gap-1.5">
+   281→              <BarChart3 className="h-3.5 w-3.5 text-violet-500" />
+   282→              <p className="text-[10px] text-violet-600">Utilization</p>
+   283→            </div>
+   284→            <p className={`mt-1 text-xl font-bold ${getUtilizationColor(s.utilizationRate)}`}>
+   285→              {s.utilizationRate}%
+   286→            </p>
+   287→          </CardContent>
+   288→        </Card>
+   289→      </div>
+   290→
+   291→      {/* ── Utilization Overview Bar ── */}
+   292→      <Card>
+   293→        <CardContent className="p-4">
+   294→          <div className="flex items-center justify-between text-sm font-medium text-slate-700 mb-2">
+   295→            <span>City-Wide Room Utilization</span>
+   296→            <span className={getUtilizationColor(s.utilizationRate)}>{s.utilizationRate}%</span>
+   297→          </div>
+   298→          <div className="flex h-4 w-full overflow-hidden rounded-full bg-slate-100">
+   299→            {s.totalRooms > 0 && (
+   300→              <>
+   301→                <div className="bg-emerald-500" style={{ width: `${(s.availableRooms / s.totalRooms) * 100}%` }} title={`Available: ${s.availableRooms}`} />
+   302→                <div className="bg-blue-500" style={{ width: `${(s.occupiedRooms / s.totalRooms) * 100}%` }} title={`Occupied: ${s.occupiedRooms}`} />
+   303→                <div className="bg-amber-500" style={{ width: `${(s.reservedRooms / s.totalRooms) * 100}%` }} title={`Reserved: ${s.reservedRooms}`} />
+   304→                <div className="bg-slate-300" style={{ width: `${(s.maintenanceRooms / s.totalRooms) * 100}%` }} title={`Maintenance: ${s.maintenanceRooms}`} />
+   305→              </>
+   306→            )}
+   307→          </div>
+   308→          <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-slate-500">
+   309→            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-emerald-500" /> Available ({s.availableRooms})</span>
+   310→            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-blue-500" /> Occupied ({s.occupiedRooms})</span>
+   311→            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-amber-500" /> Reserved ({s.reservedRooms})</span>
+   312→            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-slate-300" /> Maintenance ({s.maintenanceRooms})</span>
+   313→          </div>
+   314→        </CardContent>
+   315→      </Card>
+   316→
+   317→      {/* ── Room Type Distribution ── */}
+   318→      <Card>
+   319→        <CardHeader className="pb-2">
+   320→          <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+   321→            <BedDouble className="h-4 w-4" />
+   322→            Room Types Distribution
+   323→          </CardTitle>
+   324→        </CardHeader>
+   325→        <CardContent>
+   326→          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+   327→            {data.roomTypes.map((rt) => {
+   328→              const pct = s.totalRooms > 0 ? Math.round((rt.count / s.totalRooms) * 100) : 0;
+   329→              return (
+   330→                <div key={rt.type} className="rounded-lg border p-3 text-center">
+   331→                  <p className="text-[11px] text-slate-500">{formatRoomType(rt.type)}</p>
+   332→                  <p className="mt-1 text-xl font-bold text-slate-900">{rt.count}</p>
+   333→                  <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+   334→                    <div className="h-full rounded-full bg-blue-500" style={{ width: `${pct}%` }} />
+   335→                  </div>
+   336→                  <p className="mt-1 text-[10px] text-slate-400">{pct}%</p>
+   337→                </div>
+   338→              );
+   339→            })}
+   340→          </div>
+   341→        </CardContent>
+   342→      </Card>
+   343→
+   344→      {/* ── Provider List ── */}
+   345→      <Card>
+   346→        <CardHeader className="pb-2">
+   347→          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+   348→            <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+   349→              <Building2 className="h-4 w-4" />
+   350→              Provider Room Breakdown
+   351→              <Badge variant="outline" className="ml-1 text-[10px]">{filteredProviders.length} providers</Badge>
+   352→            </CardTitle>
+   353→          </div>
+   354→          <div className="flex flex-col gap-2 sm:flex-row sm:items-center mt-2">
+   355→            <div className="relative flex-1">
+   356→              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+   357→              <Input
+   358→                placeholder="Search by name, owner, phone, address..."
+   359→                value={searchTerm}
+   360→                onChange={(e) => setSearchTerm(e.target.value)}
+   361→                className="pl-8 h-9 text-sm"
+   362→              />
+   363→            </div>
+   364→            <div className="flex items-center gap-2">
+   365→              <Select value={sortBy} onValueChange={(v) => { setSortBy(v); setSortDir("asc"); }}>
+   366→                <SelectTrigger className="h-9 w-[140px] text-sm">
+   367→                  <SelectValue />
+   368→                </SelectTrigger>
+   369→                <SelectContent>
+   370→                  <SelectItem value="name">Name</SelectItem>
+   371→                  <SelectItem value="rooms">Total Rooms</SelectItem>
+   372→                  <SelectItem value="available">Available</SelectItem>
+   373→                  <SelectItem value="occupied">Occupied</SelectItem>
+   374→                  <SelectItem value="utilization">Utilization %</SelectItem>
+   375→                  <SelectItem value="capacity">Capacity</SelectItem>
+   376→                </SelectContent>
+   377→              </Select>
+   378→              <Button
+   379→                variant="outline"
+   380→                size="icon"
+   381→                className="h-9 w-9"
+   382→                onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+   383→                title={sortDir === "asc" ? "Sort ascending" : "Sort descending"}
+   384→              >
+   385→                {sortDir === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+   386→              </Button>
+   387→            </div>
+   388→          </div>
+   389→        </CardHeader>
+   390→        <CardContent className="p-0">
+   391→          <div className="overflow-x-auto">
+   392→            <table className="w-full text-sm">
+   393→              <thead className="bg-slate-50 border-b">
+   394→                <tr>
+   395→                  <th className="px-4 py-2.5 text-left font-medium text-slate-600">Guesthouse</th>
+   396→                  <th className="px-4 py-2.5 text-left font-medium text-slate-600">Owner / Contact</th>
+   397→                  <th className="px-4 py-2.5 text-center font-medium text-slate-600">Rooms</th>
+   398→                  <th className="px-4 py-2.5 text-center font-medium text-slate-600">
+   399→                    <span className="text-emerald-600">Avail</span>
+   400→                    <span className="text-slate-300 mx-0.5">/</span>
+   401→                    <span className="text-blue-600">Occ</span>
+   402→                    <span className="text-slate-300 mx-0.5">/</span>
+   403→                    <span className="text-amber-600">Res</span>
+   404→                    <span className="text-slate-300 mx-0.5">/</span>
+   405→                    <span className="text-slate-400">Maint</span>
+   406→                  </th>
+   407→                  <th className="px-4 py-2.5 text-center font-medium text-slate-600">Capacity</th>
+   408→                  <th className="px-4 py-2.5 text-left font-medium text-slate-600">Utilization</th>
+   409→                  <th className="px-4 py-2.5 text-right font-medium text-slate-600">Actions</th>
+   410→                </tr>
+   411→              </thead>
+   412→              <tbody>
+   413→                {filteredProviders.length === 0 ? (
+   414→                  <tr>
+   415→                    <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+   416→                      No providers found.
+   417→                    </td>
+   418→                  </tr>
+   419→                ) : (
+   420→                  filteredProviders.map((p) => (
+   421→                    <React.Fragment key={p.id}>
+   422→                      <tr className="border-b hover:bg-slate-50 cursor-pointer" onClick={() => setExpandedProvider(expandedProvider === p.id ? null : p.id)}>
+   423→                        <td className="px-4 py-3">
+   424→                          <p className="font-medium text-slate-900">{p.name}</p>
+   425→                          <p className="text-[11px] text-slate-400 truncate max-w-[200px]">{p.address}</p>
+   426→                        </td>
+   427→                        <td className="px-4 py-3">
+   428→                          <p className="text-slate-700">{p.ownerName}</p>
+   429→                          <p className="text-[11px] text-slate-400 flex items-center gap-1">
+   430→                            <Phone className="h-3 w-3" /> {p.phone}
+   431→                          </p>
+   432→                        </td>
+   433→                        <td className="px-4 py-3 text-center">
+   434→                          <span className="font-bold text-slate-900">{p.total}</span>
+   435→                        </td>
+   436→                        <td className="px-4 py-3">
+   437→                          <div className="flex items-center justify-center gap-1.5">
+   438→                            <span className="inline-flex items-center justify-center rounded-md bg-emerald-100 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700 min-w-[24px]">{p.available}</span>
+   439→                            <span className="inline-flex items-center justify-center rounded-md bg-blue-100 px-1.5 py-0.5 text-[11px] font-semibold text-blue-700 min-w-[24px]">{p.occupied}</span>
+   440→                            <span className="inline-flex items-center justify-center rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700 min-w-[24px]">{p.reserved}</span>
+   441→                            <span className="inline-flex items-center justify-center rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-500 min-w-[24px]">{p.maintenance}</span>
+   442→                          </div>
+   443→                        </td>
+   444→                        <td className="px-4 py-3 text-center">
+   445→                          <span className="text-slate-700">{p.totalCapacity} beds</span>
+   446→                        </td>
+   447→                        <td className="px-4 py-3">
+   448→                          <div className="flex items-center gap-2">
+   449→                            <div className="flex-1 h-1.5 overflow-hidden rounded-full bg-slate-100 max-w-[80px]">
+   450→                              <div className={`h-full rounded-full ${getUtilizationBarColor(p.utilizationRate)}`} style={{ width: `${p.utilizationRate}%` }} />
+   451→                            </div>
+   452→                            <span className={`text-xs font-bold ${getUtilizationColor(p.utilizationRate)}`}>
+   453→                              {p.utilizationRate}%
+   454→                            </span>
+   455→                          </div>
+   456→                        </td>
+   457→                        <td className="px-4 py-3 text-right">
+   458→                          <div className="flex items-center justify-end gap-1">
+   459→                            <Button
+   460→                              variant="ghost"
+   461→                              size="sm"
+   462→                              onClick={(e) => { e.stopPropagation(); setDetailProvider(p); }}
+   463→                              title="View details"
+   464→                            >
+   465→                              <Eye className="h-3.5 w-3.5" />
+   466→                            </Button>
+   467→                          </div>
+   468→                        </td>
+   469→                      </tr>
+   470→                      {/* Expanded row — room list */}
+   471→                      {expandedProvider === p.id && (
+   472→                        <tr className="border-b bg-slate-50/50">
+   473→                          <td colSpan={7} className="px-6 py-3">
+   474→                            <div className="mb-2 flex items-center gap-2">
+   475→                              <BedDouble className="h-4 w-4 text-slate-500" />
+   476→                              <p className="text-xs font-semibold text-slate-600">
+   477→                                Rooms at {p.name} ({p.total})
+   478→                              </p>
+   479→                            </div>
+   480→                            <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-3">
+   481→                              {p.rooms.map((room) => (
+   482→                                <div key={room.id} className="flex items-center justify-between rounded-md border bg-white px-3 py-2">
+   483→                                  <div className="flex items-center gap-2">
+   484→                                    <span className="text-sm font-medium text-slate-900">#{room.number}</span>
+   485→                                    <span className="text-[11px] text-slate-400">{room.name}</span>
+   486→                                  </div>
+   487→                                  <div className="flex items-center gap-2">
+   488→                                    <span className="text-[11px] text-slate-400">
+   489→                                      {formatRoomType(room.type)} &middot; Floor {room.floor} &middot; {room.capacity} beds
+   490→                                    </span>
+   491→                                    <Badge variant="outline" className={`text-[9px] ${getRoomStatusColor(room.status)}`}>
+   492→                                      {room.status}
+   493→                                    </Badge>
+   494→                                  </div>
+   495→                                </div>
+   496→                              ))}
+   497→                            </div>
+   498→                          </td>
+   499→                        </tr>
+   500→                      )}
+   501→                    </React.Fragment>
+   502→                  ))
+   503→                )}
+   504→              </tbody>
+   505→            </table>
+   506→          </div>
+   507→        </CardContent>
+   508→      </Card>
+   509→
+   510→      {/* ── Detail Dialog ── */}
+   511→      <Dialog open={!!detailProvider} onOpenChange={() => setDetailProvider(null)}>
+   512→        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+   513→          <DialogHeader>
+   514→            <DialogTitle className="flex items-center gap-2">
+   515→              <Building2 className="h-5 w-5 text-blue-600" />
+   516→              {detailProvider?.name}
+   517→            </DialogTitle>
+   518→            <DialogDescription>
+   519→              Detailed room availability and contact information
+   520→            </DialogDescription>
+   521→          </DialogHeader>
+   522→          {detailProvider && (
+   523→            <div className="space-y-4">
+   524→              {/* Contact Info */}
+   525→              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+   526→                <div className="rounded-lg border p-3">
+   527→                  <p className="text-[10px] text-slate-500">Owner</p>
+   528→                  <p className="text-sm font-semibold text-slate-900">{detailProvider.ownerName}</p>
+   529→                </div>
+   530→                <div className="rounded-lg border p-3">
+   531→                  <p className="text-[10px] text-slate-500">Phone</p>
+   532→                  <p className="text-sm font-semibold text-slate-900 flex items-center gap-1">
+   533→                    <Phone className="h-3.5 w-3.5 text-blue-500" />
+   534→                    {detailProvider.phone}
+   535→                  </p>
+   536→                </div>
+   537→                <div className="rounded-lg border p-3">
+   538→                  <p className="text-[10px] text-slate-500">Address</p>
+   539→                  <p className="text-sm font-semibold text-slate-900 flex items-center gap-1">
+   540→                    <MapPin className="h-3.5 w-3.5 text-rose-500" />
+   541→                    {detailProvider.address || "N/A"}
+   542→                  </p>
+   543→                </div>
+   544→                <div className="rounded-lg border p-3">
+   545→                  <p className="text-[10px] text-slate-500">License</p>
+   546→                  <p className="text-sm font-semibold text-slate-900">{detailProvider.licenseNo || "N/A"}</p>
+   547→                </div>
+   548→              </div>
+   549→
+   550→              {/* Stats */}
+   551→              <div className="grid grid-cols-5 gap-2">
+   552→                <div className="rounded-lg border p-2.5 text-center">
+   553→                  <p className="text-[10px] text-slate-500">Total</p>
+   554→                  <p className="text-lg font-bold text-slate-900">{detailProvider.total}</p>
+   555→                </div>
+   556→                <div className="rounded-lg border border-emerald-200 p-2.5 text-center">
+   557→                  <p className="text-[10px] text-emerald-600">Available</p>
+   558→                  <p className="text-lg font-bold text-emerald-700">{detailProvider.available}</p>
+   559→                </div>
+   560→                <div className="rounded-lg border border-blue-200 p-2.5 text-center">
+   561→                  <p className="text-[10px] text-blue-600">Occupied</p>
+   562→                  <p className="text-lg font-bold text-blue-700">{detailProvider.occupied}</p>
+   563→                </div>
+   564→                <div className="rounded-lg border border-amber-200 p-2.5 text-center">
+   565→                  <p className="text-[10px] text-amber-600">Reserved</p>
+   566→                  <p className="text-lg font-bold text-amber-700">{detailProvider.reserved}</p>
+   567→                </div>
+   568→                <div className="rounded-lg border border-slate-300 p-2.5 text-center">
+   569→                  <p className="text-[10px] text-slate-500">Maint.</p>
+   570→                  <p className="text-lg font-bold text-slate-600">{detailProvider.maintenance}</p>
+   571→                </div>
+   572→              </div>
+   573→
+   574→              {/* Utilization */}
+   575→              <div className="rounded-lg border p-3">
+   576→                <div className="flex items-center justify-between text-sm mb-1.5">
+   577→                  <span className="text-slate-600 font-medium">Occupancy Utilization</span>
+   578→                  <span className={`font-bold ${getUtilizationColor(detailProvider.utilizationRate)}`}>
+   579→                    {detailProvider.utilizationRate}%
+   580→                  </span>
+   581→                </div>
+   582→                <Progress value={detailProvider.utilizationRate} className="h-2" />
+   583→                <div className="mt-1.5 flex gap-3 text-[11px] text-slate-400">
+   584→                  <span>Avg Price: {detailProvider.avgPrice.toLocaleString()} ETB/night</span>
+   585→                  <span>Total Capacity: {detailProvider.totalCapacity} beds</span>
+   586→                </div>
+   587→              </div>
+   588→
+   589→              {/* Room List */}
+   590→              <div>
+   591→                <p className="text-xs font-semibold text-slate-700 mb-2">Room Details</p>
+   592→                <div className="max-h-[300px] overflow-y-auto space-y-1">
+   593→                  {detailProvider.rooms.map((room) => (
+   594→                    <div key={room.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+   595→                      <div className="flex items-center gap-3">
+   596→                        <span className="text-sm font-bold text-slate-900 w-10">#{room.number}</span>
+   597→                        <span className="text-xs text-slate-600">{room.name}</span>
+   598→                      </div>
+   599→                      <div className="flex items-center gap-3">
+   600→                        <span className="text-[11px] text-slate-400">
+   601→                          {formatRoomType(room.type)} | F{room.floor} | {room.capacity} beds | {room.pricePerNight.toLocaleString()} ETB
+   602→                        </span>
+   603→                        <Badge variant="outline" className={`text-[10px] ${getRoomStatusColor(room.status)}`}>
+   604→                          {room.status}
+   605→                        </Badge>
+   606→                      </div>
+   607→                    </div>
+   608→                  ))}
+   609→                </div>
+   610→              </div>
+   611→            </div>
+   612→          )}
+   613→        </DialogContent>
+   614→      </Dialog>
+   615→    </div>
+   616→  );
+   617→}
+   618→
