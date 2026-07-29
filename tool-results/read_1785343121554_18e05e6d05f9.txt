@@ -1,0 +1,865 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect, useCallback, useRef } from "react";
+     4→import { useAppStore } from "@/lib/store";
+     5→import {
+     6→  apiGetSettings,
+     7→  apiUpdateSettings,
+     8→  apiExportData,
+     9→  apiImportData,
+    10→  apiUpdateUser,
+    11→} from "@/lib/api";
+    12→import { toast } from "sonner";
+    13→import { Button } from "@/components/ui/button";
+    14→import { Input } from "@/components/ui/input";
+    15→import { Label } from "@/components/ui/label";
+    16→import { Skeleton } from "@/components/ui/skeleton";
+    17→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+    18→import { Separator } from "@/components/ui/separator";
+    19→import {
+    20→  Select,
+    21→  SelectContent,
+    22→  SelectItem,
+    23→  SelectTrigger,
+    24→  SelectValue,
+    25→} from "@/components/ui/select";
+    26→import {
+    27→  Settings,
+    28→  Download,
+    29→  Upload,
+    30→  Save,
+    31→  Loader2,
+    32→  User,
+    33→  Shield,
+    34→  Lock,
+    35→  Eye,
+    36→  EyeOff,
+    37→  Mail,
+    38→  Phone,
+    39→  Building2,
+    40→  Globe,
+    41→  Clock,
+    42→  Camera,
+    43→  BadgeCheck,
+    44→} from "lucide-react";
+    45→import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+    46→import { Badge } from "@/components/ui/badge";
+    47→
+    48→// ═══════════════════════════════════════════════════════
+    49→// Provider Settings (OPERATOR / STAFF)
+    50→// ═══════════════════════════════════════════════════════
+    51→
+    52→interface SettingsData {
+    53→  id: string | null;
+    54→  guestHouseName: string;
+    55→  ownerName: string;
+    56→  address: string;
+    57→  phone: string;
+    58→  email: string;
+    59→  currency: string;
+    60→  taxRate: number;
+    61→  language: string;
+    62→  checkInTime: string;
+    63→  checkOutTime: string;
+    64→}
+    65→
+    66→const DEFAULTS: SettingsData = {
+    67→  id: null,
+    68→  guestHouseName: "Guest House",
+    69→  ownerName: "",
+    70→  address: "",
+    71→  phone: "",
+    72→  email: "",
+    73→  currency: "ETB",
+    74→  taxRate: 0,
+    75→  language: "en",
+    76→  checkInTime: "14:00",
+    77→  checkOutTime: "12:00",
+    78→};
+    79→
+    80→function ProviderSettings() {
+    81→  const { refreshKey, triggerRefresh } = useAppStore();
+    82→  const [settings, setSettings] = useState<SettingsData>(DEFAULTS);
+    83→  const [loading, setLoading] = useState(true);
+    84→  const [saving, setSaving] = useState(false);
+    85→  const [exporting, setExporting] = useState(false);
+    86→  const [importing, setImporting] = useState(false);
+    87→  const fileRef = useRef<HTMLInputElement>(null);
+    88→
+    89→  const fetchSettings = useCallback(async () => {
+    90→    setLoading(true);
+    91→    try {
+    92→      const data = await apiGetSettings();
+    93→      setSettings({
+    94→        id: data.id || null,
+    95→        guestHouseName: data.guestHouseName ?? DEFAULTS.guestHouseName,
+    96→        ownerName: data.ownerName ?? "",
+    97→        address: data.address ?? "",
+    98→        phone: data.phone ?? "",
+    99→        email: data.email ?? "",
+   100→        currency: data.currency ?? "ETB",
+   101→        taxRate: data.taxRate ?? 0,
+   102→        language: data.language ?? "en",
+   103→        checkInTime: data.checkInTime ?? "14:00",
+   104→        checkOutTime: data.checkOutTime ?? "12:00",
+   105→      });
+   106→    } catch {
+   107→      toast.error("Failed to load settings");
+   108→    } finally {
+   109→      setLoading(false);
+   110→    }
+   111→  }, []);
+   112→
+   113→  useEffect(() => {
+   114→    fetchSettings();
+   115→  }, [fetchSettings, refreshKey]);
+   116→
+   117→  const update = (key: keyof SettingsData, value: string | number) => {
+   118→    setSettings((prev) => ({ ...prev, [key]: value }));
+   119→  };
+   120→
+   121→  const handleSave = async () => {
+   122→    setSaving(true);
+   123→    try {
+   124→      await apiUpdateSettings({
+   125→        guestHouseName: settings.guestHouseName,
+   126→        ownerName: settings.ownerName,
+   127→        address: settings.address,
+   128→        phone: settings.phone,
+   129→        email: settings.email,
+   130→        currency: settings.currency,
+   131→        taxRate: settings.taxRate,
+   132→        language: settings.language,
+   133→        checkInTime: settings.checkInTime,
+   134→        checkOutTime: settings.checkOutTime,
+   135→      });
+   136→      toast.success("Settings saved");
+   137→      triggerRefresh();
+   138→    } catch (err: unknown) {
+   139→      const msg = err instanceof Error ? err.message : "Failed to save settings";
+   140→      toast.error(msg);
+   141→    } finally {
+   142→      setSaving(false);
+   143→    }
+   144→  };
+   145→
+   146→  const handleExport = async () => {
+   147→    setExporting(true);
+   148→    try {
+   149→      const data = await apiExportData();
+   150→      const json = JSON.stringify(data, null, 2);
+   151→      const blob = new Blob([json], { type: "application/json" });
+   152→      const url = URL.createObjectURL(blob);
+   153→      const a = document.createElement("a");
+   154→      a.href = url;
+   155→      a.download = `ghms-export-${new Date().toISOString().split("T")[0]}.json`;
+   156→      a.click();
+   157→      URL.revokeObjectURL(url);
+   158→      toast.success("Data exported successfully");
+   159→    } catch (err: unknown) {
+   160→      const msg = err instanceof Error ? err.message : "Export failed";
+   161→      toast.error(msg);
+   162→    } finally {
+   163→      setExporting(false);
+   164→    }
+   165→  };
+   166→
+   167→  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+   168→    const file = e.target.files?.[0];
+   169→    if (!file) return;
+   170→
+   171→    setImporting(true);
+   172→    try {
+   173→      const text = await file.text();
+   174→      const data = JSON.parse(text);
+   175→      await apiImportData(data);
+   176→      toast.success("Data imported successfully");
+   177→      triggerRefresh();
+   178→    } catch (err: unknown) {
+   179→      const msg = err instanceof Error ? err.message : "Import failed";
+   180→      toast.error(msg);
+   181→    } finally {
+   182→      setImporting(false);
+   183→      if (fileRef.current) fileRef.current.value = "";
+   184→    }
+   185→  };
+   186→
+   187→  if (loading) {
+   188→    return (
+   189→      <div className="space-y-6 p-4 md:p-6">
+   190→        <Skeleton className="h-8 w-40" />
+   191→        <Skeleton className="h-96 rounded-xl" />
+   192→      </div>
+   193→    );
+   194→  }
+   195→
+   196→  return (
+   197→    <div className="space-y-6 max-w-2xl p-4 md:p-6">
+   198→      <div>
+   199→        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+   200→        <p className="text-sm text-muted-foreground">
+   201→          Configure your guest house preferences.
+   202→        </p>
+   203→      </div>
+   204→
+   205→      {/* General Settings */}
+   206→      <Card>
+   207→        <CardHeader>
+   208→          <CardTitle className="flex items-center gap-2">
+   209→            <Settings className="h-5 w-5" />
+   210→            General Settings
+   211→          </CardTitle>
+   212→          <CardDescription>
+   213→            Basic information about your guest house.
+   214→          </CardDescription>
+   215→        </CardHeader>
+   216→        <CardContent className="space-y-4">
+   217→          <div className="grid gap-2">
+   218→            <Label htmlFor="ghName">Guest House Name</Label>
+   219→            <Input
+   220→              id="ghName"
+   221→              value={settings.guestHouseName}
+   222→              onChange={(e) => update("guestHouseName", e.target.value)}
+   223→              placeholder="My Guest House"
+   224→            />
+   225→          </div>
+   226→          <div className="grid gap-2">
+   227→            <Label htmlFor="ownerName">Owner Name</Label>
+   228→            <Input
+   229→              id="ownerName"
+   230→              value={settings.ownerName}
+   231→              onChange={(e) => update("ownerName", e.target.value)}
+   232→              placeholder="Owner full name"
+   233→            />
+   234→          </div>
+   235→          <div className="grid gap-2">
+   236→            <Label htmlFor="address">Address</Label>
+   237→            <Input
+   238→              id="address"
+   239→              value={settings.address}
+   240→              onChange={(e) => update("address", e.target.value)}
+   241→              placeholder="Street, City, Country"
+   242→            />
+   243→          </div>
+   244→          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   245→            <div className="grid gap-2">
+   246→              <Label htmlFor="phone">Phone</Label>
+   247→              <Input
+   248→                id="phone"
+   249→                value={settings.phone}
+   250→                onChange={(e) => update("phone", e.target.value)}
+   251→                placeholder="+251..."
+   252→              />
+   253→            </div>
+   254→            <div className="grid gap-2">
+   255→              <Label htmlFor="email">Email</Label>
+   256→              <Input
+   257→                id="email"
+   258→                type="email"
+   259→                value={settings.email}
+   260→                onChange={(e) => update("email", e.target.value)}
+   261→                placeholder="info@example.com"
+   262→              />
+   263→            </div>
+   264→          </div>
+   265→          <Separator />
+   266→          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+   267→            <div className="grid gap-2">
+   268→              <Label htmlFor="currency">Currency</Label>
+   269→              <Select
+   270→                value={settings.currency}
+   271→                onValueChange={(v) => update("currency", v)}
+   272→              >
+   273→                <SelectTrigger className="w-full">
+   274→                  <SelectValue />
+   275→                </SelectTrigger>
+   276→                <SelectContent>
+   277→                  <SelectItem value="ETB">ETB (Birr)</SelectItem>
+   278→                  <SelectItem value="USD">USD (Dollar)</SelectItem>
+   279→                  <SelectItem value="EUR">EUR (Euro)</SelectItem>
+   280→                </SelectContent>
+   281→              </Select>
+   282→            </div>
+   283→            <div className="grid gap-2">
+   284→              <Label htmlFor="taxRate">Tax Rate (%)</Label>
+   285→              <Input
+   286→                id="taxRate"
+   287→                type="number"
+   288→                min={0}
+   289→                max={100}
+   290→                step={0.5}
+   291→                value={settings.taxRate}
+   292→                onChange={(e) => update("taxRate", parseFloat(e.target.value) || 0)}
+   293→              />
+   294→            </div>
+   295→            <div className="grid gap-2">
+   296→              <Label htmlFor="language">Language</Label>
+   297→              <Select
+   298→                value={settings.language}
+   299→                onValueChange={(v) => update("language", v)}
+   300→              >
+   301→                <SelectTrigger className="w-full">
+   302→                  <SelectValue />
+   303→                </SelectTrigger>
+   304→                <SelectContent>
+   305→                  <SelectItem value="en">English</SelectItem>
+   306→                  <SelectItem value="am">አማርኛ</SelectItem>
+   307→                </SelectContent>
+   308→              </Select>
+   309→            </div>
+   310→          </div>
+   311→          <Separator />
+   312→          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   313→            <div className="grid gap-2">
+   314→              <Label htmlFor="checkIn">Check-in Time</Label>
+   315→              <Input
+   316→                id="checkIn"
+   317→                type="time"
+   318→                value={settings.checkInTime}
+   319→                onChange={(e) => update("checkInTime", e.target.value)}
+   320→              />
+   321→            </div>
+   322→            <div className="grid gap-2">
+   323→              <Label htmlFor="checkOut">Check-out Time</Label>
+   324→              <Input
+   325→                id="checkOut"
+   326→                type="time"
+   327→                value={settings.checkOutTime}
+   328→                onChange={(e) => update("checkOutTime", e.target.value)}
+   329→              />
+   330→            </div>
+   331→          </div>
+   332→
+   333→          <div className="flex justify-end pt-2">
+   334→            <Button onClick={handleSave} disabled={saving}>
+   335→              {saving ? (
+   336→                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+   337→              ) : (
+   338→                <Save className="mr-2 h-4 w-4" />
+   339→              )}
+   340→              Save Settings
+   341→            </Button>
+   342→          </div>
+   343→        </CardContent>
+   344→      </Card>
+   345→
+   346→      {/* Data Management */}
+   347→      <Card>
+   348→        <CardHeader>
+   349→          <CardTitle>Data Management</CardTitle>
+   350→          <CardDescription>
+   351→            Export or import all guest house data as JSON.
+   352→          </CardDescription>
+   353→        </CardHeader>
+   354→        <CardContent className="space-y-4">
+   355→          <div className="flex flex-col sm:flex-row gap-3">
+   356→            <Button
+   357→              variant="outline"
+   358→              className="flex-1"
+   359→              onClick={handleExport}
+   360→              disabled={exporting}
+   361→            >
+   362→              {exporting ? (
+   363→                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+   364→              ) : (
+   365→                <Download className="mr-2 h-4 w-4" />
+   366→              )}
+   367→              Export All Data
+   368→            </Button>
+   369→
+   370→            <input
+   371→              ref={fileRef}
+   372→              type="file"
+   373→              accept=".json"
+   374→              className="hidden"
+   375→              onChange={handleImport}
+   376→            />
+   377→            <Button
+   378→              variant="outline"
+   379→              className="flex-1"
+   380→              onClick={() => fileRef.current?.click()}
+   381→              disabled={importing}
+   382→            >
+   383→              {importing ? (
+   384→                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+   385→              ) : (
+   386→                <Upload className="mr-2 h-4 w-4" />
+   387→              )}
+   388→              Import Data
+   389→            </Button>
+   390→          </div>
+   391→          <p className="text-xs text-muted-foreground">
+   392→            Export downloads a JSON file with all your data. Importing will merge
+   393→            data by upserting records by ID.
+   394→          </p>
+   395→        </CardContent>
+   396→      </Card>
+   397→    </div>
+   398→  );
+   399→}
+   400→
+   401→// ═══════════════════════════════════════════════════════
+   402→// SUPERUSER Profile Settings
+   403→// ═══════════════════════════════════════════════════════
+   404→
+   405→function SuperuserSettings() {
+   406→  const { currentUser, setCurrentUser, triggerRefresh } = useAppStore();
+   407→  const [loading, setLoading] = useState(false);
+   408→
+   409→  // Profile form
+   410→  const [name, setName] = useState(currentUser?.name || "");
+   411→  const [username, setUsername] = useState(currentUser?.username || "");
+   412→  const [email, setEmail] = useState("");
+   413→  const [phone, setPhone] = useState("");
+   414→  const [saving, setSaving] = useState(false);
+   415→
+   416→  // Password form
+   417→  const [currentPassword, setCurrentPassword] = useState("");
+   418→  const [newPassword, setNewPassword] = useState("");
+   419→  const [confirmPassword, setConfirmPassword] = useState("");
+   420→  const [showCurrent, setShowCurrent] = useState(false);
+   421→  const [showNew, setShowNew] = useState(false);
+   422→  const [changingPassword, setChangingPassword] = useState(false);
+   423→
+   424→  // System settings form
+   425→  const [appName, setAppName] = useState("GHMS");
+   426→  const [defaultCurrency, setDefaultCurrency] = useState("ETB");
+   427→  const [defaultLanguage, setDefaultLanguage] = useState("en");
+   428→  const [savingSystem, setSavingSystem] = useState(false);
+   429→
+   430→  useEffect(() => {
+   431→    if (currentUser) {
+   432→      setName(currentUser.name);
+   433→      setUsername(currentUser.username);
+   434→    }
+   435→  }, [currentUser]);
+   436→
+   437→  const handleProfileSave = async () => {
+   438→    if (!currentUser) return;
+   439→    if (!name.trim()) {
+   440→      toast.error("Name is required");
+   441→      return;
+   442→    }
+   443→    if (!username.trim()) {
+   444→      toast.error("Username is required");
+   445→      return;
+   446→    }
+   447→    if (username.length < 3) {
+   448→      toast.error("Username must be at least 3 characters");
+   449→      return;
+   450→    }
+   451→
+   452→    setSaving(true);
+   453→    try {
+   454→      const data: Record<string, unknown> = { name: name.trim(), username: username.trim() };
+   455→      if (email.trim()) data.email = email.trim();
+   456→      if (phone.trim()) data.phone = phone.trim();
+   457→
+   458→      await apiUpdateUser(currentUser.id, data);
+   459→
+   460→      // Update local session
+   461→      setCurrentUser({
+   462→        ...currentUser,
+   463→        name: name.trim(),
+   464→        username: username.trim(),
+   465→      });
+   466→
+   467→      toast.success("Profile updated successfully");
+   468→      triggerRefresh();
+   469→    } catch (err: unknown) {
+   470→      const msg = err instanceof Error ? err.message : "Failed to update profile";
+   471→      toast.error(msg);
+   472→    } finally {
+   473→      setSaving(false);
+   474→    }
+   475→  };
+   476→
+   477→  const handlePasswordChange = async () => {
+   478→    if (!currentUser) return;
+   479→    if (!currentPassword) {
+   480→      toast.error("Current password is required");
+   481→      return;
+   482→    }
+   483→    if (!newPassword) {
+   484→      toast.error("New password is required");
+   485→      return;
+   486→    }
+   487→    if (newPassword.length < 6) {
+   488→      toast.error("New password must be at least 6 characters");
+   489→      return;
+   490→    }
+   491→    if (newPassword !== confirmPassword) {
+   492→      toast.error("New passwords do not match");
+   493→      return;
+   494→    }
+   495→    if (currentPassword === newPassword) {
+   496→      toast.error("New password must be different from current password");
+   497→      return;
+   498→    }
+   499→
+   500→    setChangingPassword(true);
+   501→    try {
+   502→      await apiUpdateUser(currentUser.id, {
+   503→        password: newPassword,
+   504→      });
+   505→      toast.success("Password changed successfully");
+   506→      setCurrentPassword("");
+   507→      setNewPassword("");
+   508→      setConfirmPassword("");
+   509→      setShowCurrent(false);
+   510→      setShowNew(false);
+   511→    } catch (err: unknown) {
+   512→      const msg = err instanceof Error ? err.message : "Failed to change password";
+   513→      toast.error(msg);
+   514→    } finally {
+   515→      setChangingPassword(false);
+   516→    }
+   517→  };
+   518→
+   519→  const handleSystemSave = async () => {
+   520→    setSavingSystem(true);
+   521→    try {
+   522→      await apiUpdateSettings({
+   523→        guestHouseName: appName,
+   524→        currency: defaultCurrency,
+   525→        language: defaultLanguage,
+   526→      });
+   527→      toast.success("System settings saved");
+   528→      triggerRefresh();
+   529→    } catch (err: unknown) {
+   530→      const msg = err instanceof Error ? err.message : "Failed to save system settings";
+   531→      toast.error(msg);
+   532→    } finally {
+   533→      setSavingSystem(false);
+   534→    }
+   535→  };
+   536→
+   537→  if (loading) {
+   538→    return (
+   539→      <div className="space-y-6 p-4 md:p-6">
+   540→        <Skeleton className="h-8 w-40" />
+   541→        <Skeleton className="h-96 rounded-xl" />
+   542→      </div>
+   543→    );
+   544→  }
+   545→
+   546→  const getInitials = (n: string) =>
+   547→    n.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
+   548→
+   549→  return (
+   550→    <div className="space-y-6 max-w-2xl p-4 md:p-6">
+   551→      <div>
+   552→        <h1 className="text-2xl font-bold tracking-tight">My Profile</h1>
+   553→        <p className="text-sm text-muted-foreground">
+   554→          Manage your System Admin account and preferences.
+   555→        </p>
+   556→      </div>
+   557→
+   558→      {/* ── Profile Card ── */}
+   559→      <Card>
+   560→        <CardHeader>
+   561→          <CardTitle className="flex items-center gap-2">
+   562→            <User className="h-5 w-5" />
+   563→            Profile Information
+   564→          </CardTitle>
+   565→          <CardDescription>
+   566→            Update your personal details and contact information.
+   567→          </CardDescription>
+   568→        </CardHeader>
+   569→        <CardContent className="space-y-5">
+   570→          {/* Avatar + Role Badge */}
+   571→          <div className="flex items-center gap-4">
+   572→            <Avatar className="h-16 w-16 ring-2 ring-primary/20">
+   573→              <AvatarFallback className="bg-primary/10 text-lg font-bold text-primary">
+   574→                {getInitials(name || "SA")}
+   575→              </AvatarFallback>
+   576→            </Avatar>
+   577→            <div>
+   578→              <p className="font-semibold text-slate-900">{name || "System Admin"}</p>
+   579→              <div className="mt-1 flex items-center gap-2">
+   580→                <Badge
+   581→                  variant="outline"
+   582→                  className="bg-amber-100 text-amber-700 border-amber-200 text-xs font-semibold"
+   583→                >
+   584→                  <Shield className="mr-1 size-3" />
+   585→                  Superuser
+   586→                </Badge>
+   587→                <Badge variant="outline" className="text-xs">
+   588→                  <BadgeCheck className="mr-1 size-3 text-emerald-500" />
+   589→                  System Administrator
+   590→                </Badge>
+   591→              </div>
+   592→              <p className="mt-1 text-xs text-slate-400">
+   593→                @username: {currentUser?.username}
+   594→              </p>
+   595→            </div>
+   596→          </div>
+   597→
+   598→          <Separator />
+   599→
+   600→          {/* Name & Username */}
+   601→          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   602→            <div className="grid gap-2">
+   603→              <Label htmlFor="su-name">
+   604→                <User className="inline mr-1.5 size-3.5" />
+   605→                Full Name
+   606→              </Label>
+   607→              <Input
+   608→                id="su-name"
+   609→                value={name}
+   610→                onChange={(e) => setName(e.target.value)}
+   611→                placeholder="Your full name"
+   612→              />
+   613→            </div>
+   614→            <div className="grid gap-2">
+   615→              <Label htmlFor="su-username">
+   616→                <BadgeCheck className="inline mr-1.5 size-3.5" />
+   617→                Username
+   618→              </Label>
+   619→              <Input
+   620→                id="su-username"
+   621→                value={username}
+   622→                onChange={(e) => setUsername(e.target.value)}
+   623→                placeholder="Username"
+   624→              />
+   625→            </div>
+   626→          </div>
+   627→
+   628→          {/* Email & Phone */}
+   629→          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   630→            <div className="grid gap-2">
+   631→              <Label htmlFor="su-email">
+   632→                <Mail className="inline mr-1.5 size-3.5" />
+   633→                Email Address
+   634→              </Label>
+   635→              <Input
+   636→                id="su-email"
+   637→                type="email"
+   638→                value={email}
+   639→                onChange={(e) => setEmail(e.target.value)}
+   640→                placeholder="admin@example.com"
+   641→              />
+   642→            </div>
+   643→            <div className="grid gap-2">
+   644→              <Label htmlFor="su-phone">
+   645→                <Phone className="inline mr-1.5 size-3.5" />
+   646→                Phone Number
+   647→              </Label>
+   648→              <Input
+   649→                id="su-phone"
+   650→                type="tel"
+   651→                value={phone}
+   652→                onChange={(e) => setPhone(e.target.value)}
+   653→                placeholder="+251..."
+   654→              />
+   655→            </div>
+   656→          </div>
+   657→
+   658→          <div className="flex justify-end pt-1">
+   659→            <Button onClick={handleProfileSave} disabled={saving}>
+   660→              {saving ? (
+   661→                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+   662→              ) : (
+   663→                <Save className="mr-2 h-4 w-4" />
+   664→              )}
+   665→              Save Profile
+   666→            </Button>
+   667→          </div>
+   668→        </CardContent>
+   669→      </Card>
+   670→
+   671→      {/* ── Security Card ── */}
+   672→      <Card>
+   673→        <CardHeader>
+   674→          <CardTitle className="flex items-center gap-2">
+   675→            <Lock className="h-5 w-5" />
+   676→            Change Password
+   677→          </CardTitle>
+   678→          <CardDescription>
+   679→            Update your password to keep your account secure.
+   680→          </CardDescription>
+   681→        </CardHeader>
+   682→        <CardContent className="space-y-4">
+   683→          <div className="grid gap-2">
+   684→            <Label htmlFor="su-current-pw">Current Password</Label>
+   685→            <div className="relative">
+   686→              <Input
+   687→                id="su-current-pw"
+   688→                type={showCurrent ? "text" : "password"}
+   689→                value={currentPassword}
+   690→                onChange={(e) => setCurrentPassword(e.target.value)}
+   691→                placeholder="Enter current password"
+   692→                className="pr-10"
+   693→              />
+   694→              <button
+   695→                type="button"
+   696→                onClick={() => setShowCurrent(!showCurrent)}
+   697→                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+   698→              >
+   699→                {showCurrent ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+   700→              </button>
+   701→            </div>
+   702→          </div>
+   703→
+   704→          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   705→            <div className="grid gap-2">
+   706→              <Label htmlFor="su-new-pw">New Password</Label>
+   707→              <div className="relative">
+   708→                <Input
+   709→                  id="su-new-pw"
+   710→                  type={showNew ? "text" : "password"}
+   711→                  value={newPassword}
+   712→                  onChange={(e) => setNewPassword(e.target.value)}
+   713→                  placeholder="Min. 6 characters"
+   714→                  className="pr-10"
+   715→                />
+   716→                <button
+   717→                  type="button"
+   718→                  onClick={() => setShowNew(!showNew)}
+   719→                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+   720→                >
+   721→                  {showNew ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+   722→                </button>
+   723→              </div>
+   724→            </div>
+   725→            <div className="grid gap-2">
+   726→              <Label htmlFor="su-confirm-pw">Confirm New Password</Label>
+   727→              <Input
+   728→                id="su-confirm-pw"
+   729→                type="password"
+   730→                value={confirmPassword}
+   731→                onChange={(e) => setConfirmPassword(e.target.value)}
+   732→                placeholder="Re-enter new password"
+   733→              />
+   734→            </div>
+   735→          </div>
+   736→
+   737→          {newPassword && confirmPassword && newPassword !== confirmPassword && (
+   738→            <p className="text-xs text-rose-500 font-medium">
+   739→              Passwords do not match
+   740→            </p>
+   741→          )}
+   742→
+   743→          {newPassword && newPassword.length > 0 && newPassword.length < 6 && (
+   744→            <p className="text-xs text-rose-500 font-medium">
+   745→              Password must be at least 6 characters
+   746→            </p>
+   747→          )}
+   748→
+   749→          <div className="flex justify-end pt-1">
+   750→            <Button
+   751→              variant="outline"
+   752→              onClick={handlePasswordChange}
+   753→              disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
+   754→            >
+   755→              {changingPassword ? (
+   756→                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+   757→              ) : (
+   758→                <Lock className="mr-2 h-4 w-4" />
+   759→              )}
+   760→              Update Password
+   761→            </Button>
+   762→          </div>
+   763→        </CardContent>
+   764→      </Card>
+   765→
+   766→      {/* ── System Preferences ── */}
+   767→      <Card>
+   768→        <CardHeader>
+   769→          <CardTitle className="flex items-center gap-2">
+   770→            <Globe className="h-5 w-5" />
+   771→            System Preferences
+   772→          </CardTitle>
+   773→          <CardDescription>
+   774→            Configure default settings for the entire system.
+   775→          </CardDescription>
+   776→        </CardHeader>
+   777→        <CardContent className="space-y-4">
+   778→          <div className="grid gap-2">
+   779→            <Label htmlFor="su-appname">
+   780→              <Building2 className="inline mr-1.5 size-3.5" />
+   781→              Application Name
+   782→            </Label>
+   783→            <Input
+   784→              id="su-appname"
+   785→              value={appName}
+   786→              onChange={(e) => setAppName(e.target.value)}
+   787→              placeholder="GHMS"
+   788→            />
+   789→            <p className="text-xs text-slate-400">
+   790→              Displayed in the sidebar and browser tab.
+   791→            </p>
+   792→          </div>
+   793→
+   794→          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   795→            <div className="grid gap-2">
+   796→              <Label htmlFor="su-currency">
+   797→                <Clock className="inline mr-1.5 size-3.5" />
+   798→                Default Currency
+   799→              </Label>
+   800→              <Select
+   801→                value={defaultCurrency}
+   802→                onValueChange={setDefaultCurrency}
+   803→              >
+   804→                <SelectTrigger className="w-full">
+   805→                  <SelectValue />
+   806→                </SelectTrigger>
+   807→                <SelectContent>
+   808→                  <SelectItem value="ETB">ETB (Birr)</SelectItem>
+   809→                  <SelectItem value="USD">USD (Dollar)</SelectItem>
+   810→                  <SelectItem value="EUR">EUR (Euro)</SelectItem>
+   811→                </SelectContent>
+   812→              </Select>
+   813→            </div>
+   814→            <div className="grid gap-2">
+   815→              <Label htmlFor="su-language">
+   816→                <Globe className="inline mr-1.5 size-3.5" />
+   817→                Default Language
+   818→              </Label>
+   819→              <Select
+   820→                value={defaultLanguage}
+   821→                onValueChange={setDefaultLanguage}
+   822→              >
+   823→                <SelectTrigger className="w-full">
+   824→                  <SelectValue />
+   825→                </SelectTrigger>
+   826→                <SelectContent>
+   827→                  <SelectItem value="en">English</SelectItem>
+   828→                  <SelectItem value="am">አማርኛ</SelectItem>
+   829→                </SelectContent>
+   830→              </Select>
+   831→            </div>
+   832→          </div>
+   833→
+   834→          <div className="flex justify-end pt-1">
+   835→            <Button onClick={handleSystemSave} disabled={savingSystem}>
+   836→              {savingSystem ? (
+   837→                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+   838→              ) : (
+   839→                <Save className="mr-2 h-4 w-4" />
+   840→              )}
+   841→              Save System Settings
+   842→            </Button>
+   843→          </div>
+   844→        </CardContent>
+   845→      </Card>
+   846→    </div>
+   847→  );
+   848→}
+   849→
+   850→// ═══════════════════════════════════════════════════════
+   851→// Settings Page — Role Router
+   852→// ═══════════════════════════════════════════════════════
+   853→
+   854→export default function SettingsPage() {
+   855→  const currentUser = useAppStore((s) => s.currentUser);
+   856→
+   857→  // SUPERUSER sees profile management
+   858→  if (currentUser?.role === "SUPERUSER") {
+   859→    return <SuperuserSettings />;
+   860→  }
+   861→
+   862→  // OPERATOR / STAFF see guest house settings
+   863→  return <ProviderSettings />;
+   864→}
+   865→
