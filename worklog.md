@@ -157,3 +157,27 @@ Stage Summary:
 - All pending features now deployed: performance upgrades, subscription system, police room availability, rate limiting, middleware
 - Commits: 173f0a2 (debug), e210205 (full deploy), d94d0c6 (pooler fix)
 - Production URL: https://guesthousewithpolicemodule-ghjo-five.vercel.app
+---
+Task ID: 11
+Agent: main
+Task: Customize Settings page as Superuser Profile Manager
+
+Work Log:
+- Modified settings-page.tsx to be role-aware: SUPERUSER sees profile page, OPERATOR/STAFF see guest house settings
+- SUPERUSER Profile page has 3 sections:
+  1. Profile Information: avatar with initials, name, username, email, phone fields
+  2. Change Password: current password, new password, confirm with show/hide toggles and validation
+  3. System Preferences: application name, default currency, default language
+- Updated sidebar.tsx: renamed "Settings" to "My Profile" for SUPERUSER with UserCircle icon
+- Profile updates persist to localStorage session immediately via setCurrentUser
+- Password change uses existing apiUpdateUser endpoint
+- Added UserCircle icon import to sidebar
+
+Stage Summary:
+- SUPERUSER "Settings" is now "My Profile" — a dedicated profile management page
+- Sidebar label changed from gear icon to user circle icon for SUPERUSER
+- Profile fields: name, username, email, phone (all editable with save)
+- Password change with validation (min 6 chars, match check, different from current)
+- System preferences: app name, currency, language
+- OPERATOR/STAFF settings unchanged — still see guest house settings
+- Commit: eb4d2ff
