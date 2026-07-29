@@ -83,3 +83,25 @@ Stage Summary:
 - Suspended providers are excluded from room availability monitoring (API filters APPROVED only)
 - Pagination already working from previous session
 - Deployed: https://guesthousewithpolicemodule-ghjo-five.vercel.app
+---
+Task ID: 8
+Agent: main
+Task: Add suspension with reason + notification dialog to Provider Applications page
+
+Work Log:
+- Added apiPoliceSuspendProvider import to providers-page.tsx
+- Added Send, AlertTriangle, Loader2 icon imports
+- Added suspension dialog state variables (suspendDialog, suspensionReason, providerMessage, suspending)
+- Added openSuspend() and handleSuspend() async functions using apiPoliceSuspendProvider
+- Replaced simple confirm-action Suspend button with openSuspend() in mobile card view
+- Replaced simple confirm-action Suspend button with openSuspend() in desktop table view
+- Added Suspend button (destructive) inside Provider Detail Dialog for APPROVED providers
+- Added full Suspension Dialog JSX: provider info card, reason textarea (required, 1000 char), message textarea (optional, 500 char), warning banner, Cancel + "Suspend & Send Notification" buttons
+- Added suspension reason display in Detail Dialog for already-suspended providers (shows reason, suspended by, suspended on date)
+- Deployed to Vercel production successfully
+
+Stage Summary:
+- Provider Applications page now has the same rich suspension feature as Room Availability page
+- All entry points (mobile card, desktop table, detail dialog) open the suspension dialog with reason + message
+- Suspended providers show suspension details in their detail view
+- Deployed: https://guesthousewithpolicemodule-ghjo-five.vercel.app
