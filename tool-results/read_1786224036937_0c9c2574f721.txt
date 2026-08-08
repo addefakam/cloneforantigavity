@@ -1,0 +1,746 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect, useCallback, Fragment, useMemo } from "react";
+     4→import { useAppStore } from "@/lib/store";
+     5→import {
+     6→  apiGetGuests,
+     7→  apiCreateGuest,
+     8→  apiUpdateGuest,
+     9→  apiDeleteGuest,
+    10→} from "@/lib/api";
+    11→import { toast } from "sonner";
+    12→import { Button } from "@/components/ui/button";
+    13→import { Badge } from "@/components/ui/badge";
+    14→import { Input } from "@/components/ui/input";
+    15→import { Label } from "@/components/ui/label";
+    16→import { Checkbox } from "@/components/ui/checkbox";
+    17→import { Textarea } from "@/components/ui/textarea";
+    18→import { Skeleton } from "@/components/ui/skeleton";
+    19→import { Separator } from "@/components/ui/separator";
+    20→import {
+    21→  Table,
+    22→  TableBody,
+    23→  TableCell,
+    24→  TableHead,
+    25→  TableHeader,
+    26→  TableRow,
+    27→} from "@/components/ui/table";
+    28→import {
+    29→  Dialog,
+    30→  DialogContent,
+    31→  DialogHeader,
+    32→  DialogTitle,
+    33→  DialogDescription,
+    34→  DialogFooter,
+    35→} from "@/components/ui/dialog";
+    36→import {
+    37→  AlertDialog,
+    38→  AlertDialogContent,
+    39→  AlertDialogHeader,
+    40→  AlertDialogTitle,
+    41→  AlertDialogDescription,
+    42→  AlertDialogFooter,
+    43→  AlertDialogAction,
+    44→  AlertDialogCancel,
+    45→} from "@/components/ui/alert-dialog";
+    46→import {
+    47→  Select,
+    48→  SelectContent,
+    49→  SelectItem,
+    50→  SelectTrigger,
+    51→  SelectValue,
+    52→} from "@/components/ui/select";
+    53→import {
+    54→  DropdownMenu,
+    55→  DropdownMenuContent,
+    56→  DropdownMenuItem,
+    57→  DropdownMenuSeparator,
+    58→  DropdownMenuTrigger,
+    59→} from "@/components/ui/dropdown-menu";
+    60→import {
+    61→  Search,
+    62→  Plus,
+    63→  MoreVertical,
+    64→  Pencil,
+    65→  Trash2,
+    66→  Star,
+    67→  Phone,
+    68→  Mail,
+    69→  MapPin,
+    70→  CreditCard,
+    71→  UserCircle,
+    72→  ChevronDown,
+    73→  ChevronUp,
+    74→  Globe,
+    75→  FileText,
+    76→  Users,
+    77→} from "lucide-react";
+    78→import AddressFields, { getEmptyAddress, AddressDisplay } from "@/components/shared/address-fields";
+    79→import { usePagination } from "@/hooks/use-pagination";
+    80→import { PaginationControls } from "@/components/shared/pagination-controls";
+    81→
+    82→interface Guest {
+    83→  id: string;
+    84→  name: string;
+    85→  phone: string;
+    86→  email: string;
+    87→  idNumber: string;
+    88→  idType: string;
+    89→  nationality: string;
+    90→  region: string;
+    91→  zone: string;
+    92→  woreda: string;
+    93→  kebele: string;
+    94→  houseNumber: string;
+    95→  streetName: string;
+    96→  address: string;
+    97→  notes: string;
+    98→  vip: boolean;
+    99→  totalSpent: number;
+   100→  totalStays: number;
+   101→  createdAt: string;
+   102→  updatedAt: string;
+   103→}
+   104→
+   105→const ID_TYPES = ["National ID", "Passport", "Driver's License", "Other"];
+   106→const emptyForm = {
+   107→  name: "",
+   108→  phone: "",
+   109→  email: "",
+   110→  idNumber: "",
+   111→  idType: "National ID",
+   112→  nationality: "",
+   113→  region: "",
+   114→  zone: "",
+   115→  woreda: "",
+   116→  kebele: "",
+   117→  houseNumber: "",
+   118→  streetName: "",
+   119→  notes: "",
+   120→  vip: false,
+   121→};
+   122→
+   123→export default function GuestsPage() {
+   124→  const { refreshKey, triggerRefresh } = useAppStore();
+   125→  const [guests, setGuests] = useState<Guest[]>([]);
+   126→  const [search, setSearch] = useState("");
+   127→  const [loading, setLoading] = useState(true);
+   128→  const [dialogOpen, setDialogOpen] = useState(false);
+   129→  const [editingGuest, setEditingGuest] = useState<Guest | null>(null);
+   130→  const [form, setForm] = useState(emptyForm);
+   131→  const [saving, setSaving] = useState(false);
+   132→  const [deleteDialog, setDeleteDialog] = useState<Guest | null>(null);
+   133→  const [deleting, setDeleting] = useState(false);
+   134→  const [expandedId, setExpandedId] = useState<string | null>(null);
+   135→
+   136→  const fetchGuests = useCallback(async () => {
+   137→    try {
+   138→      setLoading(true);
+   139→      const data = await apiGetGuests(search);
+   140→      setGuests(Array.isArray(data) ? data : []);
+   141→    } catch (err: unknown) {
+   142→      const message = err instanceof Error ? err.message : "Failed to load guests";
+   143→      toast.error(message);
+   144→    } finally {
+   145→      setLoading(false);
+   146→    }
+   147→  }, [search]);
+   148→
+   149→  useEffect(() => {
+   150→    const timer = setTimeout(() => fetchGuests(), 300);
+   151→    return () => clearTimeout(timer);
+   152→  }, [fetchGuests, refreshKey]);
+   153→
+   154→  const openCreate = () => {
+   155→    setEditingGuest(null);
+   156→    setForm(emptyForm);
+   157→    setDialogOpen(true);
+   158→  };
+   159→
+   160→  const openEdit = (guest: Guest) => {
+   161→    setEditingGuest(guest);
+   162→    setForm({
+   163→      name: guest.name,
+   164→      phone: guest.phone,
+   165→      email: guest.email,
+   166→      idNumber: guest.idNumber,
+   167→      idType: guest.idType || "National ID",
+   168→      nationality: guest.nationality,
+   169→      address: guest.address,
+   170→      notes: guest.notes,
+   171→      vip: guest.vip,
+   172→    });
+   173→    setDialogOpen(true);
+   174→  };
+   175→
+   176→  const handleSave = async () => {
+   177→    if (!form.name || !form.phone) {
+   178→      toast.error("Name and phone are required");
+   179→      return;
+   180→    }
+   181→    try {
+   182→      setSaving(true);
+   183→      const payload: Record<string, unknown> = {
+   184→        name: form.name,
+   185→        phone: form.phone,
+   186→        email: form.email,
+   187→        idNumber: form.idNumber,
+   188→        idType: form.idType,
+   189→        nationality: form.nationality,
+   190→        address: form.address,
+   191→        notes: form.notes,
+   192→        vip: form.vip,
+   193→      };
+   194→
+   195→      if (editingGuest) {
+   196→        await apiUpdateGuest(editingGuest.id, payload);
+   197→        toast.success("Guest updated successfully");
+   198→      } else {
+   199→        await apiCreateGuest(payload);
+   200→        toast.success("Guest added successfully");
+   201→      }
+   202→      setDialogOpen(false);
+   203→      triggerRefresh();
+   204→    } catch (err: unknown) {
+   205→      const message = err instanceof Error ? err.message : "Failed to save guest";
+   206→      toast.error(message);
+   207→    } finally {
+   208→      setSaving(false);
+   209→    }
+   210→  };
+   211→
+   212→  const handleDelete = async () => {
+   213→    if (!deleteDialog) return;
+   214→    try {
+   215→      setDeleting(true);
+   216→      await apiDeleteGuest(deleteDialog.id);
+   217→      toast.success("Guest deleted successfully");
+   218→      setDeleteDialog(null);
+   219→      triggerRefresh();
+   220→    } catch (err: unknown) {
+   221→      const message = err instanceof Error ? err.message : "Failed to delete guest";
+   222→      toast.error(message);
+   223→    } finally {
+   224→      setDeleting(false);
+   225→    }
+   226→  };
+   227→
+   228→  const toggleExpand = (id: string) => {
+   229→    setExpandedId((prev) => (prev === id ? null : id));
+   230→  };
+   231→
+   232→  const formatCurrency = (val: number) =>
+   233→    new Intl.NumberFormat("en-US", { style: "currency", currency: "ETB", maximumFractionDigits: 0 }).format(val);
+   234→
+   235→  const filteredGuests = guests.filter((g) => {
+   236→    if (!search) return true;
+   237→    const q = search.toLowerCase();
+   238→    return (
+   239→      g.name.toLowerCase().includes(q) ||
+   240→      g.phone.toLowerCase().includes(q) ||
+   241→      g.idNumber.toLowerCase().includes(q) ||
+   242→      g.email.toLowerCase().includes(q) ||
+   243→      g.nationality.toLowerCase().includes(q)
+   244→    );
+   245→  });
+   246→
+   247→  const pagination = usePagination({
+   248→    totalItems: filteredGuests.length,
+   249→    initialPageSize: 5,
+   250→    pageSizeOptions: [5, 10, 20, 50],
+   251→  });
+   252→  const paginatedGuests = useMemo(() => pagination.paginate(filteredGuests), [filteredGuests, pagination]);
+   253→
+   254→  // Desktop table view
+   255→  const renderTable = () => (
+   256→    <div className="hidden md:block rounded-xl border bg-white">
+   257→      <Table>
+   258→        <TableHeader>
+   259→          <TableRow className="bg-gray-50/80">
+   260→            <TableHead className="w-12"></TableHead>
+   261→            <TableHead>Name</TableHead>
+   262→            <TableHead>Phone</TableHead>
+   263→            <TableHead>ID Number</TableHead>
+   264→            <TableHead>Nationality</TableHead>
+   265→            <TableHead className="text-center">VIP</TableHead>
+   266→            <TableHead className="text-right">Total Spent</TableHead>
+   267→            <TableHead className="text-center">Stays</TableHead>
+   268→            <TableHead className="w-12"></TableHead>
+   269→          </TableRow>
+   270→        </TableHeader>
+   271→        <TableBody>
+   272→          {filteredGuests.length === 0 ? (
+   273→            <TableRow>
+   274→              <TableCell colSpan={9} className="h-32 text-center text-gray-400">
+   275→                No guests found
+   276→              </TableCell>
+   277→            </TableRow>
+   278→          ) : (
+   279→            paginatedGuests.map((guest) => (
+   280→              <Fragment key={guest.id}>
+   281→                <TableRow
+   282→                  className="cursor-pointer"
+   283→                  onClick={() => toggleExpand(guest.id)}
+   284→                >
+   285→                  <TableCell>
+   286→                    {expandedId === guest.id ? (
+   287→                      <ChevronUp className="h-4 w-4 text-gray-400" />
+   288→                    ) : (
+   289→                      <ChevronDown className="h-4 w-4 text-gray-400" />
+   290→                    )}
+   291→                  </TableCell>
+   292→                  <TableCell>
+   293→                    <div className="flex items-center gap-2">
+   294→                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-100 text-violet-600 font-medium text-sm">
+   295→                        {guest.name.charAt(0).toUpperCase()}
+   296→                      </div>
+   297→                      <div>
+   298→                        <span className="font-medium text-gray-900">{guest.name}</span>
+   299→                        {guest.vip && (
+   300→                          <span className="ml-1.5">
+   301→                            <Star className="inline h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+   302→                          </span>
+   303→                        )}
+   304→                      </div>
+   305→                    </div>
+   306→                  </TableCell>
+   307→                  <TableCell className="text-gray-600">{guest.phone}</TableCell>
+   308→                  <TableCell className="text-gray-600 text-xs">
+   309→                    {guest.idNumber || "—"}
+   310→                  </TableCell>
+   311→                  <TableCell className="text-gray-600">
+   312→                    {guest.nationality || "—"}
+   313→                  </TableCell>
+   314→                  <TableCell className="text-center">
+   315→                    {guest.vip ? (
+   316→                      <Badge className="bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100">
+   317→                        <Star className="mr-1 h-3 w-3 fill-amber-500 text-amber-500" />
+   318→                        VIP
+   319→                      </Badge>
+   320→                    ) : (
+   321→                      <span className="text-gray-400 text-xs">—</span>
+   322→                    )}
+   323→                  </TableCell>
+   324→                  <TableCell className="text-right font-medium">
+   325→                    {formatCurrency(guest.totalSpent)}
+   326→                  </TableCell>
+   327→                  <TableCell className="text-center">
+   328→                    <Badge variant="secondary">{guest.totalStays}</Badge>
+   329→                  </TableCell>
+   330→                  <TableCell>
+   331→                    <DropdownMenu>
+   332→                      <DropdownMenuTrigger asChild>
+   333→                        <Button
+   334→                          variant="ghost"
+   335→                          size="icon"
+   336→                          className="h-8 w-8"
+   337→                          onClick={(e) => e.stopPropagation()}
+   338→                        >
+   339→                          <MoreVertical className="h-4 w-4" />
+   340→                        </Button>
+   341→                      </DropdownMenuTrigger>
+   342→                      <DropdownMenuContent align="end">
+   343→                        <DropdownMenuItem onClick={() => openEdit(guest)}>
+   344→                          <Pencil className="mr-2 h-4 w-4" />
+   345→                          Edit
+   346→                        </DropdownMenuItem>
+   347→                        <DropdownMenuSeparator />
+   348→                        <DropdownMenuItem
+   349→                          className="text-rose-600 focus:text-rose-600"
+   350→                          onClick={(e) => {
+   351→                            e.stopPropagation();
+   352→                            setDeleteDialog(guest);
+   353→                          }}
+   354→                        >
+   355→                          <Trash2 className="mr-2 h-4 w-4" />
+   356→                          Delete
+   357→                        </DropdownMenuItem>
+   358→                      </DropdownMenuContent>
+   359→                    </DropdownMenu>
+   360→                  </TableCell>
+   361→                </TableRow>
+   362→                {/* Expanded details row */}
+   363→                {expandedId === guest.id && (
+   364→                  <TableRow className="bg-gray-50/50">
+   365→                    <TableCell colSpan={9}>
+   366→                      <div className="grid grid-cols-1 gap-4 py-4 sm:grid-cols-2 lg:grid-cols-4">
+   367→                        <div className="flex items-start gap-2">
+   368→                          <Mail className="mt-0.5 h-4 w-4 text-gray-400 shrink-0" />
+   369→                          <div>
+   370→                            <p className="text-xs text-gray-500">Email</p>
+   371→                            <p className="text-sm text-gray-900">{guest.email || "—"}</p>
+   372→                          </div>
+   373→                        </div>
+   374→                        <div className="flex items-start gap-2">
+   375→                          <CreditCard className="mt-0.5 h-4 w-4 text-gray-400 shrink-0" />
+   376→                          <div>
+   377→                            <p className="text-xs text-gray-500">ID Type / Number</p>
+   378→                            <p className="text-sm text-gray-900">
+   379→                              {guest.idType} {guest.idNumber ? `· ${guest.idNumber}` : ""}
+   380→                            </p>
+   381→                          </div>
+   382→                        </div>
+   383→                        <div className="flex items-start gap-2">
+   384→                          <Globe className="mt-0.5 h-4 w-4 text-gray-400 shrink-0" />
+   385→                          <div>
+   386→                            <p className="text-xs text-gray-500">Nationality</p>
+   387→                            <p className="text-sm text-gray-900">{guest.nationality || "—"}</p>
+   388→                          </div>
+   389→                        </div>
+   390→                        <div className="flex items-start gap-2">
+   391→                          <MapPin className="mt-0.5 h-4 w-4 text-gray-400 shrink-0" />
+   392→                          <div>
+   393→                            <p className="text-xs text-gray-500">Address</p>
+   394→                            {guest.region ? (
+   395→                              <AddressDisplay
+   396→                                region={guest.region}
+   397→                                zone={guest.zone}
+   398→                                woreda={guest.woreda}
+   399→                                kebele={guest.kebele}
+   400→                                houseNumber={guest.houseNumber}
+   401→                                streetName={guest.streetName}
+   402→                              />
+   403→                            ) : (
+   404→                              <p className="text-sm text-gray-900">{guest.address || "—"}</p>
+   405→                            )}
+   406→                          </div>
+   407→                        </div>
+   408→                      </div>
+   409→                      {guest.notes && (
+   410→                        <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 p-3 border border-amber-100">
+   411→                          <FileText className="mt-0.5 h-4 w-4 text-amber-500 shrink-0" />
+   412→                          <div>
+   413→                            <p className="text-xs font-medium text-amber-800">Notes</p>
+   414→                            <p className="text-sm text-amber-700">{guest.notes}</p>
+   415→                          </div>
+   416→                        </div>
+   417→                      )}
+   418→                      <p className="mt-3 text-xs text-gray-400">
+   419→                        Guest since {new Date(guest.createdAt).toLocaleDateString()}
+   420→                      </p>
+   421→                    </TableCell>
+   422→                  </TableRow>
+   423→                )}
+   424→              </Fragment>
+   425→            ))
+   426→          )}
+   427→        </TableBody>
+   428→      </Table>
+   429→    </div>
+   430→  );
+   431→
+   432→  // Mobile card view
+   433→  const renderCards = () => (
+   434→    <div className="space-y-3 md:hidden">
+   435→      {filteredGuests.length === 0 ? (
+   436→        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16">
+   437→          <Users className="h-12 w-12 text-gray-300 mb-3" />
+   438→          <p className="text-lg font-medium text-gray-500">No guests found</p>
+   439→          <p className="mt-1 text-sm text-gray-400">
+   440→            {search ? "Try a different search" : "Add your first guest"}
+   441→          </p>
+   442→        </div>
+   443→      ) : (
+   444→        paginatedGuests.map((guest) => (
+   445→          <div
+   446→            key={guest.id}
+   447→            className="rounded-xl border bg-white p-4 transition-shadow hover:shadow-sm"
+   448→          >
+   449→            <div className="flex items-start justify-between">
+   450→              <div className="flex items-center gap-3">
+   451→                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-100 text-violet-600 font-semibold">
+   452→                  {guest.name.charAt(0).toUpperCase()}
+   453→                </div>
+   454→                <div>
+   455→                  <div className="flex items-center gap-1.5">
+   456→                    <h3 className="font-semibold text-gray-900">{guest.name}</h3>
+   457→                    {guest.vip && (
+   458→                      <Badge className="bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100 px-1.5 py-0">
+   459→                        <Star className="mr-0.5 h-2.5 w-2.5 fill-amber-500 text-amber-500" />
+   460→                        <span className="text-[10px]">VIP</span>
+   461→                      </Badge>
+   462→                    )}
+   463→                  </div>
+   464→                  <p className="text-sm text-gray-500">{guest.phone}</p>
+   465→                </div>
+   466→              </div>
+   467→              <DropdownMenu>
+   468→                <DropdownMenuTrigger asChild>
+   469→                  <Button variant="ghost" size="icon" className="h-8 w-8">
+   470→                    <MoreVertical className="h-4 w-4" />
+   471→                  </Button>
+   472→                </DropdownMenuTrigger>
+   473→                <DropdownMenuContent align="end">
+   474→                  <DropdownMenuItem onClick={() => openEdit(guest)}>
+   475→                    <Pencil className="mr-2 h-4 w-4" />
+   476→                    Edit
+   477→                  </DropdownMenuItem>
+   478→                  <DropdownMenuSeparator />
+   479→                  <DropdownMenuItem
+   480→                    className="text-rose-600 focus:text-rose-600"
+   481→                    onClick={() => setDeleteDialog(guest)}
+   482→                  >
+   483→                    <Trash2 className="mr-2 h-4 w-4" />
+   484→                    Delete
+   485→                  </DropdownMenuItem>
+   486→                </DropdownMenuContent>
+   487→              </DropdownMenu>
+   488→            </div>
+   489→
+   490→            <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
+   491→              <div>
+   492→                <p className="text-xs text-gray-400">ID</p>
+   493→                <p className="text-gray-700 text-xs truncate">{guest.idNumber || "—"}</p>
+   494→              </div>
+   495→              <div>
+   496→                <p className="text-xs text-gray-400">Spent</p>
+   497→                <p className="text-gray-700 font-medium">{formatCurrency(guest.totalSpent)}</p>
+   498→              </div>
+   499→              <div>
+   500→                <p className="text-xs text-gray-400">Stays</p>
+   501→                <p className="text-gray-700 font-medium">{guest.totalStays}</p>
+   502→              </div>
+   503→            </div>
+   504→
+   505→            {guest.email && (
+   506→              <p className="mt-2 text-xs text-gray-500 flex items-center gap-1">
+   507→                <Mail className="h-3 w-3" /> {guest.email}
+   508→              </p>
+   509→            )}
+   510→          </div>
+   511→        ))
+   512→      )}
+   513→    </div>
+   514→  );
+   515→
+   516→  if (loading && guests.length === 0) {
+   517→    return (
+   518→      <div className="space-y-6 p-4 md:p-6">
+   519→        <div className="flex items-center justify-between">
+   520→          <div>
+   521→            <Skeleton className="h-8 w-32" />
+   522→            <Skeleton className="mt-1 h-4 w-48" />
+   523→          </div>
+   524→          <Skeleton className="h-10 w-32" />
+   525→        </div>
+   526→        <Skeleton className="h-10 w-full" />
+   527→        <div className="space-y-3">
+   528→          {Array.from({ length: 5 }).map((_, i) => (
+   529→            <Skeleton key={i} className="h-14 rounded-xl" />
+   530→          ))}
+   531→        </div>
+   532→      </div>
+   533→    );
+   534→  }
+   535→
+   536→  return (
+   537→    <div className="space-y-6 p-4 md:p-6">
+   538→      {/* Header */}
+   539→      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+   540→        <div>
+   541→          <h1 className="text-2xl font-bold text-gray-900">Guests</h1>
+   542→          <p className="mt-1 text-sm text-gray-500">
+   543→            {guests.length} guest{guests.length !== 1 ? "s" : ""} registered
+   544→          </p>
+   545→        </div>
+   546→        <Button onClick={openCreate} className="gap-2">
+   547→          <Plus className="h-4 w-4" />
+   548→          Add Guest
+   549→        </Button>
+   550→      </div>
+   551→
+   552→      {/* Search */}
+   553→      <div className="relative">
+   554→        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+   555→        <Input
+   556→          placeholder="Search guests by name, phone, ID, email..."
+   557→          value={search}
+   558→          onChange={(e) => setSearch(e.target.value)}
+   559→          className="pl-9"
+   560→        />
+   561→      </div>
+   562→
+   563→      {/* Content */}
+   564→      {renderTable()}
+   565→      {renderCards()}
+   566→
+   567→      {/* Pagination */}
+   568→      {filteredGuests.length > 5 && (
+   569→        <PaginationControls
+   570→          currentPage={pagination.currentPage}
+   571→          totalPages={pagination.totalPages}
+   572→          pageSize={pagination.pageSize}
+   573→          pageSizeOptions={pagination.pageSizeOptions}
+   574→          goToPage={pagination.goToPage}
+   575→          setPageSize={pagination.setPageSize}
+   576→          rangeInfo={pagination.rangeInfo}
+   577→        />
+   578→      )}
+   579→
+   580→      {/* Create/Edit Dialog */}
+   581→      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+   582→        <DialogContent className="sm:max-w-lg">
+   583→          <DialogHeader>
+   584→            <DialogTitle>{editingGuest ? "Edit Guest" : "Add New Guest"}</DialogTitle>
+   585→            <DialogDescription>
+   586→              {editingGuest
+   587→                ? "Update guest information below."
+   588→                : "Fill in the details to register a new guest."}
+   589→            </DialogDescription>
+   590→          </DialogHeader>
+   591→
+   592→          <div className="grid gap-4 py-2 max-h-[60vh] overflow-y-auto pr-1">
+   593→            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+   594→              <div className="space-y-2">
+   595→                <Label htmlFor="guest-name">
+   596→                  Full Name <span className="text-rose-500">*</span>
+   597→                </Label>
+   598→                <Input
+   599→                  id="guest-name"
+   600→                  placeholder="John Doe"
+   601→                  value={form.name}
+   602→                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+   603→                />
+   604→              </div>
+   605→              <div className="space-y-2">
+   606→                <Label htmlFor="guest-phone">
+   607→                  Phone <span className="text-rose-500">*</span>
+   608→                </Label>
+   609→                <Input
+   610→                  id="guest-phone"
+   611→                  placeholder="+251 9XX XXX XXX"
+   612→                  value={form.phone}
+   613→                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+   614→                />
+   615→              </div>
+   616→            </div>
+   617→
+   618→            <div className="space-y-2">
+   619→              <Label htmlFor="guest-email">Email</Label>
+   620→              <Input
+   621→                id="guest-email"
+   622→                type="email"
+   623→                placeholder="guest@example.com"
+   624→                value={form.email}
+   625→                onChange={(e) => setForm({ ...form, email: e.target.value })}
+   626→              />
+   627→            </div>
+   628→
+   629→            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+   630→              <div className="space-y-2">
+   631→                <Label htmlFor="guest-id-type">ID Type</Label>
+   632→                <Select
+   633→                  value={form.idType}
+   634→                  onValueChange={(v) => setForm({ ...form, idType: v })}
+   635→                >
+   636→                  <SelectTrigger className="w-full">
+   637→                    <SelectValue />
+   638→                  </SelectTrigger>
+   639→                  <SelectContent>
+   640→                    {ID_TYPES.map((t) => (
+   641→                      <SelectItem key={t} value={t}>
+   642→                        {t}
+   643→                      </SelectItem>
+   644→                    ))}
+   645→                  </SelectContent>
+   646→                </Select>
+   647→              </div>
+   648→              <div className="space-y-2">
+   649→                <Label htmlFor="guest-id-number">ID Number</Label>
+   650→                <Input
+   651→                  id="guest-id-number"
+   652→                  placeholder="ID number"
+   653→                  value={form.idNumber}
+   654→                  onChange={(e) => setForm({ ...form, idNumber: e.target.value })}
+   655→                />
+   656→              </div>
+   657→            </div>
+   658→
+   659→            <div className="space-y-2">
+   660→              <Label htmlFor="guest-nationality">Nationality</Label>
+   661→              <Input
+   662→                id="guest-nationality"
+   663→                placeholder="e.g. Ethiopian"
+   664→                value={form.nationality}
+   665→                onChange={(e) => setForm({ ...form, nationality: e.target.value })}
+   666→              />
+   667→            </div>
+   668→
+   669→            <div className="space-y-2">
+   670→              <Label>Guest Address</Label>
+   671→              <AddressFields
+   672→                value={{
+   673→                  region: form.region,
+   674→                  zone: form.zone,
+   675→                  woreda: form.woreda,
+   676→                  kebele: form.kebele,
+   677→                  houseNumber: form.houseNumber,
+   678→                  streetName: form.streetName,
+   679→                }}
+   680→                onChange={(addr) => setForm({ ...form, ...addr })}
+   681→              />
+   682→            </div>
+   683→
+   684→            <div className="space-y-2">
+   685→              <Label htmlFor="guest-notes">Notes</Label>
+   686→              <Textarea
+   687→                id="guest-notes"
+   688→                placeholder="Special requests, preferences..."
+   689→                rows={3}
+   690→                value={form.notes}
+   691→                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+   692→              />
+   693→            </div>
+   694→
+   695→            <div className="flex items-center gap-2 rounded-lg border p-3">
+   696→              <Checkbox
+   697→                id="guest-vip"
+   698→                checked={form.vip}
+   699→                onCheckedChange={(checked) => setForm({ ...form, vip: !!checked })}
+   700→              />
+   701→              <div className="flex items-center gap-1.5">
+   702→                <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+   703→                <Label htmlFor="guest-vip" className="cursor-pointer font-medium">
+   704→                  VIP Guest
+   705→                </Label>
+   706→              </div>
+   707→              <p className="ml-auto text-xs text-gray-400">Priority service & perks</p>
+   708→            </div>
+   709→          </div>
+   710→
+   711→          <DialogFooter>
+   712→            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+   713→              Cancel
+   714→            </Button>
+   715→            <Button onClick={handleSave} disabled={saving}>
+   716→              {saving ? "Saving..." : editingGuest ? "Update Guest" : "Add Guest"}
+   717→            </Button>
+   718→          </DialogFooter>
+   719→        </DialogContent>
+   720→      </Dialog>
+   721→
+   722→      {/* Delete Confirmation */}
+   723→      <AlertDialog open={!!deleteDialog} onOpenChange={() => setDeleteDialog(null)}>
+   724→        <AlertDialogContent>
+   725→          <AlertDialogHeader>
+   726→            <AlertDialogTitle>Delete Guest?</AlertDialogTitle>
+   727→            <AlertDialogDescription>
+   728→              This will permanently delete &quot;{deleteDialog?.name}&quot; from your records. This action cannot
+   729→              be undone.
+   730→            </AlertDialogDescription>
+   731→          </AlertDialogHeader>
+   732→          <AlertDialogFooter>
+   733→            <AlertDialogCancel>Cancel</AlertDialogCancel>
+   734→            <AlertDialogAction
+   735→              className="bg-rose-600 hover:bg-rose-700"
+   736→              onClick={handleDelete}
+   737→              disabled={deleting}
+   738→            >
+   739→              {deleting ? "Deleting..." : "Delete"}
+   740→            </AlertDialogAction>
+   741→          </AlertDialogFooter>
+   742→        </AlertDialogContent>
+   743→      </AlertDialog>
+   744→    </div>
+   745→  );
+   746→}
