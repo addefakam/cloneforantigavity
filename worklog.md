@@ -222,3 +222,57 @@ Stage Summary:
 - Subscription fee table with 4 cycles, placeholder values for ETB amounts
 - Phased service period expiration model matching actual system behavior (warning -> grace -> suspension)
 - Signature block with party info fields
+
+---
+Task ID: perf-opt
+Agent: Main Agent
+Task: Apply all 12 performance optimizations + migration prep for Ethio Telecom AWS
+
+Work Log:
+- Migration Prep #1: Added `output: "standalone"` to next.config.ts for Docker/AWS self-hosting
+- Migration Prep #2: Fixed JWT_SECRET — now required in production, dev-only DATABASE_URL derivation fallback
+- Migration Prep #3: Removed dead `@prisma/adapter-libsql` from serverExternalPackages
+- Migration Prep #4: Created `.env.example` documenting all required environment variables
+- Perf #1+#2: Created `src/lib/storage.ts` — file storage abstraction (Vercel Blob today, S3 tomorrow)
+  - Updated providers/route.ts (both JSON and FormData paths) to upload license files via blob
+  - Updated rooms/[id]/route.ts to upload room images via blob
+  - Updated settings/route.ts to upload logos via blob
+- Perf #3: Added pagination (default 20, max 100) to 4 unbounded routes:
+  - reservations/route.ts (was completely unbounded — highest risk)
+  - reviews/route.ts
+  - daytime-bookings/route.ts
+  - users/route.ts
+- Perf #4: Added Prisma `select` to exclude heavy fields in 7 list API routes:
+  - guests/route.ts (excluded notes, address)
+  - police-guests/route.ts (excluded notes, address, description)
+  - police-audit/route.ts (excluded message, details; capped pageSize)
+  - police-intelligence/route.ts (excluded message, details from AuditLog; excluded details from SuspectMatch)
+  - suspect-matches/route.ts (excluded details, description)
+  - reservations/route.ts (excluded notes via select)
+  - reviews/route.ts (excluded comment via select)
+- Perf #5: Added 6 composite indexes for common query patterns to init-db.ts INDEXES_SQL:
+  - Reservation(providerId, status), Reservation(providerId, createdAt DESC)
+  - Guest(providerId, createdAt DESC), AuditLog(createdAt DESC)
+  - Payment(providerId, createdAt DESC), Notification(providerId, isRead)
+- Perf #6: Consolidated police-dashboard from 6+1 queries (6 Promise.all + provider findMany + 3 groupBy) into 2 $queryRaw calls:
+  - Single UNION ALL for city-wide stats (1 round-trip instead of 6)
+  - Single LEFT JOIN query for per-provider breakdown (1 round-trip instead of 4)
+- Perf #7: Added `loading="lazy"` and `decoding="async"` to both `<img>` tags (providers-page.tsx, rooms-page.tsx)
+- Perf #8: Verified `compress: true` already set in next.config.ts
+- Perf #9: Confirmed SPA architecture ("use client" page.tsx) — no server components needing revalidate; API routes use NextRequest (dynamic by default)
+- Perf #10: Converted xlsx from static import to dynamic `await import("xlsx")` in rooms-page.tsx (2 locations: template download + file import) — saves ~300KB from initial bundle
+- Perf #11: Rewrote police-export/route.ts with true cursor-based streaming:
+  - JSON path: fetches in 500-row batches instead of loading all 10K rows at once
+  - CSV path: same cursor-based approach with select to exclude heavy fields
+  - Added `select` to all queries (audit logs excluded message/details)
+- Perf #12: Updated keepalive.sh to use standalone server path (`.next/standalone/server.js`) with fallback
+
+Stage Summary:
+- 20 files modified across migration prep + 12 performance optimizations
+- Key metrics improvement: reservations API was completely unbounded (O(n) memory) → now paginated to 20/page
+- Police dashboard: 10 DB round-trips → 2 round-trips (80% reduction)
+- xlsx bundle: ~300KB removed from initial JS bundle via dynamic import
+- Export streaming: police exports now use true cursor-based pagination (500 rows/batch) instead of loading all rows into memory
+- File storage: abstraction layer ready for Vercel Blob → S3 migration (single file swap)
+- Migration readiness: `output: "standalone"` + `.env.example` + independent JWT_SECRET = ready for Ethio Telecom AWS
+

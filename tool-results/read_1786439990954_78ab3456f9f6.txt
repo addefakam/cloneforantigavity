@@ -1,0 +1,1298 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+     4→import { useAppStore } from "@/lib/store";
+     5→import { formatDaysRemaining, formatCycle } from "@/lib/subscription";
+     6→import {
+     7→  apiGetRooms,
+     8→  apiCreateRoom,
+     9→  apiUpdateRoom,
+    10→  apiDeleteRoom,
+    11→  apiUpdateRoomStatus,
+    12→  apiImportRooms,
+    13→  apiGetReservations,
+    14→} from "@/lib/api";
+    15→import { toast } from "sonner";
+    16→import { Card, CardContent } from "@/components/ui/card";
+    17→import { Button } from "@/components/ui/button";
+    18→import { Badge } from "@/components/ui/badge";
+    19→import { Input } from "@/components/ui/input";
+    20→import { Label } from "@/components/ui/label";
+    21→import { Textarea } from "@/components/ui/textarea";
+    22→import { Skeleton } from "@/components/ui/skeleton";
+    23→import { Separator } from "@/components/ui/separator";
+    24→import {
+    25→  Dialog,
+    26→  DialogContent,
+    27→  DialogHeader,
+    28→  DialogTitle,
+    29→  DialogDescription,
+    30→  DialogFooter,
+    31→} from "@/components/ui/dialog";
+    32→import {
+    33→  AlertDialog,
+    34→  AlertDialogContent,
+    35→  AlertDialogHeader,
+    36→  AlertDialogTitle,
+    37→  AlertDialogDescription,
+    38→  AlertDialogFooter,
+    39→  AlertDialogAction,
+    40→  AlertDialogCancel,
+    41→} from "@/components/ui/alert-dialog";
+    42→import {
+    43→  Select,
+    44→  SelectContent,
+    45→  SelectItem,
+    46→  SelectTrigger,
+    47→  SelectValue,
+    48→} from "@/components/ui/select";
+    49→import {
+    50→  DropdownMenu,
+    51→  DropdownMenuContent,
+    52→  DropdownMenuItem,
+    53→  DropdownMenuSeparator,
+    54→  DropdownMenuTrigger,
+    55→} from "@/components/ui/dropdown-menu";
+    56→import {
+    57→  Search,
+    58→  Plus,
+    59→  MoreVertical,
+    60→  ChevronDown,
+    61→  Pencil,
+    62→  User,
+    63→  CalendarDays,
+    64→  CreditCard,
+    65→  Clock,
+    66→  Trash2,
+    67→  Users,
+    68→  BedSingle,
+    69→  BedDouble,
+    70→  Hotel,
+    71→  Crown,
+    72→  Star,
+    73→  Building2,
+    74→  Layers,
+    75→  Wifi,
+    76→  Info,
+    77→  CalendarPlus,
+    78→  CalendarClock,
+    79→  LogOut,
+    80→  ArrowRightLeft,
+    81→  Tv,
+    82→  Wind,
+    83→  Coffee,
+    84→  ShowerHead,
+    85→  Car,
+    86→  DollarSign,
+    87→  Upload,
+    88→  Download,
+    89→  FileSpreadsheet,
+    90→  CheckCircle2,
+    91→  XCircle,
+    92→  AlertCircle,
+    93→  ClipboardList,
+    94→} from "lucide-react";
+    95→
+    96→interface Room {
+    97→  id: string;
+    98→  number: string;
+    99→  name: string;
+   100→  type: string;
+   101→  pricePerNight: number;
+   102→  floor: number;
+   103→  capacity: number;
+   104→  status: string;
+   105→  amenities: string;
+   106→  description: string;
+   107→  image: string | null;
+   108→}
+   109→
+   110→interface ImportResult {
+   111→  number: string;
+   112→  status: string;
+   113→  error?: string;
+   114→}
+   115→
+   116→interface RoomReservation {
+   117→  id: string;
+   118→  status: string;
+   119→  checkIn: string;
+   120→  checkOut: string;
+   121→  nights: number;
+   122→  roomRate: number;
+   123→  totalCost: number;
+   124→  paymentStatus: string;
+   125→  guest: { id: string; name: string; phone: string } | null;
+   126→}
+   127→
+   128→const ROOM_TYPES = ["SINGLE", "DOUBLE", "TWIN", "SUITE", "DELUXE"] as const;
+   129→
+   130→const ROOM_TYPE_ICONS: Record<string, React.ReactNode> = {
+   131→  SINGLE: <BedSingle className="h-4 w-4" />,
+   132→  DOUBLE: <BedDouble className="h-4 w-4" />,
+   133→  TWIN: <Hotel className="h-4 w-4" />,
+   134→  SUITE: <Crown className="h-4 w-4" />,
+   135→  DELUXE: <Star className="h-4 w-4" />,
+   136→};
+   137→
+   138→const ROOM_TYPE_COLORS: Record<string, string> = {
+   139→  SINGLE: "bg-sky-50 text-sky-700 border-sky-200",
+   140→  DOUBLE: "bg-violet-50 text-violet-700 border-violet-200",
+   141→  TWIN: "bg-teal-50 text-teal-700 border-teal-200",
+   142→  SUITE: "bg-amber-50 text-amber-700 border-amber-200",
+   143→  DELUXE: "bg-rose-50 text-rose-700 border-rose-200",
+   144→};
+   145→
+   146→const STATUS_STYLES: Record<string, string> = {
+   147→  AVAILABLE: "bg-emerald-100 text-emerald-800 border-emerald-200",
+   148→  OCCUPIED: "bg-rose-100 text-rose-800 border-rose-200",
+   149→  MAINTENANCE: "bg-amber-100 text-amber-800 border-amber-200",
+   150→  RESERVED: "bg-sky-100 text-sky-800 border-sky-200",
+   151→};
+   152→
+   153→const STATUS_DOT: Record<string, string> = {
+   154→  AVAILABLE: "bg-emerald-500",
+   155→  OCCUPIED: "bg-rose-500",
+   156→  MAINTENANCE: "bg-amber-500",
+   157→  RESERVED: "bg-sky-500",
+   158→};
+   159→
+   160→const AMENITY_ICONS: Record<string, React.ReactNode> = {
+   161→  WiFi: <Wifi className="h-3 w-3" />,
+   162→  TV: <Tv className="h-3 w-3" />,
+   163→  AC: <Wind className="h-3 w-3" />,
+   164→  "Mini Bar": <Coffee className="h-3 w-3" />,
+   165→  "Hot Water": <ShowerHead className="h-3 w-3" />,
+   166→  Parking: <Car className="h-3 w-3" />,
+   167→};
+   168→
+   169→// Derive floor from first digit of room number (e.g. "102" → 1, "201" → 2)
+   170→const getFloorFromNumber = (num: string): number | null => {
+   171→  const match = num.match(/^\d/);
+   172→  return match ? parseInt(match[0], 10) : null;
+   173→};
+   174→
+   175→const emptyForm = {
+   176→  number: "",
+   177→  type: "SINGLE",
+   178→  pricePerNight: "",
+   179→  floor: "",
+   180→  capacity: "",
+   181→  amenities: "[]",
+   182→  description: "",
+   183→};
+   184→
+   185→// ── Excel template columns ───────────────────────────────────────────────────
+   186→const TEMPLATE_COLUMNS = ["number", "type", "pricePerNight", "floor", "capacity", "amenities", "description"];
+   187→const TEMPLATE_EXAMPLE = [
+   188→  { number: "101", type: "SINGLE", pricePerNight: 500, floor: 1, capacity: 1, amenities: "WiFi, TV", description: "Standard single room" },
+   189→  { number: "102", type: "DOUBLE", pricePerNight: 900, floor: 1, capacity: 2, amenities: "WiFi, TV, AC", description: "Comfortable double room" },
+   190→  { number: "201", type: "SUITE",  pricePerNight: 1800, floor: 2, capacity: 3, amenities: "WiFi, TV, AC, Mini Bar", description: "Luxury suite" },
+   191→];
+   192→
+   193→function downloadTemplate() {
+   194→  const ws = XLSX.utils.json_to_sheet(TEMPLATE_EXAMPLE, { header: TEMPLATE_COLUMNS });
+   195→  const wb = XLSX.utils.book_new();
+   196→  XLSX.utils.book_append_sheet(wb, ws, "Rooms");
+   197→  XLSX.writeFile(wb, "rooms_import_template.xlsx");
+   198→}
+   199→
+   200→// ── Subscription Status Badge (for Rooms page header) ──
+   201→function SubscriptionBadge() {
+   202→  const { currentUser, subscription } = useAppStore();
+   203→
+   204→  // Only show for OPERATOR/STAFF
+   205→  if (!currentUser || (currentUser.role !== "OPERATOR" && currentUser.role !== "STAFF")) return null;
+   206→  if (!subscription) return null;
+   207→
+   208→  const isActive = subscription.status === "ACTIVE";
+   209→  const isWarning = subscription.status === "WARNING";
+   210→  const isGrace = subscription.status === "GRACE";
+   211→  const isSuspended = subscription.status === "SUSPENDED";
+   212→
+   213→  const badgeClass = isActive
+   214→    ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+   215→    : isSuspended || isGrace
+   216→    ? "border-rose-300 bg-rose-50 text-rose-700"
+   217→    : "border-amber-300 bg-amber-50 text-amber-700";
+   218→
+   219→  const dotClass = isActive
+   220→    ? "bg-emerald-500"
+   221→    : isSuspended || isGrace
+   222→    ? "bg-rose-500"
+   223→    : "bg-amber-500";
+   224→
+   225→  const label = isActive
+   226→    ? "Active"
+   227→    : isSuspended
+   228→    ? "Suspended"
+   229→    : isGrace
+   230→    ? "Expired"
+   231→    : "Expiring";
+   232→
+   233→  return (
+   234→    <div className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${badgeClass} animate-subtle-pulse`}>
+   235→      <span className={`relative flex h-2 w-2`}>
+   236→        <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${dotClass}`} />
+   237→        <span className={`relative inline-flex h-2 w-2 rounded-full ${dotClass}`} />
+   238→      </span>
+   239→      <span>{label}</span>
+   240→      <span className="font-mono text-[11px] opacity-70">{Math.abs(subscription.daysRemaining)}d</span>
+   241→    </div>
+   242→  );
+   243→}
+   244→
+   245→export default function RoomsPage() {
+   246→  const { refreshKey, triggerRefresh, setCurrentPage, setPreselectedRoom } = useAppStore();
+   247→  const [rooms, setRooms] = useState<Room[]>([]);
+   248→  const [search, setSearch] = useState("");
+   249→  const [floorFilter, setFloorFilter] = useState<number | null>(null);
+   250→  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+   251→  const [loading, setLoading] = useState(true);
+   252→
+   253→  // single-room dialog
+   254→  const [dialogOpen, setDialogOpen] = useState(false);
+   255→  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+   256→  const [form, setForm] = useState(emptyForm);
+   257→  const [saving, setSaving] = useState(false);
+   258→
+   259→  // delete
+   260→  const [deleteDialog, setDeleteDialog] = useState<Room | null>(null);
+   261→  const [deleting, setDeleting] = useState(false);
+   262→
+   263→  // room info detail
+   264→  const [infoRoom, setInfoRoom] = useState<Room | null>(null);
+   265→  const [roomReservations, setRoomReservations] = useState<RoomReservation[]>([]);
+   266→  const [roomResLoading, setRoomResLoading] = useState(false);
+   267→
+   268→  // excel import
+   269→  const [importDialogOpen, setImportDialogOpen] = useState(false);
+   270→  const [importFile, setImportFile] = useState<File | null>(null);
+   271→  const [importLoading, setImportLoading] = useState(false);
+   272→  const [importResults, setImportResults] = useState<ImportResult[] | null>(null);
+   273→  const importFileRef = useRef<HTMLInputElement>(null);
+   274→
+   275→  const fetchRooms = useCallback(async () => {
+   276→    try {
+   277→      setLoading(true);
+   278→      const data = await apiGetRooms(search);
+   279→      const list = data.rooms || [];
+   280→      // Sort: AVAILABLE first, then RESERVED, then others; within each group by floor
+   281→      const statusOrder: Record<string, number> = { AVAILABLE: 0, RESERVED: 1, OCCUPIED: 2, MAINTENANCE: 3 };
+   282→      list.sort((a, b) => {
+   283→        const oa = statusOrder[a.status] ?? 9;
+   284→        const ob = statusOrder[b.status] ?? 9;
+   285→        if (oa !== ob) return oa - ob;
+   286→        const fa = getFloorFromNumber(a.number) ?? a.floor ?? 0;
+   287→        const fb = getFloorFromNumber(b.number) ?? b.floor ?? 0;
+   288→        return fa - fb;
+   289→      });
+   290→      setRooms(list);
+   291→    } catch (err: unknown) {
+   292→      const message = err instanceof Error ? err.message : "Failed to load rooms";
+   293→      toast.error(message);
+   294→    } finally {
+   295→      setLoading(false);
+   296→    }
+   297→  }, [search]);
+   298→
+   299→  useEffect(() => {
+   300→    const timer = setTimeout(() => fetchRooms(), 300);
+   301→    return () => clearTimeout(timer);
+   302→  }, [fetchRooms, refreshKey]);
+   303→
+   304→  // Fetch reservations for the room when info dialog opens
+   305→  useEffect(() => {
+   306→    if (!infoRoom) {
+   307→      setRoomReservations([]);
+   308→      return;
+   309→    }
+   310→    (async () => {
+   311→      try {
+   312→        setRoomResLoading(true);
+   313→        const data = await apiGetReservations(`roomId=${infoRoom.id}`);
+   314→        setRoomReservations(Array.isArray(data) ? data : []);
+   315→      } catch {
+   316→        setRoomReservations([]);
+   317→      } finally {
+   318→        setRoomResLoading(false);
+   319→      }
+   320→    })();
+   321→  }, [infoRoom]);
+   322→
+   323→  const openCreate = () => {
+   324→    setEditingRoom(null);
+   325→    setForm(emptyForm);
+   326→    setDialogOpen(true);
+   327→  };
+   328→
+   329→  const openEdit = (room: Room) => {
+   330→    setEditingRoom(room);
+   331→    setForm({
+   332→      number: room.number,
+   333→      type: room.type,
+   334→      pricePerNight: String(room.pricePerNight),
+   335→      floor: String(room.floor),
+   336→      capacity: String(room.capacity),
+   337→      amenities: room.amenities,
+   338→      description: room.description,
+   339→    });
+   340→    setDialogOpen(true);
+   341→  };
+   342→
+   343→  const handleSave = async () => {
+   344→    if (!form.number || !form.pricePerNight || !form.floor || !form.capacity) {
+   345→      toast.error("Please fill in all required fields");
+   346→      return;
+   347→    }
+   348→
+   349→    try {
+   350→      setSaving(true);
+   351→      const payload = {
+   352→        number: form.number,
+   353→        type: form.type,
+   354→        pricePerNight: Number(form.pricePerNight),
+   355→        floor: Number(form.floor),
+   356→        capacity: Number(form.capacity),
+   357→        amenities: form.amenities || "[]",
+   358→        description: form.description,
+   359→      };
+   360→
+   361→      if (editingRoom) {
+   362→        await apiUpdateRoom(editingRoom.id, payload);
+   363→        toast.success("Room updated successfully");
+   364→      } else {
+   365→        await apiCreateRoom(payload);
+   366→        toast.success("Room created successfully");
+   367→      }
+   368→
+   369→      setDialogOpen(false);
+   370→      triggerRefresh();
+   371→    } catch (err: unknown) {
+   372→      const message = err instanceof Error ? err.message : "Failed to save room";
+   373→      toast.error(message);
+   374→    } finally {
+   375→      setSaving(false);
+   376→    }
+   377→  };
+   378→
+   379→  const handleDelete = async () => {
+   380→    if (!deleteDialog) return;
+   381→    try {
+   382→      setDeleting(true);
+   383→      await apiDeleteRoom(deleteDialog.id);
+   384→      toast.success("Room deleted successfully");
+   385→      setDeleteDialog(null);
+   386→      triggerRefresh();
+   387→    } catch (err: unknown) {
+   388→      const message = err instanceof Error ? err.message : "Failed to delete room";
+   389→      toast.error(message);
+   390→    } finally {
+   391→      setDeleting(false);
+   392→    }
+   393→  };
+   394→
+   395→  const handleStatusChange = async (room: Room, newStatus: string) => {
+   396→    try {
+   397→      await apiUpdateRoomStatus(room.id, newStatus);
+   398→      toast.success(`Room ${room.number} status changed to ${newStatus}`);
+   399→      triggerRefresh();
+   400→    } catch (err: unknown) {
+   401→      const message = err instanceof Error ? err.message : "Failed to update status";
+   402→      toast.error(message);
+   403→    }
+   404→  };
+   405→
+   406→  const handleReserveFromRoom = (room: Room) => {
+   407→    setInfoRoom(null);
+   408→    setPreselectedRoom({
+   409→      id: room.id,
+   410→      number: room.number,
+   411→      name: room.name,
+   412→      type: room.type,
+   413→      pricePerNight: room.pricePerNight,
+   414→    });
+   415→    setCurrentPage("reservations");
+   416→  };
+   417→
+   418→  // ── Excel import ────────────────────────────────────────────────────────────
+   419→  const handleImportFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+   420→    setImportFile(e.target.files?.[0] ?? null);
+   421→    setImportResults(null);
+   422→  };
+   423→
+   424→  const handleImport = async () => {
+   425→    if (!importFile) { toast.error("Please select an Excel file first"); return; }
+   426→    setImportLoading(true);
+   427→    try {
+   428→      const buffer = await importFile.arrayBuffer();
+   429→      const wb = XLSX.read(buffer, { type: "array" });
+   430→      const ws = wb.Sheets[wb.SheetNames[0]];
+   431→      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws);
+   432→
+   433→      if (rows.length === 0) { toast.error("No data rows found in the file"); return; }
+   434→
+   435→      const result = await apiImportRooms(rows as Record<string, unknown>[]);
+   436→      setImportResults(result.results);
+   437→      toast.success(`Import complete: ${result.imported} created, ${result.skipped} skipped`);
+   438→      triggerRefresh();
+   439→    } catch (err: unknown) {
+   440→      const message = err instanceof Error ? err.message : "Import failed";
+   441→      toast.error(message);
+   442→    } finally {
+   443→      setImportLoading(false);
+   444→    }
+   445→  };
+   446→
+   447→  const closeImportDialog = () => {
+   448→    setImportDialogOpen(false);
+   449→    setImportFile(null);
+   450→    setImportResults(null);
+   451→    if (importFileRef.current) importFileRef.current.value = "";
+   452→  };
+   453→
+   454→  const parseAmenities = (amenitiesStr: string): string[] => {
+   455→    try {
+   456→      const parsed = JSON.parse(amenitiesStr);
+   457→      return Array.isArray(parsed) ? parsed : [];
+   458→    } catch {
+   459→      return amenitiesStr.split(",").map((s) => s.trim()).filter(Boolean);
+   460→    }
+   461→  };
+   462→
+   463→  const floors = useMemo(() => {
+   464→    const set = new Set<number>();
+   465→    rooms.forEach((r) => {
+   466→      const f = getFloorFromNumber(r.number);
+   467→      if (f !== null) set.add(f);
+   468→    });
+   469→    return Array.from(set).sort((a, b) => a - b);
+   470→  }, [rooms]);
+   471→
+   472→  const filteredRooms = rooms.filter((room) => {
+   473→    if (statusFilter && room.status !== statusFilter) return false;
+   474→    if (floorFilter !== null && getFloorFromNumber(room.number) !== floorFilter) return false;
+   475→    if (!search) return true;
+   476→    const q = search.toLowerCase();
+   477→    return (
+   478→      room.number.toLowerCase().includes(q) ||
+   479→      room.name.toLowerCase().includes(q) ||
+   480→      room.type.toLowerCase().includes(q)
+   481→    );
+   482→  });
+   483→
+   484→  const formatPrice = (price: number) =>
+   485→    new Intl.NumberFormat("en-US", { style: "currency", currency: "ETB", maximumFractionDigits: 0 }).format(price);
+   486→
+   487→  if (loading && rooms.length === 0) {
+   488→    return (
+   489→      <div className="space-y-6 p-4 md:p-6">
+   490→        <div className="flex items-center justify-between">
+   491→          <div>
+   492→            <Skeleton className="h-8 w-32" />
+   493→            <Skeleton className="mt-1 h-4 w-48" />
+   494→          </div>
+   495→          <Skeleton className="h-10 w-32" />
+   496→        </div>
+   497→        <Skeleton className="h-10 w-full" />
+   498→        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+   499→          {Array.from({ length: 6 }).map((_, i) => (
+   500→            <Skeleton key={i} className="h-56 rounded-xl" />
+   501→          ))}
+   502→        </div>
+   503→      </div>
+   504→    );
+   505→  }
+   506→
+   507→  return (
+   508→    <div className="space-y-6 p-4 md:p-6">
+   509→      {/* Header */}
+   510→      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+   511→        <div>
+   512→          <h1 className="text-2xl font-bold text-gray-900">Rooms</h1>
+   513→          <p className="mt-1 text-sm text-gray-500">
+   514→            Manage your {rooms.length} room{rooms.length !== 1 ? "s" : ""}
+   515→          </p>
+   516→        </div>
+   517→        <div className="flex gap-2 items-center flex-wrap">
+   518→          {/* Subscription status badge */}
+   519→          <SubscriptionBadge />
+   520→
+   521→          <Button variant="outline" onClick={() => setImportDialogOpen(true)} className="gap-2">
+   522→            <FileSpreadsheet className="h-4 w-4" />
+   523→            Import Excel
+   524→          </Button>
+   525→          <Button variant="outline" onClick={() => setCurrentPage("reservations")} className="gap-2">
+   526→            <ClipboardList className="h-4 w-4" />
+   527→            Reservations
+   528→          </Button>
+   529→          <Button onClick={openCreate} className="gap-2">
+   530→            <Plus className="h-4 w-4" />
+   531→            Add Room
+   532→          </Button>
+   533→        </div>
+   534→      </div>
+   535→
+   536→      {/* Search */}
+   537→      <div className="relative">
+   538→        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+   539→        <Input
+   540→          placeholder="Search rooms by number, name, or type..."
+   541→          value={search}
+   542→          onChange={(e) => setSearch(e.target.value)}
+   543→          className="pl-9"
+   544→        />
+   545→      </div>
+   546→
+   547→      {/* Floor & Status Filter Buttons */}
+   548→      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+   549→        <span className="text-xs font-medium text-gray-500 whitespace-nowrap">Floor:</span>
+   550→        <div className="flex gap-1.5">
+   551→          <Button
+   552→            variant={floorFilter === null && statusFilter === null ? "default" : "outline"}
+   553→            size="sm"
+   554→            className="h-8 text-xs px-3 shrink-0"
+   555→            onClick={() => { setFloorFilter(null); setStatusFilter(null); }}
+   556→          >
+   557→            All
+   558→          </Button>
+   559→          {floors.slice(0, 3).map((f) => (
+   560→            <Button
+   561→              key={f}
+   562→              variant={floorFilter === f ? "default" : "outline"}
+   563→              size="sm"
+   564→              className="h-8 text-xs px-3 shrink-0"
+   565→              onClick={() => setFloorFilter(floorFilter === f ? null : f)}
+   566→            >
+   567→              <Building2 className="h-3.5 w-3.5 mr-1" />
+   568→              {f}
+   569→            </Button>
+   570→          ))}
+   571→          {floors.length > 3 && (
+   572→            <DropdownMenu>
+   573→              <DropdownMenuTrigger asChild>
+   574→                <Button
+   575→                  variant={floorFilter !== null && floors.slice(3).includes(floorFilter) ? "default" : "outline"}
+   576→                  size="sm"
+   577→                  className="h-8 text-xs px-3 shrink-0 gap-1"
+   578→                >
+   579→                  Others
+   580→                  <ChevronDown className="h-3 w-3" />
+   581→                </Button>
+   582→              </DropdownMenuTrigger>
+   583→              <DropdownMenuContent align="start">
+   584→                {floors.slice(3).map((f) => (
+   585→                  <DropdownMenuItem
+   586→                    key={f}
+   587→                    className="text-xs"
+   588→                    onClick={() => setFloorFilter(f)}
+   589→                  >
+   590→                    <Building2 className="h-3.5 w-3.5 mr-2" />
+   591→                    Floor {f}
+   592→                  </DropdownMenuItem>
+   593→                ))}
+   594→              </DropdownMenuContent>
+   595→            </DropdownMenu>
+   596→          )}
+   597→        </div>
+   598→        <Separator orientation="vertical" className="h-6 mx-1" />
+   599→        <span className="text-xs font-medium text-gray-500 whitespace-nowrap">Status:</span>
+   600→        <div className="flex gap-1.5">
+   601→          <Button
+   602→            variant={statusFilter === "AVAILABLE" ? "default" : "outline"}
+   603→            size="sm"
+   604→            className="h-8 text-xs px-3 shrink-0"
+   605→            onClick={() => setStatusFilter(statusFilter === "AVAILABLE" ? null : "AVAILABLE")}
+   606→          >
+   607→            <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+   608→            Available
+   609→          </Button>
+   610→          <Button
+   611→            variant={statusFilter === "OCCUPIED" ? "default" : "outline"}
+   612→            size="sm"
+   613→            className="h-8 text-xs px-3 shrink-0"
+   614→            onClick={() => setStatusFilter(statusFilter === "OCCUPIED" ? null : "OCCUPIED")}
+   615→          >
+   616→            <AlertCircle className="h-3.5 w-3.5 mr-1" />
+   617→            Occupied
+   618→          </Button>
+   619→        </div>
+   620→      </div>
+   621→      {/* Room Grid */}
+   622→      {filteredRooms.length === 0 ? (
+   623→        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16">
+   624→          <Building2 className="h-12 w-12 text-gray-300 mb-3" />
+   625→          <p className="text-lg font-medium text-gray-500">No rooms found</p>
+   626→          <p className="mt-1 text-sm text-gray-400">
+   627→            {search ? "Try a different search term" : "Get started by adding your first room"}
+   628→          </p>
+   629→          {!search && (
+   630→            <div className="mt-4 flex gap-2">
+   631→              <Button onClick={openCreate} variant="outline" className="gap-2">
+   632→                <Plus className="h-4 w-4" />
+   633→                Add Room
+   634→              </Button>
+   635→              <Button onClick={() => setImportDialogOpen(true)} variant="outline" className="gap-2">
+   636→                <FileSpreadsheet className="h-4 w-4" />
+   637→                Import Excel
+   638→              </Button>
+   639→            </div>
+   640→          )}
+   641→        </div>
+   642→      ) : (
+   643→        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+   644→          {filteredRooms.map((room) => {
+   645→            const amenities = parseAmenities(room.amenities);
+   646→            return (
+   647→              <Card key={room.id} className="gap-0 overflow-hidden py-0 transition-shadow hover:shadow-md">
+   648→                {/* Status Bar */}
+   649→                <div className={`h-1.5 w-full ${STATUS_DOT[room.status]}`} />
+   650→
+   651→                <CardContent className="p-4">
+   652→                  {/* Room Header */}
+   653→                  <div className="flex items-start justify-between mb-3">
+   654→                    <div className="flex items-center gap-2.5">
+   655→                      <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${ROOM_TYPE_COLORS[room.type]}`}>
+   656→                        {ROOM_TYPE_ICONS[room.type]}
+   657→                      </div>
+   658→                      <div>
+   659→                        <h3 className="font-semibold text-gray-900 leading-tight">
+   660→                          Room {room.number}
+   661→                        </h3>
+   662→                        <p className="text-sm text-gray-500">{room.type}</p>
+   663→                      </div>
+   664→                    </div>
+   665→                    <DropdownMenu>
+   666→                      <DropdownMenuTrigger asChild>
+   667→                        <Button variant="ghost" size="icon" className="h-8 w-8">
+   668→                          <MoreVertical className="h-4 w-4" />
+   669→                          <span className="sr-only">Actions</span>
+   670→                        </Button>
+   671→                      </DropdownMenuTrigger>
+   672→                      <DropdownMenuContent align="end">
+   673→                        {room.status === "OCCUPIED" ? (
+   674→                          <>
+   675→                            <DropdownMenuItem onClick={() => {
+   676→                              setPreselectedRoom({ id: room.id, number: room.number, name: room.name, type: room.type, pricePerNight: room.pricePerNight });
+   677→                              setCurrentPage("reservations");
+   678→                            }}>
+   679→                              <CalendarClock className="mr-2 h-4 w-4" />
+   680→                              Extend Stay / Early Checkout
+   681→                            </DropdownMenuItem>
+   682→                            <DropdownMenuItem onClick={() => {
+   683→                              setPreselectedRoom({ id: room.id, number: room.number, name: room.name, type: room.type, pricePerNight: room.pricePerNight });
+   684→                              setCurrentPage("reservations");
+   685→                            }}>
+   686→                              <ArrowRightLeft className="mr-2 h-4 w-4" />
+   687→                              Room Shift
+   688→                            </DropdownMenuItem>
+   689→                          </>
+   690→                        ) : (
+   691→                          <DropdownMenuItem onClick={() => openEdit(room)}>
+   692→                            <Pencil className="mr-2 h-4 w-4" />
+   693→                            Edit
+   694→                          </DropdownMenuItem>
+   695→                        )}
+   696→                        {room.status !== "OCCUPIED" && (
+   697→                          <DropdownMenuItem
+   698→                            onClick={() => {
+   699→                              const nextStatus = room.status === "AVAILABLE" ? "MAINTENANCE" : "AVAILABLE";
+   700→                              handleStatusChange(room, nextStatus);
+   701→                            }}
+   702→                          >
+   703→                            <Layers className="mr-2 h-4 w-4" />
+   704→                            Toggle Availability
+   705→                          </DropdownMenuItem>
+   706→                        )}
+   707→                        <DropdownMenuSeparator />
+   708→                        <DropdownMenuItem
+   709→                          className="text-rose-600 focus:text-rose-600"
+   710→                          onClick={() => setDeleteDialog(room)}
+   711→                        >
+   712→                          <Trash2 className="mr-2 h-4 w-4" />
+   713→                          Delete
+   714→                        </DropdownMenuItem>
+   715→                      </DropdownMenuContent>
+   716→                    </DropdownMenu>
+   717→                  </div>
+   718→
+   719→                  {/* Badges Row */}
+   720→                  <div className="flex flex-wrap items-center gap-1.5 mb-3">
+   721→                    <Badge variant="outline" className={ROOM_TYPE_COLORS[room.type]}>
+   722→                      {room.type}
+   723→                    </Badge>
+   724→                    <Badge variant="outline" className={STATUS_STYLES[room.status]}>
+   725→                      <span className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${STATUS_DOT[room.status]}`} />
+   726→                      {room.status}
+   727→                    </Badge>
+   728→                  </div>
+   729→
+   730→                  {/* Details */}
+   731→                  <div className="grid grid-cols-2 gap-2 mb-3 text-sm">
+   732→                    <div className="flex items-center gap-1.5 text-gray-600">
+   733→                      <DollarSign className="h-3.5 w-3.5 text-gray-400" />
+   734→                      <span>{formatPrice(room.pricePerNight)}</span>
+   735→                      <span className="text-gray-400">/night</span>
+   736→                    </div>
+   737→                    <div className="flex items-center gap-1.5 text-gray-600">
+   738→                      <Users className="h-3.5 w-3.5 text-gray-400" />
+   739→                      <span>{room.capacity} guest{room.capacity !== 1 ? "s" : ""}</span>
+   740→                    </div>
+   741→                    <div className="flex items-center gap-1.5 text-gray-600">
+   742→                      <Building2 className="h-3.5 w-3.5 text-gray-400" />
+   743→                      <span>Floor {getFloorFromNumber(room.number) ?? room.floor}</span>
+   744→                    </div>
+   745→                  </div>
+   746→
+   747→                  {/* Amenities */}
+   748→                  {amenities.length > 0 && (
+   749→                    <>
+   750→                      <Separator className="my-3" />
+   751→                      <div className="flex flex-wrap gap-2">
+   752→                        {amenities.slice(0, 5).map((amenity) => (
+   753→                          <div
+   754→                            key={amenity}
+   755→                            className="flex items-center gap-1 rounded-md bg-gray-50 px-2 py-1 text-xs text-gray-600 border border-gray-100"
+   756→                          >
+   757→                            {AMENITY_ICONS[amenity] || <Layers className="h-3 w-3" />}
+   758→                            {amenity}
+   759→                          </div>
+   760→                        ))}
+   761→                        {amenities.length > 5 && (
+   762→                          <span className="flex items-center px-2 py-1 text-xs text-gray-400">
+   763→                            +{amenities.length - 5} more
+   764→                          </span>
+   765→                        )}
+   766→                      </div>
+   767→                    </>
+   768→                  )}
+   769→
+   770→                  {/* Action Buttons */}
+   771→                  <Separator className="my-3" />
+   772→                  <div className="flex gap-2">
+   773→                    <Button
+   774→                      variant="outline"
+   775→                      size="sm"
+   776→                      className="flex-1 gap-1.5 text-xs"
+   777→                      onClick={() => setInfoRoom(room)}
+   778→                    >
+   779→                      <Info className="h-3.5 w-3.5" />
+   780→                      Info
+   781→                    </Button>
+   782→                    {room.status === "AVAILABLE" ? (
+   783→                      <Button
+   784→                        size="sm"
+   785→                        className="flex-1 gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700"
+   786→                        onClick={() => handleReserveFromRoom(room)}
+   787→                      >
+   788→                        <CalendarPlus className="h-3.5 w-3.5" />
+   789→                        Reserve
+   790→                      </Button>
+   791→                    ) : room.status === "RESERVED" ? (
+   792→                      <Button
+   793→                        size="sm"
+   794→                        className="flex-1 gap-1.5 text-xs bg-sky-600 hover:bg-sky-700"
+   795→                        onClick={() => { setPreselectedRoom({ id: room.id, number: room.number, name: room.name, type: room.type, pricePerNight: room.pricePerNight }); setCurrentPage("reservations"); }}
+   796→                      >
+   797→                        <ClipboardList className="h-3.5 w-3.5" />
+   798→                        Manage Reservations
+   799→                      </Button>
+   800→                    ) : (
+   801→                      <Button
+   802→                        size="sm"
+   803→                        className="flex-1 gap-1.5 text-xs"
+   804→                        disabled
+   805→                      >
+   806→                        <CalendarPlus className="h-3.5 w-3.5" />
+   807→                        Reserve
+   808→                      </Button>
+   809→                    )}
+   810→                  </div>
+   811→                </CardContent>
+   812→              </Card>
+   813→            );
+   814→          })}
+   815→        </div>
+   816→      )}
+   817→
+   818→      {/* Create/Edit Dialog — no Room Name field */}
+   819→      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+   820→        <DialogContent className="sm:max-w-lg">
+   821→          <DialogHeader>
+   822→            <DialogTitle>{editingRoom ? "Edit Room" : "Add New Room"}</DialogTitle>
+   823→            <DialogDescription>
+   824→              {editingRoom
+   825→                ? "Update room details below."
+   826→                : "Fill in the details to create a new room."}
+   827→            </DialogDescription>
+   828→          </DialogHeader>
+   829→
+   830→          <div className="grid gap-4 py-2">
+   831→            <div className="grid grid-cols-2 gap-4">
+   832→              <div className="space-y-2">
+   833→                <Label htmlFor="room-number">
+   834→                  Room Number <span className="text-rose-500">*</span>
+   835→                </Label>
+   836→                <Input
+   837→                  id="room-number"
+   838→                  placeholder="e.g. 101"
+   839→                  value={form.number}
+   840→                  onChange={(e) => setForm({ ...form, number: e.target.value })}
+   841→                />
+   842→              </div>
+   843→              <div className="space-y-2">
+   844→                <Label htmlFor="room-type">Room Type</Label>
+   845→                <Select
+   846→                  value={form.type}
+   847→                  onValueChange={(v) => setForm({ ...form, type: v })}
+   848→                >
+   849→                  <SelectTrigger className="w-full">
+   850→                    <SelectValue />
+   851→                  </SelectTrigger>
+   852→                  <SelectContent>
+   853→                    {ROOM_TYPES.map((type) => (
+   854→                      <SelectItem key={type} value={type}>
+   855→                        <span className="flex items-center gap-2">
+   856→                          {ROOM_TYPE_ICONS[type]}
+   857→                          {type}
+   858→                        </span>
+   859→                      </SelectItem>
+   860→                    ))}
+   861→                  </SelectContent>
+   862→                </Select>
+   863→              </div>
+   864→            </div>
+   865→
+   866→            <div className="grid grid-cols-3 gap-4">
+   867→              <div className="space-y-2">
+   868→                <Label htmlFor="room-price">
+   869→                  Price/Night <span className="text-rose-500">*</span>
+   870→                </Label>
+   871→                <Input
+   872→                  id="room-price"
+   873→                  type="number"
+   874→                  placeholder="0"
+   875→                  value={form.pricePerNight}
+   876→                  onChange={(e) => setForm({ ...form, pricePerNight: e.target.value })}
+   877→                />
+   878→              </div>
+   879→              <div className="space-y-2">
+   880→                <Label htmlFor="room-floor">
+   881→                  Floor <span className="text-rose-500">*</span>
+   882→                </Label>
+   883→                <Input
+   884→                  id="room-floor"
+   885→                  type="number"
+   886→                  placeholder="1"
+   887→                  value={form.floor}
+   888→                  onChange={(e) => setForm({ ...form, floor: e.target.value })}
+   889→                />
+   890→              </div>
+   891→              <div className="space-y-2">
+   892→                <Label htmlFor="room-capacity">
+   893→                  Capacity <span className="text-rose-500">*</span>
+   894→                </Label>
+   895→                <Input
+   896→                  id="room-capacity"
+   897→                  type="number"
+   898→                  placeholder="2"
+   899→                  value={form.capacity}
+   900→                  onChange={(e) => setForm({ ...form, capacity: e.target.value })}
+   901→                />
+   902→              </div>
+   903→            </div>
+   904→
+   905→            <div className="space-y-2">
+   906→              <Label htmlFor="room-amenities">Amenities (comma-separated)</Label>
+   907→              <Input
+   908→                id="room-amenities"
+   909→                placeholder="WiFi, TV, AC, Mini Bar, Hot Water"
+   910→                value={
+   911→                  (() => {
+   912→                    try {
+   913→                      const parsed = JSON.parse(form.amenities);
+   914→                      return Array.isArray(parsed) ? parsed.join(", ") : form.amenities;
+   915→                    } catch {
+   916→                      return form.amenities;
+   917→                    }
+   918→                  })()
+   919→                }
+   920→                onChange={(e) =>
+   921→                  setForm({
+   922→                    ...form,
+   923→                    amenities: JSON.stringify(
+   924→                      e.target.value
+   925→                        .split(",")
+   926→                        .map((s) => s.trim())
+   927→                        .filter(Boolean)
+   928→                    ),
+   929→                  })
+   930→                }
+   931→              />
+   932→            </div>
+   933→
+   934→            <div className="space-y-2">
+   935→              <Label htmlFor="room-description">Description</Label>
+   936→              <Textarea
+   937→                id="room-description"
+   938→                placeholder="Describe the room..."
+   939→                rows={3}
+   940→                value={form.description}
+   941→                onChange={(e) => setForm({ ...form, description: e.target.value })}
+   942→              />
+   943→            </div>
+   944→          </div>
+   945→
+   946→          <DialogFooter>
+   947→            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+   948→              Cancel
+   949→            </Button>
+   950→            <Button onClick={handleSave} disabled={saving}>
+   951→              {saving ? "Saving..." : editingRoom ? "Update Room" : "Create Room"}
+   952→            </Button>
+   953→          </DialogFooter>
+   954→        </DialogContent>
+   955→      </Dialog>
+   956→
+   957→      {/* Excel Import Dialog */}
+   958→      <Dialog open={importDialogOpen} onOpenChange={closeImportDialog}>
+   959→        <DialogContent className="sm:max-w-lg">
+   960→          <DialogHeader>
+   961→            <DialogTitle className="flex items-center gap-2">
+   962→              <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
+   963→              Import Rooms from Excel
+   964→            </DialogTitle>
+   965→            <DialogDescription>
+   966→              Upload an Excel file (.xlsx / .xls) with room data. Download the
+   967→              template below for the correct column format.
+   968→            </DialogDescription>
+   969→          </DialogHeader>
+   970→
+   971→          <div className="space-y-4 py-2">
+   972→            {/* Template download */}
+   973→            <div className="rounded-lg border border-dashed border-emerald-300 bg-emerald-50 p-4">
+   974→              <p className="text-sm font-medium text-emerald-800 mb-1">Required columns:</p>
+   975→              <p className="text-xs text-emerald-700 mb-3 font-mono">
+   976→                number · type · pricePerNight · floor · capacity · amenities · description
+   977→              </p>
+   978→              <p className="text-xs text-emerald-600 mb-3">
+   979→                <strong>type</strong> must be one of: SINGLE, DOUBLE, TWIN, SUITE, DELUXE<br />
+   980→                <strong>amenities</strong> — comma-separated, e.g. <em>WiFi, TV, AC</em>
+   981→              </p>
+   982→              <Button variant="outline" size="sm" onClick={downloadTemplate} className="gap-2 border-emerald-400 text-emerald-700 hover:bg-emerald-100">
+   983→                <Download className="h-3.5 w-3.5" />
+   984→                Download Template
+   985→              </Button>
+   986→            </div>
+   987→
+   988→            {/* File picker */}
+   989→            <div className="space-y-2">
+   990→              <Label htmlFor="excel-file">Select Excel File</Label>
+   991→              <div className="flex gap-2">
+   992→                <Input
+   993→                  id="excel-file"
+   994→                  type="file"
+   995→                  accept=".xlsx,.xls,.csv"
+   996→                  ref={importFileRef}
+   997→                  onChange={handleImportFileChange}
+   998→                  className="flex-1"
+   999→                />
+  1000→              </div>
+  1001→              {importFile && (
+  1002→                <p className="text-xs text-gray-500">
+  1003→                  Selected: <strong>{importFile.name}</strong> ({(importFile.size / 1024).toFixed(1)} KB)
+  1004→                </p>
+  1005→              )}
+  1006→            </div>
+  1007→
+  1008→            {/* Import results */}
+  1009→            {importResults && (
+  1010→              <div className="rounded-lg border bg-gray-50 p-3 max-h-48 overflow-y-auto space-y-1">
+  1011→                <p className="text-xs font-semibold text-gray-600 mb-2">Import Results:</p>
+  1012→                {importResults.map((r, i) => (
+  1013→                  <div key={i} className="flex items-center gap-2 text-xs">
+  1014→                    {r.status === "created" ? (
+  1015→                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+  1016→                    ) : r.status === "skipped" ? (
+  1017→                      <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+  1018→                    ) : (
+  1019→                      <XCircle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+  1020→                    )}
+  1021→                    <span className="font-medium">Room {r.number}</span>
+  1022→                    <span className={r.status === "created" ? "text-emerald-600" : "text-amber-600"}>
+  1023→                      {r.status === "created" ? "Created" : r.error}
+  1024→                    </span>
+  1025→                  </div>
+  1026→                ))}
+  1027→              </div>
+  1028→            )}
+  1029→          </div>
+  1030→
+  1031→          <DialogFooter>
+  1032→            <Button variant="outline" onClick={closeImportDialog}>
+  1033→              {importResults ? "Close" : "Cancel"}
+  1034→            </Button>
+  1035→            {!importResults && (
+  1036→              <Button onClick={handleImport} disabled={importLoading || !importFile} className="gap-2">
+  1037→                <Upload className="h-4 w-4" />
+  1038→                {importLoading ? "Importing..." : "Import Rooms"}
+  1039→              </Button>
+  1040→            )}
+  1041→          </DialogFooter>
+  1042→        </DialogContent>
+  1043→      </Dialog>
+  1044→
+  1045→      {/* Delete Confirmation */}
+  1046→      <AlertDialog open={!!deleteDialog} onOpenChange={() => setDeleteDialog(null)}>
+  1047→        <AlertDialogContent>
+  1048→          <AlertDialogHeader>
+  1049→            <AlertDialogTitle>Delete Room {deleteDialog?.number}?</AlertDialogTitle>
+  1050→            <AlertDialogDescription>
+  1051→              This action cannot be undone. This will permanently delete room &quot;{deleteDialog?.name}&quot; and all
+  1052→              associated data.
+  1053→            </AlertDialogDescription>
+  1054→          </AlertDialogHeader>
+  1055→          <AlertDialogFooter>
+  1056→            <AlertDialogCancel>Cancel</AlertDialogCancel>
+  1057→            <AlertDialogAction
+  1058→              className="bg-rose-600 hover:bg-rose-700"
+  1059→              onClick={handleDelete}
+  1060→              disabled={deleting}
+  1061→            >
+  1062→              {deleting ? "Deleting..." : "Delete"}
+  1063→            </AlertDialogAction>
+  1064→          </AlertDialogFooter>
+  1065→        </AlertDialogContent>
+  1066→      </AlertDialog>
+  1067→
+  1068→      {/* Room Info Detail Modal */}
+  1069→      <Dialog open={!!infoRoom} onOpenChange={(open) => { if (!open) setInfoRoom(null); }}>
+  1070→        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+  1071→          {infoRoom && (() => {
+  1072→            const amenities = parseAmenities(infoRoom.amenities);
+  1073→            const activeRes = roomReservations.find((r) => r.status === "ACTIVE" || r.status === "CHECKED_IN");
+  1074→            const upcomingRes = roomReservations.filter((r) => r.status === "UPCOMING");
+  1075→            const pastRes = roomReservations.filter((r) => r.status === "COMPLETED" || r.status === "CANCELLED" || r.status === "CHECKED_OUT");
+  1076→
+  1077→            return (
+  1078→              <>
+  1079→                <DialogHeader>
+  1080→                  <DialogTitle className="flex items-center gap-2">
+  1081→                    <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${ROOM_TYPE_COLORS[infoRoom.type]}`}>
+  1082→                      {ROOM_TYPE_ICONS[infoRoom.type]}
+  1083→                    </div>
+  1084→                    Room {infoRoom.number}
+  1085→                    <Badge variant="outline" className={STATUS_STYLES[infoRoom.status]}>
+  1086→                      <span className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${STATUS_DOT[infoRoom.status]}`} />
+  1087→                      {infoRoom.status}
+  1088→                    </Badge>
+  1089→                  </DialogTitle>
+  1090→                  <DialogDescription>{infoRoom.name}</DialogDescription>
+  1091→                </DialogHeader>
+  1092→
+  1093→                {/* Room Image */}
+  1094→                {infoRoom.image && (
+  1095→                  <div className="rounded-lg overflow-hidden border">
+  1096→                    <img
+  1097→                      src={infoRoom.image}
+  1098→                      alt={`Room ${infoRoom.number}`}
+  1099→                      className="w-full h-48 object-cover"
+  1100→                      loading="lazy"
+  1101→                      decoding="async"
+  1102→                    />
+  1103→                  </div>
+  1104→                )}
+  1105→
+  1106→                {/* Description */}
+  1107→                {infoRoom.description && (
+  1108→                  <p className="text-sm text-gray-600 leading-relaxed">{infoRoom.description}</p>
+  1109→                )}
+  1110→
+  1111→                {/* Details Grid */}
+  1112→                <div className="grid grid-cols-2 gap-3">
+  1113→                  <div className="rounded-lg border p-3">
+  1114→                    <p className="text-xs text-gray-500 mb-1">Room Type</p>
+  1115→                    <p className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+  1116→                      {ROOM_TYPE_ICONS[infoRoom.type]} {infoRoom.type}
+  1117→                    </p>
+  1118→                  </div>
+  1119→                  <div className="rounded-lg border p-3">
+  1120→                    <p className="text-xs text-gray-500 mb-1">Price per Night</p>
+  1121→                    <p className="text-sm font-semibold text-gray-900">{formatPrice(infoRoom.pricePerNight)}</p>
+  1122→                  </div>
+  1123→                  <div className="rounded-lg border p-3">
+  1124→                    <p className="text-xs text-gray-500 mb-1">Capacity</p>
+  1125→                    <p className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+  1126→                      <Users className="h-4 w-4 text-gray-400" /> {infoRoom.capacity} guest{infoRoom.capacity !== 1 ? "s" : ""}
+  1127→                    </p>
+  1128→                  </div>
+  1129→                  <div className="rounded-lg border p-3">
+  1130→                    <p className="text-xs text-gray-500 mb-1">Floor</p>
+  1131→                    <p className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+  1132→                      <Building2 className="h-4 w-4 text-gray-400" /> Floor {infoRoom.floor}
+  1133→                    </p>
+  1134→                  </div>
+  1135→                </div>
+  1136→
+  1137→                {/* Amenities */}
+  1138→                {amenities.length > 0 && (
+  1139→                  <div>
+  1140→                    <p className="text-xs font-medium text-gray-500 mb-2">Amenities</p>
+  1141→                    <div className="flex flex-wrap gap-2">
+  1142→                      {amenities.map((amenity) => (
+  1143→                        <div
+  1144→                          key={amenity}
+  1145→                          className="flex items-center gap-1.5 rounded-md bg-gray-50 px-2.5 py-1.5 text-xs text-gray-700 border border-gray-200"
+  1146→                        >
+  1147→                          {AMENITY_ICONS[amenity] || <Layers className="h-3.5 w-3.5" />}
+  1148→                          {amenity}
+  1149→                        </div>
+  1150→                      ))}
+  1151→                    </div>
+  1152→                  </div>
+  1153→                )}
+  1154→
+  1155→                {/* Guest & Reservation Info */}
+  1156→                <Separator />
+  1157→                <div>
+  1158→                  <p className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1.5">
+  1159→                    <CalendarDays className="h-3.5 w-3.5" /> Reservations & Guest
+  1160→                  </p>
+  1161→
+  1162→                  {roomResLoading ? (
+  1163→                    <div className="flex items-center gap-2 text-sm text-gray-400 py-2">
+  1164→                      <Clock className="h-4 w-4 animate-spin" /> Loading reservations...
+  1165→                    </div>
+  1166→                  ) : roomReservations.length === 0 ? (
+  1167→                    <div className="rounded-lg border border-dashed border-gray-200 p-4 text-center">
+  1168→                      <p className="text-sm text-gray-400">No reservations found for this room</p>
+  1169→                    </div>
+  1170→                  ) : (
+  1171→                    <div className="space-y-3">
+  1172→                      {/* Current / Active Reservation */}
+  1173→                      {activeRes && (
+  1174→                        <div className="rounded-lg border-2 border-emerald-200 bg-emerald-50 p-3">
+  1175→                          <div className="flex items-center justify-between mb-2">
+  1176→                            <Badge className="bg-emerald-600 text-white text-xs">Current Guest</Badge>
+  1177→                            <span className="text-xs text-emerald-600 font-medium">Active</span>
+  1178→                          </div>
+  1179→                          {activeRes.guest && (
+  1180→                            <div className="flex items-center gap-2 mb-2">
+  1181→                              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100">
+  1182→                                <User className="h-4 w-4 text-emerald-700" />
+  1183→                              </div>
+  1184→                              <div>
+  1185→                                <p className="text-sm font-semibold text-gray-900">{activeRes.guest.name}</p>
+  1186→                                <p className="text-xs text-gray-500">{activeRes.guest.phone}</p>
+  1187→                              </div>
+  1188→                            </div>
+  1189→                          )}
+  1190→                          <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+  1191→                            <div className="flex items-center gap-1">
+  1192→                              <CalendarDays className="h-3 w-3 text-gray-400" />
+  1193→                              {activeRes.checkIn} → {activeRes.checkOut}
+  1194→                            </div>
+  1195→                            <div className="flex items-center gap-1">
+  1196→                              <Clock className="h-3 w-3 text-gray-400" />
+  1197→                              {activeRes.nights} night{activeRes.nights !== 1 ? "s" : ""}
+  1198→                            </div>
+  1199→                            <div className="flex items-center gap-1">
+  1200→                              <CreditCard className="h-3 w-3 text-gray-400" />
+  1201→                              {activeRes.paymentStatus}
+  1202→                            </div>
+  1203→                            <div className="flex items-center gap-1 font-medium text-gray-900">
+  1204→                              {formatPrice(activeRes.totalCost)}
+  1205→                            </div>
+  1206→                          </div>
+  1207→                        </div>
+  1208→                      )}
+  1209→
+  1210→                      {/* Upcoming Reservations */}
+  1211→                      {upcomingRes.length > 0 && (
+  1212→                        <div>
+  1213→                          <p className="text-xs font-medium text-sky-700 mb-1.5">Upcoming</p>
+  1214→                          <div className="space-y-2">
+  1215→                            {upcomingRes.slice(0, 3).map((res) => (
+  1216→                              <div key={res.id} className="rounded-lg border border-sky-200 bg-sky-50 p-2.5">
+  1217→                                <div className="flex items-center justify-between mb-1">
+  1218→                                  {res.guest && (
+  1219→                                    <div className="flex items-center gap-1.5">
+  1220→                                      <User className="h-3.5 w-3.5 text-sky-600" />
+  1221→                                      <span className="text-sm font-medium text-gray-900">{res.guest.name}</span>
+  1222→                                    </div>
+  1223→                                  )}
+  1224→                                  <Badge variant="outline" className="text-xs border-sky-300 text-sky-700">{res.paymentStatus}</Badge>
+  1225→                                </div>
+  1226→                                <div className="flex items-center gap-3 text-xs text-gray-500">
+  1227→                                  <span className="flex items-center gap-1">
+  1228→                                    <CalendarDays className="h-3 w-3" /> {res.checkIn} → {res.checkOut}
+  1229→                                  </span>
+  1230→                                  <span>{res.nights} night{res.nights !== 1 ? "s" : ""}</span>
+  1231→                                  <span className="font-medium text-gray-700">{formatPrice(res.totalCost)}</span>
+  1232→                                </div>
+  1233→                              </div>
+  1234→                            ))}
+  1235→                            {upcomingRes.length > 3 && (
+  1236→                              <p className="text-xs text-gray-400 text-center">+{upcomingRes.length - 3} more upcoming</p>
+  1237→                            )}
+  1238→                          </div>
+  1239→                        </div>
+  1240→                      )}
+  1241→
+  1242→                      {/* Past Reservations count */}
+  1243→                      {pastRes.length > 0 && (
+  1244→                        <p className="text-xs text-gray-400 text-center">
+  1245→                          {pastRes.length} past reservation{pastRes.length !== 1 ? "s" : ""} for this room
+  1246→                        </p>
+  1247→                      )}
+  1248→                    </div>
+  1249→                  )}
+  1250→                </div>
+  1251→
+  1252→                <DialogFooter className="gap-2">
+  1253→                  <Button variant="outline" onClick={() => setInfoRoom(null)}>
+  1254→                    Close
+  1255→                  </Button>
+  1256→                  {infoRoom.status === "AVAILABLE" ? (
+  1257→                    <Button
+  1258→                      className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+  1259→                      onClick={() => handleReserveFromRoom(infoRoom)}
+  1260→                    >
+  1261→                      <CalendarPlus className="h-4 w-4" />
+  1262→                      Reserve This Room
+  1263→                    </Button>
+  1264→                  ) : infoRoom.status === "RESERVED" ? (
+  1265→                    <Button
+  1266→                      className="gap-2 bg-sky-600 hover:bg-sky-700"
+  1267→                      onClick={() => { setPreselectedRoom({ id: infoRoom.id, number: infoRoom.number, name: infoRoom.name, type: infoRoom.type, pricePerNight: infoRoom.pricePerNight }); setInfoRoom(null); setCurrentPage("reservations"); }}
+  1268→                    >
+  1269→                      <ClipboardList className="h-4 w-4" />
+  1270→                      Manage Reservations
+  1271→                    </Button>
+  1272→                  ) : infoRoom.status === "OCCUPIED" ? (
+  1273→                    <div className="flex gap-2">
+  1274→                      <Button
+  1275→                        className="gap-2 bg-amber-600 hover:bg-amber-700"
+  1276→                        onClick={() => { setPreselectedRoom({ id: infoRoom.id, number: infoRoom.number, name: infoRoom.name, type: infoRoom.type, pricePerNight: infoRoom.pricePerNight }); setInfoRoom(null); setCurrentPage("reservations"); }}
+  1277→                      >
+  1278→                        <CalendarClock className="h-4 w-4" />
+  1279→                        Extend / Early Out
+  1280→                      </Button>
+  1281→                      <Button
+  1282→                        className="gap-2 bg-violet-600 hover:bg-violet-700"
+  1283→                        onClick={() => { setPreselectedRoom({ id: infoRoom.id, number: infoRoom.number, name: infoRoom.name, type: infoRoom.type, pricePerNight: infoRoom.pricePerNight }); setInfoRoom(null); setCurrentPage("reservations"); }}
+  1284→                      >
+  1285→                        <ArrowRightLeft className="h-4 w-4" />
+  1286→                        Room Shift
+  1287→                      </Button>
+  1288→                    </div>
+  1289→                  ) : null}
+  1290→                </DialogFooter>
+  1291→              </>
+  1292→            );
+  1293→          })()}
+  1294→        </DialogContent>
+  1295→      </Dialog>
+  1296→    </div>
+  1297→  );
+  1298→}
