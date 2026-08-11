@@ -1,0 +1,817 @@
+    80→
+    81→function getActionIcon(action: string) {
+    82→  const lower = action.toLowerCase();
+    83→  if (lower === "login" || lower === "login_failed") return <LogIn className="h-3.5 w-3.5" />;
+    84→  if (lower === "logout") return <LogOut className="h-3.5 w-3.5" />;
+    85→  if (lower === "create") return <Plus className="h-3.5 w-3.5" />;
+    86→  if (lower === "update") return <Pencil className="h-3.5 w-3.5" />;
+    87→  if (lower === "delete") return <Trash2 className="h-3.5 w-3.5" />;
+    88→  if (lower === "view") return <Eye className="h-3.5 w-3.5" />;
+    89→  if (lower === "export" || lower === "backup") return <FileDown className="h-3.5 w-3.5" />;
+    90→  return <Activity className="h-3.5 w-3.5" />;
+    91→}
+    92→
+    93→function getActionColor(action: string): string {
+    94→  const lower = action.toLowerCase();
+    95→  if (lower === "login") return "bg-emerald-100 text-emerald-700 border-emerald-200";
+    96→  if (lower === "logout") return "bg-slate-100 text-slate-600 border-slate-200";
+    97→  if (lower === "create" || lower === "approve") return "bg-sky-100 text-sky-700 border-sky-200";
+    98→  if (lower === "update") return "bg-amber-100 text-amber-700 border-amber-200";
+    99→  if (lower === "delete" || lower === "suspend") return "bg-rose-100 text-rose-700 border-rose-200";
+   100→  if (lower === "view") return "bg-violet-100 text-violet-600 border-violet-200";
+   101→  if (lower === "export" || lower === "backup") return "bg-cyan-100 text-cyan-700 border-cyan-200";
+   102→  if (lower === "reject") return "bg-orange-100 text-orange-700 border-orange-200";
+   103→  if (lower === "login_failed") return "bg-red-100 text-red-700 border-red-200";
+   104→  if (lower === "config_change") return "bg-pink-100 text-pink-700 border-pink-200";
+   105→  return "bg-slate-100 text-slate-600 border-slate-200";
+   106→}
+   107→
+   108→function formatTimestamp(dateStr: string): string {
+   109→  try {
+   110→    const date = new Date(dateStr);
+   111→    return date.toLocaleDateString("en-US", {
+   112→      year: "numeric",
+   113→      month: "short",
+   114→      day: "numeric",
+   115→      hour: "2-digit",
+   116→      minute: "2-digit",
+   117→      second: "2-digit",
+   118→      hour12: true,
+   119→    });
+   120→  } catch {
+   121→    return dateStr;
+   122→  }
+   123→}
+   124→
+   125→function isToday(dateStr: string): boolean {
+   126→  try {
+   127→    const date = new Date(dateStr);
+   128→    const now = new Date();
+   129→    return (
+   130→      date.getDate() === now.getDate() &&
+   131→      date.getMonth() === now.getMonth() &&
+   132→      date.getFullYear() === now.getFullYear()
+   133→    );
+   134→  } catch {
+   135→    return false;
+   136→  }
+   137→}
+   138→
+   139→function isThisWeek(dateStr: string): boolean {
+   140→  try {
+   141→    const date = new Date(dateStr);
+   142→    const now = new Date();
+   143→    const startOfWeek = new Date(now);
+   144→    startOfWeek.setDate(now.getDate() - now.getDay());
+   145→    startOfWeek.setHours(0, 0, 0, 0);
+   146→    return date >= startOfWeek;
+   147→  } catch {
+   148→    return false;
+   149→  }
+   150→}
+   151→
+   152→// ── Component ──
+   153→
+   154→export default function SuperAuditLogsPage() {
+   155→  // Filters
+   156→  const [search, setSearch] = useState("");
+   157→  const [actionFilter, setActionFilter] = useState<string>("ALL");
+   158→  const [dateFrom, setDateFrom] = useState("");
+   159→  const [dateTo, setDateTo] = useState("");
+   160→
+   161→  // Data
+   162→  const [logs, setLogs] = useState<AuditLog[]>([]);
+   163→  const [total, setTotal] = useState(0);
+   164→  const [stats, setStats] = useState<AuditStats>({
+   165→    total: 0,
+   166→    today: 0,
+   167→    thisWeek: 0,
+   168→    critical: 0,
+   169→  });
+   170→
+   171→  // UI state
+   172→  const [loading, setLoading] = useState(true);
+   173→  const [exporting, setExporting] = useState(false);
+   174→  const [page, setPage] = useState(1);
+   175→  const [searchInput, setSearchInput] = useState("");
+   176→  const [expandedId, setExpandedId] = useState<string | null>(null);
+   177→  const limit = 20;
+   178→
+   179→  const totalPages = Math.max(1, Math.ceil(total / limit));
+   180→
+   181→  // Fetch logs
+   182→  const fetchLogs = useCallback(async () => {
+   183→    setLoading(true);
+   184→    try {
+   185→      const token = localStorage.getItem("ghms_token");
+   186→      const headers: HeadersInit = token
+   187→        ? { Authorization: `Bearer ${token}` }
+   188→        : {};
+   189→
+   190→      const params = new URLSearchParams({
+   191→        page: String(page),
+   192→        limit: String(limit),
+   193→      });
+   194→      if (search) params.set("search", search);
+   195→      if (actionFilter && actionFilter !== "ALL")
+   196→        params.set("action", actionFilter);
+   197→      if (dateFrom) params.set("dateFrom", dateFrom);
+   198→      if (dateTo) params.set("dateTo", dateTo);
+   199→
+   200→      const res = await fetch(`/api/police-audit?${params.toString()}`, {
+   201→        headers,
+   202→      });
+   203→
+   204→      if (res.ok) {
+   205→        const data = await res.json();
+   206→        setLogs(data.logs ?? []);
+   207→        setTotal(data.total ?? 0);
+   208→
+   209→        // Compute stats from the full data
+   210→        const allLogs = data.logs ?? [];
+   211→        setStats({
+   212→          total: data.total ?? allLogs.length,
+   213→          today: allLogs.filter((l: AuditLog) => isToday(l.createdAt)).length,
+   214→          thisWeek: allLogs.filter((l: AuditLog) =>
+   215→            isThisWeek(l.createdAt)
+   216→          ).length,
+   217→          critical: allLogs.filter((l: AuditLog) =>
+   218→            CRITICAL_ACTIONS.includes(l.action.toUpperCase())
+   219→          ).length,
+   220→        });
+   221→      } else {
+   222→        toast.error("Failed to fetch audit logs");
+   223→        setLogs([]);
+   224→        setTotal(0);
+   225→      }
+   226→    } catch {
+   227→      toast.error("Network error fetching audit logs");
+   228→      setLogs([]);
+   229→      setTotal(0);
+   230→    } finally {
+   231→      setLoading(false);
+   232→    }
+   233→  }, [page, search, actionFilter, dateFrom, dateTo]);
+   234→
+   235→  useEffect(() => {
+   236→    fetchLogs();
+   237→  }, [fetchLogs]);
+   238→
+   239→  // Apply search on Enter
+   240→  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+   241→    if (e.key === "Enter") {
+   242→      setSearch(searchInput);
+   243→      setPage(1);
+   244→    }
+   245→  };
+   246→
+   247→  const handleSearchClick = () => {
+   248→    setSearch(searchInput);
+   249→    setPage(1);
+   250→  };
+   251→
+   252→  // Reset all filters
+   253→  const handleResetFilters = () => {
+   254→    setSearch("");
+   255→    setSearchInput("");
+   256→    setActionFilter("ALL");
+   257→    setDateFrom("");
+   258→    setDateTo("");
+   259→    setPage(1);
+   260→  };
+   261→
+   262→  // Export logs as CSV
+   263→  const handleExportLogs = async () => {
+   264→    setExporting(true);
+   265→    try {
+   266→      const token = localStorage.getItem("ghms_token");
+   267→      const headers: HeadersInit = token
+   268→        ? { Authorization: `Bearer ${token}` }
+   269→        : {};
+   270→
+   271→      const params = new URLSearchParams({
+   272→        page: "1",
+   273→        limit: "1000",
+   274→      });
+   275→      if (search) params.set("search", search);
+   276→      if (actionFilter && actionFilter !== "ALL")
+   277→        params.set("action", actionFilter);
+   278→      if (dateFrom) params.set("dateFrom", dateFrom);
+   279→      if (dateTo) params.set("dateTo", dateTo);
+   280→
+   281→      const res = await fetch(`/api/police-audit?${params.toString()}`, {
+   282→        headers,
+   283→      });
+   284→
+   285→      if (res.ok) {
+   286→        const data = await res.json();
+   287→        const exportLogs: AuditLog[] = data.logs ?? [];
+   288→
+   289→        // Build CSV
+   290→        const csvHeader =
+   291→          "Timestamp,Officer/User,Action,Target,Target Type,IP Address,Details";
+   292→        const csvRows = exportLogs.map((log) =>
+   293→          [
+   294→            formatTimestamp(log.createdAt),
+   295→            log.officerName,
+   296→            log.action,
+   297→            log.targetId,
+   298→            log.targetType,
+   299→            log.ipAddress,
+   300→            `"${(log.details || "").replace(/"/g, '""')}"`,
+   301→          ].join(",")
+   302→        );
+   303→        const csvContent = [csvHeader, ...csvRows].join("\n");
+   304→
+   305→        const blob = new Blob([csvContent], {
+   306→          type: "text/csv;charset=utf-8;",
+   307→        });
+   308→        const url = URL.createObjectURL(blob);
+   309→        const link = document.createElement("a");
+   310→        link.href = url;
+   311→        link.download = `audit-logs-${new Date().toISOString().split("T")[0]}.csv`;
+   312→        document.body.appendChild(link);
+   313→        link.click();
+   314→        document.body.removeChild(link);
+   315→        URL.revokeObjectURL(url);
+   316→
+   317→        toast.success(
+   318→          `Exported ${exportLogs.length} log entries successfully`
+   319→        );
+   320→      } else {
+   321→        toast.error("Failed to export logs");
+   322→      }
+   323→    } catch {
+   324→      toast.error("Network error exporting logs");
+   325→    } finally {
+   326→      setExporting(false);
+   327→    }
+   328→  };
+   329→
+   330→  // Stat cards config
+   331→  const statCards = [
+   332→    {
+   333→      label: "Total Entries",
+   334→      value: stats.total,
+   335→      icon: <ClipboardList className="h-4 w-4" />,
+   336→      color: "text-slate-700",
+   337→      bg: "bg-slate-100",
+   338→      border: "border-slate-200",
+   339→      iconBg: "bg-slate-200",
+   340→    },
+   341→    {
+   342→      label: "Today",
+   343→      value: stats.today,
+   344→      icon: <Activity className="h-4 w-4" />,
+   345→      color: "text-emerald-700",
+   346→      bg: "bg-emerald-50",
+   347→      border: "border-emerald-200",
+   348→      iconBg: "bg-emerald-200",
+   349→    },
+   350→    {
+   351→      label: "This Week",
+   352→      value: stats.thisWeek,
+   353→      icon: <Calendar className="h-4 w-4" />,
+   354→      color: "text-sky-700",
+   355→      bg: "bg-sky-50",
+   356→      border: "border-sky-200",
+   357→      iconBg: "bg-sky-200",
+   358→    },
+   359→    {
+   360→      label: "Critical",
+   361→      value: stats.critical,
+   362→      icon: <Shield className="h-4 w-4" />,
+   363→      color: "text-rose-700",
+   364→      bg: "bg-rose-50",
+   365→      border: "border-rose-200",
+   366→      iconBg: "bg-rose-200",
+   367→    },
+   368→  ];
+   369→
+   370→  // Page numbers to display
+   371→  const getPageNumbers = (): (number | string)[] => {
+   372→    const pages: (number | string)[] = [];
+   373→    const maxVisible = 5;
+   374→
+   375→    if (totalPages <= maxVisible + 2) {
+   376→      for (let i = 1; i <= totalPages; i++) pages.push(i);
+   377→    } else {
+   378→      pages.push(1);
+   379→      let start = Math.max(2, page - 1);
+   380→      let end = Math.min(totalPages - 1, page + 1);
+   381→
+   382→      if (page <= 3) {
+   383→        start = 2;
+   384→        end = maxVisible;
+   385→      } else if (page >= totalPages - 2) {
+   386→        start = totalPages - maxVisible + 1;
+   387→        end = totalPages - 1;
+   388→      }
+   389→
+   390→      if (start > 2) pages.push("...");
+   391→      for (let i = start; i <= end; i++) pages.push(i);
+   392→      if (end < totalPages - 1) pages.push("...");
+   393→      pages.push(totalPages);
+   394→    }
+   395→
+   396→    return pages;
+   397→  };
+   398→
+   399→  // ── Loading Skeleton ──
+   400→  if (loading && page === 1 && !search && actionFilter === "ALL" && !dateFrom && !dateTo) {
+   401→    return (
+   402→      <div className="space-y-6 p-4 md:p-6">
+   403→        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+   404→          <div className="space-y-2">
+   405→            <Skeleton className="h-8 w-48" />
+   406→            <Skeleton className="h-4 w-80 max-w-full" />
+   407→          </div>
+   408→          <Skeleton className="h-10 w-32 rounded-lg" />
+   409→        </div>
+   410→        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+   411→          {Array.from({ length: 4 }).map((_, i) => (
+   412→            <Skeleton key={i} className="h-20 rounded-xl" />
+   413→          ))}
+   414→        </div>
+   415→        <Skeleton className="h-12 w-full rounded-xl" />
+   416→        <Skeleton className="h-96 rounded-xl" />
+   417→        <Skeleton className="h-12 w-64 rounded-lg mx-auto" />
+   418→      </div>
+   419→    );
+   420→  }
+   421→
+   422→  return (
+   423→    <div className="space-y-6 p-4 md:p-6">
+   424→      {/* ── Header ── */}
+   425→      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+   426→        <div>
+   427→          <div className="flex items-center gap-3">
+   428→            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900">
+   429→              <ClipboardList className="h-5 w-5 text-white" />
+   430→            </div>
+   431→            <h1 className="text-2xl font-bold text-gray-900">Audit Logs</h1>
+   432→          </div>
+   433→          <p className="mt-1 text-sm text-gray-500">
+   434→            Complete system activity trail for Guest House Management System
+   435→          </p>
+   436→        </div>
+   437→        <Button
+   438→          variant="outline"
+   439→          size="sm"
+   440→          onClick={handleExportLogs}
+   441→          disabled={exporting}
+   442→          className="w-fit gap-2 border-slate-300 hover:bg-slate-50"
+   443→        >
+   444→          {exporting ? (
+   445→            <RefreshCw className="h-4 w-4 animate-spin" />
+   446→          ) : (
+   447→            <Download className="h-4 w-4" />
+   448→          )}
+   449→          {exporting ? "Exporting..." : "Export Logs"}
+   450→        </Button>
+   451→      </div>
+   452→
+   453→      {/* ── Stats Bar ── */}
+   454→      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+   455→        {statCards.map((stat) => (
+   456→          <div
+   457→            key={stat.label}
+   458→            className={`flex items-center gap-3 rounded-xl border ${stat.border} ${stat.bg} p-3.5 transition-shadow hover:shadow-sm`}
+   459→          >
+   460→            <div
+   461→              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${stat.iconBg} ${stat.color}`}
+   462→            >
+   463→              {stat.icon}
+   464→            </div>
+   465→            <div className="min-w-0">
+   466→              <p className="text-xs font-medium text-slate-500">{stat.label}</p>
+   467→              <p className={`text-xl font-bold ${stat.color}`}>{stat.value}</p>
+   468→            </div>
+   469→          </div>
+   470→        ))}
+   471→      </div>
+   472→
+   473→      {/* ── Filters Row ── */}
+   474→      <Card className="border-slate-200">
+   475→        <CardContent className="p-4">
+   476→          <div className="flex flex-col gap-3">
+   477→            <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+   478→              <Filter className="h-4 w-4" />
+   479→              Filters
+   480→            </div>
+   481→            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+   482→              {/* Search */}
+   483→              <div className="relative lg:col-span-1">
+   484→                <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+   485→                <Input
+   486→                  placeholder="Search logs..."
+   487→                  value={searchInput}
+   488→                  onChange={(e) => setSearchInput(e.target.value)}
+   489→                  onKeyDown={handleSearchKeyDown}
+   490→                  className="pl-9 border-slate-300"
+   491→                />
+   492→              </div>
+   493→
+   494→              {/* Action Type Dropdown */}
+   495→              <Select
+   496→                value={actionFilter}
+   497→                onValueChange={(val) => {
+   498→                  setActionFilter(val);
+   499→                  setPage(1);
+   500→                }}
+   501→              >
+   502→                <SelectTrigger className="border-slate-300">
+   503→                  <SelectValue placeholder="Action Type" />
+   504→                </SelectTrigger>
+   505→                <SelectContent>
+   506→                  <SelectItem value="ALL">All Actions</SelectItem>
+   507→                  {ACTION_TYPES.map((action) => (
+   508→                    <SelectItem key={action} value={action}>
+   509→                      {action}
+   510→                    </SelectItem>
+   511→                  ))}
+   512→                </SelectContent>
+   513→              </Select>
+   514→
+   515→              {/* Date From */}
+   516→              <div className="relative">
+   517→                <Calendar className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+   518→                <Input
+   519→                  type="date"
+   520→                  value={dateFrom}
+   521→                  onChange={(e) => {
+   522→                    setDateFrom(e.target.value);
+   523→                    setPage(1);
+   524→                  }}
+   525→                  className="pl-9 border-slate-300"
+   526→                />
+   527→              </div>
+   528→
+   529→              {/* Date To */}
+   530→              <div className="relative">
+   531→                <Calendar className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+   532→                <Input
+   533→                  type="date"
+   534→                  value={dateTo}
+   535→                  onChange={(e) => {
+   536→                    setDateTo(e.target.value);
+   537→                    setPage(1);
+   538→                  }}
+   539→                  className="pl-9 border-slate-300"
+   540→                />
+   541→              </div>
+   542→
+   543→              {/* Reset Button */}
+   544→              <Button
+   545→                variant="outline"
+   546→                size="sm"
+   547→                onClick={handleResetFilters}
+   548→                className="w-full gap-2 border-slate-300 hover:bg-slate-50"
+   549→              >
+   550→                <RefreshCw className="h-3.5 w-3.5" />
+   551→                Reset Filters
+   552→              </Button>
+   553→            </div>
+   554→
+   555→            {/* Active filter badges */}
+   556→            {(search || (actionFilter && actionFilter !== "ALL") || dateFrom || dateTo) && (
+   557→              <div className="flex flex-wrap items-center gap-2 pt-1">
+   558→                <span className="text-xs text-slate-500">Active filters:</span>
+   559→                {search && (
+   560→                  <Badge
+   561→                    variant="secondary"
+   562→                    className="gap-1 bg-slate-100 text-slate-700 hover:bg-slate-200"
+   563→                  >
+   564→                    Search: &quot;{search}&quot;
+   565→                    <button
+   566→                      onClick={() => {
+   567→                        setSearch("");
+   568→                        setSearchInput("");
+   569→                        setPage(1);
+   570→                      }}
+   571→                      className="ml-1 rounded-full hover:bg-slate-300 p-0.5"
+   572→                    >
+   573→                      <ArrowRight className="h-2.5 w-2.5 rotate-45" />
+   574→                    </button>
+   575→                  </Badge>
+   576→                )}
+   577→                {actionFilter && actionFilter !== "ALL" && (
+   578→                  <Badge
+   579→                    variant="secondary"
+   580→                    className="gap-1 bg-slate-100 text-slate-700 hover:bg-slate-200"
+   581→                  >
+   582→                    Action: {actionFilter}
+   583→                    <button
+   584→                      onClick={() => {
+   585→                        setActionFilter("ALL");
+   586→                        setPage(1);
+   587→                      }}
+   588→                      className="ml-1 rounded-full hover:bg-slate-300 p-0.5"
+   589→                    >
+   590→                      <ArrowRight className="h-2.5 w-2.5 rotate-45" />
+   591→                    </button>
+   592→                  </Badge>
+   593→                )}
+   594→                {dateFrom && (
+   595→                  <Badge
+   596→                    variant="secondary"
+   597→                    className="gap-1 bg-slate-100 text-slate-700 hover:bg-slate-200"
+   598→                  >
+   599→                    From: {dateFrom}
+   600→                    <button
+   601→                      onClick={() => {
+   602→                        setDateFrom("");
+   603→                        setPage(1);
+   604→                      }}
+   605→                      className="ml-1 rounded-full hover:bg-slate-300 p-0.5"
+   606→                    >
+   607→                      <ArrowRight className="h-2.5 w-2.5 rotate-45" />
+   608→                    </button>
+   609→                  </Badge>
+   610→                )}
+   611→                {dateTo && (
+   612→                  <Badge
+   613→                    variant="secondary"
+   614→                    className="gap-1 bg-slate-100 text-slate-700 hover:bg-slate-200"
+   615→                  >
+   616→                    To: {dateTo}
+   617→                    <button
+   618→                      onClick={() => {
+   619→                        setDateTo("");
+   620→                        setPage(1);
+   621→                      }}
+   622→                      className="ml-1 rounded-full hover:bg-slate-300 p-0.5"
+   623→                    >
+   624→                      <ArrowRight className="h-2.5 w-2.5 rotate-45" />
+   625→                    </button>
+   626→                  </Badge>
+   627→                )}
+   628→              </div>
+   629→            )}
+   630→          </div>
+   631→        </CardContent>
+   632→      </Card>
+   633→
+   634→      {/* ── Logs Table ── */}
+   635→      <Card className="border-slate-200 overflow-hidden">
+   636→        <CardHeader className="border-b border-slate-100 bg-slate-50/50 py-3">
+   637→          <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-800">
+   638→            <FileText className="h-4 w-4 text-slate-500" />
+   639→            Activity Log Entries
+   640→            <Badge variant="secondary" className="ml-auto text-xs bg-slate-100 text-slate-600">
+   641→              {total} total
+   642→            </Badge>
+   643→          </CardTitle>
+   644→        </CardHeader>
+   645→        <CardContent className="p-0">
+   646→          {loading ? (
+   647→            <div className="space-y-0">
+   648→              {Array.from({ length: 8 }).map((_, i) => (
+   649→                <div
+   650→                  key={i}
+   651→                  className={`flex items-center gap-4 px-4 py-3 ${
+   652→                    i % 2 === 0 ? "bg-white" : "bg-slate-50/50"
+   653→                  }`}
+   654→                >
+   655→                  <Skeleton className="h-4 w-40" />
+   656→                  <Skeleton className="h-4 w-24" />
+   657→                  <Skeleton className="h-6 w-20 rounded-full" />
+   658→                  <Skeleton className="h-4 w-20" />
+   659→                  <Skeleton className="h-4 w-28" />
+   660→                  <Skeleton className="h-4 flex-1" />
+   661→                </div>
+   662→              ))}
+   663→            </div>
+   664→          ) : logs.length === 0 ? (
+   665→            <div className="flex flex-col items-center justify-center py-16 text-center">
+   666→              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 mb-3">
+   667→                <ClipboardList className="h-7 w-7 text-slate-400" />
+   668→              </div>
+   669→              <p className="text-sm font-medium text-slate-700">No audit logs found</p>
+   670→              <p className="mt-1 text-xs text-slate-500">
+   671→                {search || actionFilter !== "ALL" || dateFrom || dateTo
+   672→                  ? "Try adjusting your filters to find what you are looking for."
+   673→                  : "No activity has been recorded yet."}
+   674→              </p>
+   675→              {(search || actionFilter !== "ALL" || dateFrom || dateTo) && (
+   676→                <Button
+   677→                  variant="outline"
+   678→                  size="sm"
+   679→                  onClick={handleResetFilters}
+   680→                  className="mt-3 gap-2 text-xs border-slate-300"
+   681→                >
+   682→                  <RefreshCw className="h-3 w-3" />
+   683→                  Reset Filters
+   684→                </Button>
+   685→              )}
+   686→            </div>
+   687→          ) : (
+   688→            <div className="max-h-[520px] overflow-y-auto">
+   689→              <table className="w-full text-sm">
+   690→                <thead className="sticky top-0 z-10 bg-slate-100">
+   691→                  <tr className="text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+   692→                    <th className="px-4 py-3 border-b border-slate-200 whitespace-nowrap">
+   693→                      Timestamp
+   694→                    </th>
+   695→                    <th className="px-4 py-3 border-b border-slate-200 whitespace-nowrap">
+   696→                      Officer / User
+   697→                    </th>
+   698→                    <th className="px-4 py-3 border-b border-slate-200 whitespace-nowrap">
+   699→                      Action
+   700→                    </th>
+   701→                    <th className="px-4 py-3 border-b border-slate-200 whitespace-nowrap">
+   702→                      Target
+   703→                    </th>
+   704→                    <th className="px-4 py-3 border-b border-slate-200 whitespace-nowrap">
+   705→                      IP Address
+   706→                    </th>
+   707→                    <th className="px-4 py-3 border-b border-slate-200 whitespace-nowrap w-10">
+   708→                      Detail
+   709→                    </th>
+   710→                  </tr>
+   711→                </thead>
+   712→                <tbody>
+   713→                  {logs.map((log, idx) => {
+   714→                    const isExpanded = expandedId === log.id;
+   715→                    return (
+   716→                      <Fragment key={log.id}>
+   717→                        <tr
+   718→                          className={`border-b border-slate-100 transition-colors hover:bg-slate-50 cursor-pointer ${
+   719→                            idx % 2 === 0 ? "bg-white" : "bg-slate-50/40"
+   720→                          } ${isExpanded ? "bg-slate-50" : ""}`}
+   721→                          onClick={() => setExpandedId(isExpanded ? null : log.id)}
+   722→                        >
+   723→                          <td className="px-4 py-3 whitespace-nowrap text-slate-700">
+   724→                            <div className="flex items-center gap-1.5">
+   725→                              <Activity className="h-3 w-3 text-slate-400" />
+   726→                              <span className="text-xs font-mono">
+   727→                                {formatTimestamp(log.createdAt)}
+   728→                              </span>
+   729→                            </div>
+   730→                          </td>
+   731→                          <td className="px-4 py-3 whitespace-nowrap">
+   732→                            <div className="flex items-center gap-2">
+   733→                              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-slate-600">
+   734→                                <User className="h-3.5 w-3.5" />
+   735→                              </div>
+   736→                              <span className="text-sm font-medium text-slate-800">
+   737→                                {log.officerName || "System"}
+   738→                              </span>
+   739→                            </div>
+   740→                          </td>
+   741→                          <td className="px-4 py-3 whitespace-nowrap">
+   742→                            <Badge
+   743→                              variant="outline"
+   744→                              className={`gap-1 text-xs font-medium ${getActionColor(
+   745→                                log.action
+   746→                              )}`}
+   747→                            >
+   748→                              {getActionIcon(log.action)}
+   749→                              {log.action}
+   750→                            </Badge>
+   751→                          </td>
+   752→                          <td className="px-4 py-3 whitespace-nowrap text-slate-600">
+   753→                            <div className="flex flex-col">
+   754→                              <span className="text-xs font-medium text-slate-800">
+   755→                                {log.targetId || "—"}
+   756→                              </span>
+   757→                              {log.targetType && (
+   758→                                <span className="text-[10px] text-slate-400 mt-0.5">
+   759→                                  {log.targetType}
+   760→                                </span>
+   761→                              )}
+   762→                            </div>
+   763→                          </td>
+   764→                          <td className="px-4 py-3 whitespace-nowrap text-slate-500 font-mono text-xs">
+   765→                            <div className="flex items-center gap-1.5">
+   766→                              <Globe className="h-3 w-3 text-slate-400" />
+   767→                              {log.ipAddress || "—"}
+   768→                            </div>
+   769→                          </td>
+   770→                          <td className="px-4 py-3 text-center">
+   771→                            <button className="inline-flex items-center justify-center h-7 w-7 rounded-lg hover:bg-slate-200/70 transition-colors">
+   772→                              <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
+   773→                            </button>
+   774→                          </td>
+   775→                        </tr>
+   776→                        {isExpanded && (
+   777→                          <tr className="bg-slate-50/80">
+   778→                            <td colSpan={6} className="px-4 py-0">
+   779→                              <div className="pb-4 pl-2">
+   780→                                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+   781→                                  <div className="flex items-center gap-2 mb-3">
+   782→                                    <Eye className="h-4 w-4 text-slate-500" />
+   783→                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Full Details</p>
+   784→                                  </div>
+   785→                                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap break-words">
+   786→                                    {log.details || "No details available."}
+   787→                                  </p>
+   788→                                  {log.targetId && (
+   789→                                    <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-4 gap-3">
+   790→                                      <div>
+   791→                                        <p className="text-[10px] font-medium text-slate-400 uppercase">Target ID</p>
+   792→                                        <p className="text-xs font-mono text-slate-700 mt-0.5 truncate">{log.targetId}</p>
+   793→                                      </div>
+   794→                                      {log.targetType && (
+   795→                                        <div>
+   796→                                          <p className="text-[10px] font-medium text-slate-400 uppercase">Target Type</p>
+   797→                                          <p className="text-xs text-slate-700 mt-0.5">{log.targetType}</p>
+   798→                                        </div>
+   799→                                      )}
+   800→                                      <div>
+   801→                                        <p className="text-[10px] font-medium text-slate-400 uppercase">IP Address</p>
+   802→                                        <p className="text-xs font-mono text-slate-700 mt-0.5">{log.ipAddress || "—"}</p>
+   803→                                      </div>
+   804→                                      <div>
+   805→                                        <p className="text-[10px] font-medium text-slate-400 uppercase">Timestamp</p>
+   806→                                        <p className="text-xs text-slate-700 mt-0.5">{formatTimestamp(log.createdAt)}</p>
+   807→                                      </div>
+   808→                                    </div>
+   809→                                  )}
+   810→                                </div>
+   811→                              </div>
+   812→                            </td>
+   813→                          </tr>
+   814→                        )}
+   815→                      </Fragment>
+   816→                    );
+   817→                  })}
+   818→                </tbody>
+   819→              </table>
+   820→            </div>
+   821→          )}
+   822→        </CardContent>
+   823→      </Card>
+   824→
+   825→      {/* ── Pagination ── */}
+   826→      {totalPages > 1 && (
+   827→        <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
+   828→          <p className="text-xs text-slate-500">
+   829→            Showing{" "}
+   830→            <span className="font-medium text-slate-700">
+   831→              {(page - 1) * limit + 1}
+   832→            </span>{" "}
+   833→            to{" "}
+   834→            <span className="font-medium text-slate-700">
+   835→              {Math.min(page * limit, total)}
+   836→            </span>{" "}
+   837→            of{" "}
+   838→            <span className="font-medium text-slate-700">{total}</span>{" "}
+   839→            entries
+   840→          </p>
+   841→          <div className="flex items-center gap-1">
+   842→            <Button
+   843→              variant="outline"
+   844→              size="sm"
+   845→              onClick={() => setPage((p) => Math.max(1, p - 1))}
+   846→              disabled={page === 1}
+   847→              className="h-8 gap-1 border-slate-300"
+   848→            >
+   849→              <ChevronLeft className="h-4 w-4" />
+   850→              <ArrowLeft className="h-3 w-3" />
+   851→              Prev
+   852→            </Button>
+   853→            <div className="flex items-center gap-1 mx-1">
+   854→              {getPageNumbers().map((p, i) =>
+   855→                typeof p === "string" ? (
+   856→                  <span
+   857→                    key={`ellipsis-${i}`}
+   858→                    className="px-1.5 text-xs text-slate-400"
+   859→                  >
+   860→                    ...
+   861→                  </span>
+   862→                ) : (
+   863→                  <Button
+   864→                    key={p}
+   865→                    variant={page === p ? "default" : "outline"}
+   866→                    size="sm"
+   867→                    onClick={() => setPage(p)}
+   868→                    className={`h-8 w-8 p-0 text-xs ${
+   869→                      page === p
+   870→                        ? "bg-slate-900 hover:bg-slate-800 text-white"
+   871→                        : "border-slate-300 hover:bg-slate-50"
+   872→                    }`}
+   873→                  >
+   874→                    {p}
+   875→                  </Button>
+   876→                )
+   877→              )}
+   878→            </div>
+   879→            <Button
+   880→              variant="outline"
+   881→              size="sm"
+   882→              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+   883→              disabled={page === totalPages}
+   884→              className="h-8 gap-1 border-slate-300"
+   885→            >
+   886→              Next
+   887→              <ArrowRight className="h-3 w-3" />
+   888→              <ChevronRight className="h-4 w-4" />
+   889→            </Button>
+   890→          </div>
+   891→        </div>
+   892→      )}
+   893→    </div>
+   894→  );
+   895→}
+   896→
