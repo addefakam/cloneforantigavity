@@ -1,53 +1,3 @@
-   250→  "ownerName" TEXT NOT NULL DEFAULT '',
-   251→  "address" TEXT NOT NULL DEFAULT '',
-   252→  "phone" TEXT NOT NULL DEFAULT '',
-   253→  "email" TEXT NOT NULL DEFAULT '',
-   254→  "currency" TEXT NOT NULL DEFAULT 'ETB',
-   255→  "taxRate" DOUBLE PRECISION NOT NULL DEFAULT 0,
-   256→  "language" TEXT NOT NULL DEFAULT 'en',
-   257→  "logo" TEXT,
-   258→  "checkInTime" TEXT NOT NULL DEFAULT '14:00',
-   259→  "checkOutTime" TEXT NOT NULL DEFAULT '12:00',
-   260→  "configJson" JSONB,
-   261→  "providerId" TEXT,
-   262→  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-   263→  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-   264→);
-   265→CREATE TABLE IF NOT EXISTS "SuspectedPerson" (
-   266→  "id" TEXT NOT NULL PRIMARY KEY,
-   267→  "name" TEXT NOT NULL,
-   268→  "phone" TEXT NOT NULL DEFAULT '',
-   269→  "idNumber" TEXT NOT NULL DEFAULT '',
-   270→  "idType" TEXT NOT NULL DEFAULT '',
-   271→  "nationality" TEXT NOT NULL DEFAULT '',
-   272→  "address" TEXT NOT NULL DEFAULT '',
-   273→  "description" TEXT NOT NULL DEFAULT '',
-   274→  "severity" "SuspectSeverity" NOT NULL DEFAULT 'MEDIUM',
-   275→  "is_active" BOOLEAN NOT NULL DEFAULT true,
-   276→  "registeredBy" TEXT NOT NULL DEFAULT '',
-   277→  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-   278→  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-   279→);
-   280→CREATE TABLE IF NOT EXISTS "SuspectMatch" (
-   281→  "id" TEXT NOT NULL PRIMARY KEY,
-   282→  "suspectedPersonId" TEXT NOT NULL,
-   283→  "matchType" TEXT NOT NULL,
-   284→  "guestName" TEXT NOT NULL,
-   285→  "guestPhone" TEXT NOT NULL DEFAULT '',
-   286→  "guestIdNumber" TEXT NOT NULL DEFAULT '',
-   287→  "providerName" TEXT NOT NULL DEFAULT '',
-   288→  "providerId" TEXT NOT NULL DEFAULT '',
-   289→  "reservationId" TEXT,
-   290→  "daytimeBookingId" TEXT,
-   291→  "details" TEXT NOT NULL DEFAULT '',
-   292→  "isRead" BOOLEAN NOT NULL DEFAULT false,
-   293→  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-   294→);
-   295→CREATE TABLE IF NOT EXISTS "AuditLog" (
-   296→  "id" TEXT NOT NULL PRIMARY KEY,
-   297→  "officerName" TEXT NOT NULL DEFAULT '',
-   298→  "action" TEXT NOT NULL,
-   299→  "targetId" TEXT,
    300→  "targetType" TEXT DEFAULT '',
    301→  "details" TEXT,
    302→  "ipAddress" TEXT DEFAULT '',
@@ -312,322 +262,329 @@
    561→CREATE INDEX IF NOT EXISTS "SubscriptionPayment_createdAt_idx" ON "SubscriptionPayment" ("createdAt");
    562→CREATE INDEX IF NOT EXISTS "SubscriptionPlan_cycle_idx" ON "SubscriptionPlan" ("cycle");
    563→CREATE INDEX IF NOT EXISTS "SubscriptionPlan_isActive_idx" ON "SubscriptionPlan" ("isActive");
-   564→`;
-   565→
-   566→let _initDone = false;
-   567→let _migrationsRan = false;
-   568→let _initPromise: Promise<void> | null = null;
-   569→
-   570→/** Execute SQL via raw pg Client */
-   571→async function execViaPg(sql: string, params?: unknown[]): Promise<void> {
-   572→  const client = new Client({ connectionString: process.env.DATABASE_URL! });
-   573→  try {
-   574→    await client.connect();
-   575→    await client.query(sql, params);
-   576→  } finally {
-   577→    await client.end().catch(() => {});
-   578→  }
-   579→}
-   580→
-   581→/** Execute DDL via Prisma $executeRawUnsafe — splits multi-statement SQL
-   582→ *  because Prisma's driver does NOT support multiple statements per call. */
-   583→async function execViaPrisma(sql: string): Promise<void> {
-   584→  // Split on `DO $$` blocks and standalone statements
-   585→  // Each `DO $$ ... END $$;` is one executable unit
-   586→  const statements = sql
-   587→    .split(/(?=DO \$\$)/)
-   588→    .map(s => s.trim())
-   589→    .filter(s => s.length > 0);
-   590→
-   591→  // If no DO blocks found, split by semicolons (for CREATE INDEX etc.)
-   592→  const parts = statements.length > 1
-   593→    ? statements
-   594→    : sql.split(';').map(s => s.trim()).filter(s => s.length > 0);
-   595→
-   596→  const prisma = new PrismaClient({
-   597→    log: ["warn", "error"],
-   598→  });
-   599→  try {
-   600→    for (const part of parts) {
-   601→      const stmt = part.endsWith(';') ? part : part + ';';
-   602→      try {
-   603→        await prisma.$executeRawUnsafe(stmt);
-   604→      } catch (err) {
-   605→        // Individual statement might fail (e.g. duplicate_object) — log but continue
-   606→        console.error("[execViaPrisma] Statement failed (continuing):", stmt.slice(0, 80), err instanceof Error ? err.message : String(err));
-   607→      }
-   608→    }
-   609→  } finally {
-   610→    await prisma.$disconnect().catch(() => {});
-   611→  }
-   612→}
-   613→
-   614→/**
-   615→ * Run only MIGRATIONS_SQL + INDEXES_SQL without full init.
-   616→ * Used as a background check when _initDone is already true.
-   617→ */
-   618→async function runMigrationsOnly(): Promise<void> {
-   619→  console.log("[init-db] Running idempotent migrations on existing DB...");
-   620→  try {
-   621→    await execViaPrisma(MIGRATIONS_SQL);
-   622→    console.log("[init-db] Background migrations applied.");
-   623→  } catch (err) {
-   624→    throw err;
-   625→  }
-   626→  try {
-   627→    await execViaPrisma(INDEXES_SQL);
-   628→  } catch {
-   629→    // Indexes are best-effort
-   630→  }
-   631→}
-   632→
-   633→export async function ensureDatabase(): Promise<void> {
-   634→  if (_initDone) {
-   635→    // Always run migrations synchronously to ensure columns exist
-   636→    // before any query executes. Migrations are idempotent.
-   637→    if (!_migrationsRan) {
-   638→      _migrationsRan = true;
-   639→      await runMigrationsOnly();
-   640→    }
-   641→    return;
-   642→  }
-   643→  if (_initPromise) return _initPromise;
-   644→
-   645→  if (!process.env.DATABASE_URL) {
-   646→    throw new Error("DATABASE_URL environment variable is not set.");
-   647→  }
-   648→
-   649→  _initPromise = (async () => {
-   650→    console.log("[init-db] Starting database initialization...");
+   564→-- Composite indexes for common query patterns
+   565→CREATE INDEX IF NOT EXISTS "Reservation_providerId_status_idx" ON "Reservation" ("providerId", "status");
+   566→CREATE INDEX IF NOT EXISTS "Reservation_providerId_createdAt_idx" ON "Reservation" ("providerId", "createdAt" DESC);
+   567→CREATE INDEX IF NOT EXISTS "Guest_providerId_createdAt_idx" ON "Guest" ("providerId", "createdAt" DESC);
+   568→CREATE INDEX IF NOT EXISTS "AuditLog_createdAt_desc_idx" ON "AuditLog" ("createdAt" DESC);
+   569→CREATE INDEX IF NOT EXISTS "Payment_providerId_createdAt_idx" ON "Payment" ("providerId", "createdAt" DESC);
+   570→CREATE INDEX IF NOT EXISTS "Notification_providerId_isRead_idx" ON "Notification" ("providerId", "isRead");
+   571→`;
+   572→
+   573→let _initDone = false;
+   574→let _migrationsRan = false;
+   575→let _initPromise: Promise<void> | null = null;
+   576→
+   577→/** Execute SQL via raw pg Client */
+   578→async function execViaPg(sql: string, params?: unknown[]): Promise<void> {
+   579→  const client = new Client({ connectionString: process.env.DATABASE_URL! });
+   580→  try {
+   581→    await client.connect();
+   582→    await client.query(sql, params);
+   583→  } finally {
+   584→    await client.end().catch(() => {});
+   585→  }
+   586→}
+   587→
+   588→/** Execute DDL via Prisma $executeRawUnsafe — splits multi-statement SQL
+   589→ *  because Prisma's driver does NOT support multiple statements per call. */
+   590→async function execViaPrisma(sql: string): Promise<void> {
+   591→  // Split on `DO $$` blocks and standalone statements
+   592→  // Each `DO $$ ... END $$;` is one executable unit
+   593→  const statements = sql
+   594→    .split(/(?=DO \$\$)/)
+   595→    .map(s => s.trim())
+   596→    .filter(s => s.length > 0);
+   597→
+   598→  // If no DO blocks found, split by semicolons (for CREATE INDEX etc.)
+   599→  const parts = statements.length > 1
+   600→    ? statements
+   601→    : sql.split(';').map(s => s.trim()).filter(s => s.length > 0);
+   602→
+   603→  const prisma = new PrismaClient({
+   604→    log: ["warn", "error"],
+   605→  });
+   606→  try {
+   607→    for (const part of parts) {
+   608→      const stmt = part.endsWith(';') ? part : part + ';';
+   609→      try {
+   610→        await prisma.$executeRawUnsafe(stmt);
+   611→      } catch (err) {
+   612→        // Individual statement might fail (e.g. duplicate_object) — log but continue
+   613→        console.error("[execViaPrisma] Statement failed (continuing):", stmt.slice(0, 80), err instanceof Error ? err.message : String(err));
+   614→      }
+   615→    }
+   616→  } finally {
+   617→    await prisma.$disconnect().catch(() => {});
+   618→  }
+   619→}
+   620→
+   621→/**
+   622→ * Run only MIGRATIONS_SQL + INDEXES_SQL without full init.
+   623→ * Used as a background check when _initDone is already true.
+   624→ */
+   625→async function runMigrationsOnly(): Promise<void> {
+   626→  console.log("[init-db] Running idempotent migrations on existing DB...");
+   627→  try {
+   628→    await execViaPrisma(MIGRATIONS_SQL);
+   629→    console.log("[init-db] Background migrations applied.");
+   630→  } catch (err) {
+   631→    throw err;
+   632→  }
+   633→  try {
+   634→    await execViaPrisma(INDEXES_SQL);
+   635→  } catch {
+   636→    // Indexes are best-effort
+   637→  }
+   638→}
+   639→
+   640→export async function ensureDatabase(): Promise<void> {
+   641→  if (_initDone) {
+   642→    // Always run migrations synchronously to ensure columns exist
+   643→    // before any query executes. Migrations are idempotent.
+   644→    if (!_migrationsRan) {
+   645→      _migrationsRan = true;
+   646→      await runMigrationsOnly();
+   647→    }
+   648→    return;
+   649→  }
+   650→  if (_initPromise) return _initPromise;
    651→
-   652→    let usePg = true;
-   653→    let pgError: unknown = null;
-   654→
-   655→    // Strategy 1: Try using pg Client directly
-   656→    try {
-   657→      const client = new Client({ connectionString: process.env.DATABASE_URL });
-   658→      await client.connect();
-   659→      console.log("[init-db] pg Client connected successfully.");
-   660→
-   661→      // Check if User table already exists
-   662→      const res = await client.query(
-   663→        `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='User') as ok`
-   664→      );
-   665→      const tableExists = res.rows[0]?.ok === true;
-   666→      console.log("[init-db] User table exists:", tableExists);
+   652→  if (!process.env.DATABASE_URL) {
+   653→    throw new Error("DATABASE_URL environment variable is not set.");
+   654→  }
+   655→
+   656→  _initPromise = (async () => {
+   657→    console.log("[init-db] Starting database initialization...");
+   658→
+   659→    let usePg = true;
+   660→    let pgError: unknown = null;
+   661→
+   662→    // Strategy 1: Try using pg Client directly
+   663→    try {
+   664→      const client = new Client({ connectionString: process.env.DATABASE_URL });
+   665→      await client.connect();
+   666→      console.log("[init-db] pg Client connected successfully.");
    667→
-   668→      if (tableExists) {
-   669→        console.log("[init-db] Tables already exist, running migrations to add any missing columns...");
-   670→        try {
-   671→          await client.query(MIGRATIONS_SQL);
-   672→          console.log("[init-db] Migrations applied to existing tables.");
-   673→          await client.query(INDEXES_SQL);
-   674→          console.log("[init-db] Indexes verified.");
-   675→        } catch (migrateErr) {
-   676→          console.error("[init-db] Migration on existing tables failed:", migrateErr instanceof Error ? migrateErr.message : String(migrateErr));
-   677→          // Don't throw — the tables exist, migrations are best-effort
-   678→        }
-   679→        await client.end().catch(() => {});
-   680→        _initDone = true;
-   681→        return;
-   682→      }
-   683→
-   684→      // Create enums
-   685→      console.log("[init-db] Creating enum types...");
-   686→      await client.query(ENUMS_SQL);
-   687→
-   688→      // Create tables
-   689→      console.log("[init-db] Creating tables...");
-   690→      await client.query(TABLES_SQL);
-   691→
-   692→      // Verify User table was created
-   693→      const verify = await client.query(
-   694→        `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='User') as ok`
-   695→      );
-   696→      if (!verify.rows[0]?.ok) {
-   697→        throw new Error("DDL executed but User table still not found!");
-   698→      }
-   699→      console.log("[init-db] Tables verified.");
-   700→
-   701→      // Create foreign keys
-   702→      console.log("[init-db] Creating foreign keys...");
-   703→      await client.query(FKS_SQL);
-   704→
-   705→      // Run migrations (add new columns to existing tables)
-   706→      console.log("[init-db] Running migrations...");
-   707→      await client.query(MIGRATIONS_SQL);
-   708→
-   709→      // Create indexes
-   710→      console.log("[init-db] Creating indexes...");
-   711→      await client.query(INDEXES_SQL);
-   712→
-   713→      // Seed SUPERUSER
-   714→      console.log("[init-db] Seeding SUPERUSER...");
-   715→      const hashed = await bcrypt.hash("Admin@2024", 12);
-   716→      await client.query(
-   717→        `INSERT INTO "User" ("id","username","password","name","role","permissions","policeRank","createdAt","updatedAt")
-   718→         SELECT 'su-admin-001','admin',$1,'System Administrator','SUPERUSER','[]','',NOW(),NOW()
-   719→         WHERE NOT EXISTS (SELECT 1 FROM "User" WHERE "username"='admin')`,
-   720→        [hashed]
-   721→      );
-   722→
-   723→      // Seed PoliceAlertConfig
-   724→      await client.query(
-   725→        `INSERT INTO "PoliceAlertConfig" ("id","createdAt","updatedAt")
-   726→         SELECT 'default-alert-config',NOW(),NOW()
-   727→         WHERE NOT EXISTS (SELECT 1 FROM "PoliceAlertConfig" WHERE "id"='default-alert-config')`
+   668→      // Check if User table already exists
+   669→      const res = await client.query(
+   670→        `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='User') as ok`
+   671→      );
+   672→      const tableExists = res.rows[0]?.ok === true;
+   673→      console.log("[init-db] User table exists:", tableExists);
+   674→
+   675→      if (tableExists) {
+   676→        console.log("[init-db] Tables already exist, running migrations to add any missing columns...");
+   677→        try {
+   678→          await client.query(MIGRATIONS_SQL);
+   679→          console.log("[init-db] Migrations applied to existing tables.");
+   680→          await client.query(INDEXES_SQL);
+   681→          console.log("[init-db] Indexes verified.");
+   682→        } catch (migrateErr) {
+   683→          console.error("[init-db] Migration on existing tables failed:", migrateErr instanceof Error ? migrateErr.message : String(migrateErr));
+   684→          // Don't throw — the tables exist, migrations are best-effort
+   685→        }
+   686→        await client.end().catch(() => {});
+   687→        _initDone = true;
+   688→        return;
+   689→      }
+   690→
+   691→      // Create enums
+   692→      console.log("[init-db] Creating enum types...");
+   693→      await client.query(ENUMS_SQL);
+   694→
+   695→      // Create tables
+   696→      console.log("[init-db] Creating tables...");
+   697→      await client.query(TABLES_SQL);
+   698→
+   699→      // Verify User table was created
+   700→      const verify = await client.query(
+   701→        `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='User') as ok`
+   702→      );
+   703→      if (!verify.rows[0]?.ok) {
+   704→        throw new Error("DDL executed but User table still not found!");
+   705→      }
+   706→      console.log("[init-db] Tables verified.");
+   707→
+   708→      // Create foreign keys
+   709→      console.log("[init-db] Creating foreign keys...");
+   710→      await client.query(FKS_SQL);
+   711→
+   712→      // Run migrations (add new columns to existing tables)
+   713→      console.log("[init-db] Running migrations...");
+   714→      await client.query(MIGRATIONS_SQL);
+   715→
+   716→      // Create indexes
+   717→      console.log("[init-db] Creating indexes...");
+   718→      await client.query(INDEXES_SQL);
+   719→
+   720→      // Seed SUPERUSER
+   721→      console.log("[init-db] Seeding SUPERUSER...");
+   722→      const hashed = await bcrypt.hash("Admin@2024", 12);
+   723→      await client.query(
+   724→        `INSERT INTO "User" ("id","username","password","name","role","permissions","policeRank","createdAt","updatedAt")
+   725→         SELECT 'su-admin-001','admin',$1,'System Administrator','SUPERUSER','[]','',NOW(),NOW()
+   726→         WHERE NOT EXISTS (SELECT 1 FROM "User" WHERE "username"='admin')`,
+   727→        [hashed]
    728→      );
    729→
-   730→      // Seed default SubscriptionPlans
-   731→      await client.query(`
-   732→        INSERT INTO "SubscriptionPlan" ("id","name","cycle","price","isActive","createdAt","updatedAt")
-   733→        SELECT 'plan-monthly-001','Monthly','MONTHLY',500,true,NOW(),NOW()
-   734→        WHERE NOT EXISTS (SELECT 1 FROM "SubscriptionPlan" WHERE "id"='plan-monthly-001');
-   735→        INSERT INTO "SubscriptionPlan" ("id","name","cycle","price","isActive","createdAt","updatedAt")
-   736→        SELECT 'plan-quarterly-001','Quarterly','QUARTERLY',1400,true,NOW(),NOW()
-   737→        WHERE NOT EXISTS (SELECT 1 FROM "SubscriptionPlan" WHERE "id"='plan-quarterly-001');
-   738→        INSERT INTO "SubscriptionPlan" ("id","name","cycle","price","isActive","createdAt","updatedAt")
-   739→        SELECT 'plan-semi-annual-001','Semi-Annual','SEMI_ANNUAL',2600,true,NOW(),NOW()
-   740→        WHERE NOT EXISTS (SELECT 1 FROM "SubscriptionPlan" WHERE "id"='plan-semi-annual-001');
-   741→        INSERT INTO "SubscriptionPlan" ("id","name","cycle","price","isActive","createdAt","updatedAt")
-   742→        SELECT 'plan-yearly-001','Annual','YEARLY',4800,true,NOW(),NOW()
-   743→        WHERE NOT EXISTS (SELECT 1 FROM "SubscriptionPlan" WHERE "id"='plan-yearly-001');
-   744→      `);
-   745→
-   746→      console.log("[init-db] Database initialization complete via pg.");
-   747→      await client.end().catch(() => {});
-   748→      _initDone = true;
-   749→      return;
-   750→    } catch (err) {
-   751→      pgError = err;
-   752→      console.error("[init-db] pg approach failed:", err instanceof Error ? err.message : String(err));
-   753→      usePg = false;
-   754→    }
-   755→
-   756→    // Strategy 2: Fallback — use Prisma $executeRawUnsafe
-   757→    console.log("[init-db] Falling back to Prisma $executeRawUnsafe...");
-   758→    try {
-   759→      // First check if tables exist using Prisma raw query
-   760→      const prisma = new PrismaClient({ log: ["warn", "error"] });
-   761→      try {
-   762→        const res: Array<{ ok: boolean }> = await prisma.$queryRawUnsafe(
-   763→          `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='User') as ok`
-   764→        );
-   765→        if (res[0]?.ok) {
-   766→          console.log("[init-db] Tables already exist (verified via Prisma), running migrations...");
-   767→          try {
-   768→            await execViaPrisma(MIGRATIONS_SQL);
-   769→            console.log("[init-db] Migrations applied via Prisma.");
-   770→            await execViaPrisma(INDEXES_SQL);
-   771→            console.log("[init-db] Indexes verified via Prisma.");
-   772→          } catch (migrateErr) {
-   773→            console.error("[init-db] Prisma migration on existing tables failed:", migrateErr instanceof Error ? migrateErr.message : String(migrateErr));
-   774→          }
-   775→          _initDone = true;
-   776→          return;
-   777→        }
-   778→      } catch {
-   779→        // Table might not exist, which is expected
-   780→        console.log("[init-db] Tables do not exist yet, creating via Prisma...");
-   781→      } finally {
-   782→        await prisma.$disconnect().catch(() => {});
-   783→      }
-   784→
-   785→      // Execute DDL via Prisma (split into parts to avoid query size issues)
-   786→      await execViaPrisma(ENUMS_SQL);
-   787→      console.log("[init-db] Enums created via Prisma.");
-   788→
-   789→      await execViaPrisma(TABLES_SQL);
-   790→      console.log("[init-db] Tables created via Prisma.");
+   730→      // Seed PoliceAlertConfig
+   731→      await client.query(
+   732→        `INSERT INTO "PoliceAlertConfig" ("id","createdAt","updatedAt")
+   733→         SELECT 'default-alert-config',NOW(),NOW()
+   734→         WHERE NOT EXISTS (SELECT 1 FROM "PoliceAlertConfig" WHERE "id"='default-alert-config')`
+   735→      );
+   736→
+   737→      // Seed default SubscriptionPlans
+   738→      await client.query(`
+   739→        INSERT INTO "SubscriptionPlan" ("id","name","cycle","price","isActive","createdAt","updatedAt")
+   740→        SELECT 'plan-monthly-001','Monthly','MONTHLY',500,true,NOW(),NOW()
+   741→        WHERE NOT EXISTS (SELECT 1 FROM "SubscriptionPlan" WHERE "id"='plan-monthly-001');
+   742→        INSERT INTO "SubscriptionPlan" ("id","name","cycle","price","isActive","createdAt","updatedAt")
+   743→        SELECT 'plan-quarterly-001','Quarterly','QUARTERLY',1400,true,NOW(),NOW()
+   744→        WHERE NOT EXISTS (SELECT 1 FROM "SubscriptionPlan" WHERE "id"='plan-quarterly-001');
+   745→        INSERT INTO "SubscriptionPlan" ("id","name","cycle","price","isActive","createdAt","updatedAt")
+   746→        SELECT 'plan-semi-annual-001','Semi-Annual','SEMI_ANNUAL',2600,true,NOW(),NOW()
+   747→        WHERE NOT EXISTS (SELECT 1 FROM "SubscriptionPlan" WHERE "id"='plan-semi-annual-001');
+   748→        INSERT INTO "SubscriptionPlan" ("id","name","cycle","price","isActive","createdAt","updatedAt")
+   749→        SELECT 'plan-yearly-001','Annual','YEARLY',4800,true,NOW(),NOW()
+   750→        WHERE NOT EXISTS (SELECT 1 FROM "SubscriptionPlan" WHERE "id"='plan-yearly-001');
+   751→      `);
+   752→
+   753→      console.log("[init-db] Database initialization complete via pg.");
+   754→      await client.end().catch(() => {});
+   755→      _initDone = true;
+   756→      return;
+   757→    } catch (err) {
+   758→      pgError = err;
+   759→      console.error("[init-db] pg approach failed:", err instanceof Error ? err.message : String(err));
+   760→      usePg = false;
+   761→    }
+   762→
+   763→    // Strategy 2: Fallback — use Prisma $executeRawUnsafe
+   764→    console.log("[init-db] Falling back to Prisma $executeRawUnsafe...");
+   765→    try {
+   766→      // First check if tables exist using Prisma raw query
+   767→      const prisma = new PrismaClient({ log: ["warn", "error"] });
+   768→      try {
+   769→        const res: Array<{ ok: boolean }> = await prisma.$queryRawUnsafe(
+   770→          `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='User') as ok`
+   771→        );
+   772→        if (res[0]?.ok) {
+   773→          console.log("[init-db] Tables already exist (verified via Prisma), running migrations...");
+   774→          try {
+   775→            await execViaPrisma(MIGRATIONS_SQL);
+   776→            console.log("[init-db] Migrations applied via Prisma.");
+   777→            await execViaPrisma(INDEXES_SQL);
+   778→            console.log("[init-db] Indexes verified via Prisma.");
+   779→          } catch (migrateErr) {
+   780→            console.error("[init-db] Prisma migration on existing tables failed:", migrateErr instanceof Error ? migrateErr.message : String(migrateErr));
+   781→          }
+   782→          _initDone = true;
+   783→          return;
+   784→        }
+   785→      } catch {
+   786→        // Table might not exist, which is expected
+   787→        console.log("[init-db] Tables do not exist yet, creating via Prisma...");
+   788→      } finally {
+   789→        await prisma.$disconnect().catch(() => {});
+   790→      }
    791→
-   792→      await execViaPrisma(FKS_SQL);
-   793→      console.log("[init-db] Foreign keys created via Prisma.");
-   794→
-   795→      await execViaPrisma(MIGRATIONS_SQL);
-   796→      console.log("[init-db] Migrations ran via Prisma.");
-   797→
-   798→      await execViaPrisma(INDEXES_SQL);
-   799→      console.log("[init-db] Indexes created via Prisma.");
-   800→
-   801→      // Seed SUPERUSER via Prisma
-   802→      const prisma2 = new PrismaClient({ log: ["warn", "error"] });
-   803→      try {
-   804→        const hashed = await bcrypt.hash("Admin@2024", 12);
-   805→        await prisma2.$executeRawUnsafe(
-   806→          `INSERT INTO "User" ("id","username","password","name","role","permissions","policeRank","createdAt","updatedAt")
-   807→           SELECT 'su-admin-001','admin',$1,'System Administrator','SUPERUSER','[]','',NOW(),NOW()
-   808→           WHERE NOT EXISTS (SELECT 1 FROM "User" WHERE "username"='admin')`,
-   809→          hashed
-   810→        );
-   811→        await prisma2.$executeRawUnsafe(
-   812→          `INSERT INTO "PoliceAlertConfig" ("id","createdAt","updatedAt")
-   813→           SELECT 'default-alert-config',NOW(),NOW()
-   814→           WHERE NOT EXISTS (SELECT 1 FROM "PoliceAlertConfig" WHERE "id"='default-alert-config')`
-   815→        );
-   816→        // Seed default SubscriptionPlans
-   817→        await prisma2.$executeRawUnsafe(
-   818→          `INSERT INTO "SubscriptionPlan" ("id","name","cycle","price","isActive","createdAt","updatedAt")
-   819→           SELECT 'plan-monthly-001','Monthly','MONTHLY',500,true,NOW(),NOW()
-   820→           WHERE NOT EXISTS (SELECT 1 FROM "SubscriptionPlan" WHERE "id"='plan-monthly-001')`
-   821→        );
-   822→        await prisma2.$executeRawUnsafe(
-   823→          `INSERT INTO "SubscriptionPlan" ("id","name","cycle","price","isActive","createdAt","updatedAt")
-   824→           SELECT 'plan-quarterly-001','Quarterly','QUARTERLY',1400,true,NOW(),NOW()
-   825→           WHERE NOT EXISTS (SELECT 1 FROM "SubscriptionPlan" WHERE "id"='plan-quarterly-001')`
-   826→        );
-   827→        await prisma2.$executeRawUnsafe(
-   828→          `INSERT INTO "SubscriptionPlan" ("id","name","cycle","price","isActive","createdAt","updatedAt")
-   829→           SELECT 'plan-semi-annual-001','Semi-Annual','SEMI_ANNUAL',2600,true,NOW(),NOW()
-   830→           WHERE NOT EXISTS (SELECT 1 FROM "SubscriptionPlan" WHERE "id"='plan-semi-annual-001')`
-   831→        );
-   832→        await prisma2.$executeRawUnsafe(
-   833→          `INSERT INTO "SubscriptionPlan" ("id","name","cycle","price","isActive","createdAt","updatedAt")
-   834→           SELECT 'plan-yearly-001','Annual','YEARLY',4800,true,NOW(),NOW()
-   835→           WHERE NOT EXISTS (SELECT 1 FROM "SubscriptionPlan" WHERE "id"='plan-yearly-001')`
-   836→        );
-   837→        console.log("[init-db] SUPERUSER and plans seeded via Prisma.");
-   838→      } finally {
-   839→        await prisma2.$disconnect().catch(() => {});
-   840→      }
-   841→
-   842→      console.log("[init-db] Database initialization complete via Prisma fallback.");
-   843→      _initDone = true;
-   844→    } catch (prismaErr) {
-   845→      console.error("[init-db] Prisma fallback also failed:", prismaErr instanceof Error ? prismaErr.message : String(prismaErr));
-   846→      _initDone = false;
-   847→      _initPromise = null; // Allow retry
-   848→      throw new Error(
-   849→        `Database initialization failed. pg error: ${pgError instanceof Error ? pgError.message : String(pgError)} | Prisma error: ${prismaErr instanceof Error ? prismaErr.message : String(prismaErr)}`
-   850→      );
-   851→    }
-   852→  })();
-   853→
-   854→  return _initPromise;
-   855→}
-   856→
-   857→/**
-   858→ * Force-run just the migrations + indexes on the live database.
-   859→ * Useful after deploying schema changes to add new columns without full re-init.
-   860→ * All migrations use EXCEPTION WHEN duplicate_column so they are safe to re-run.
-   861→ */
-   862→export async function forceMigrate(): Promise<void> {
-   863→  console.log("[forceMigrate] Running migrations on existing database...");
-   864→  try {
-   865→    await execViaPrisma(MIGRATIONS_SQL);
-   866→    console.log("[forceMigrate] Migrations applied.");
-   867→  } catch (err) {
-   868→    console.error("[forceMigrate] Migration failed:", err instanceof Error ? err.message : String(err));
-   869→    throw err;
-   870→  }
+   792→      // Execute DDL via Prisma (split into parts to avoid query size issues)
+   793→      await execViaPrisma(ENUMS_SQL);
+   794→      console.log("[init-db] Enums created via Prisma.");
+   795→
+   796→      await execViaPrisma(TABLES_SQL);
+   797→      console.log("[init-db] Tables created via Prisma.");
+   798→
+   799→      await execViaPrisma(FKS_SQL);
+   800→      console.log("[init-db] Foreign keys created via Prisma.");
+   801→
+   802→      await execViaPrisma(MIGRATIONS_SQL);
+   803→      console.log("[init-db] Migrations ran via Prisma.");
+   804→
+   805→      await execViaPrisma(INDEXES_SQL);
+   806→      console.log("[init-db] Indexes created via Prisma.");
+   807→
+   808→      // Seed SUPERUSER via Prisma
+   809→      const prisma2 = new PrismaClient({ log: ["warn", "error"] });
+   810→      try {
+   811→        const hashed = await bcrypt.hash("Admin@2024", 12);
+   812→        await prisma2.$executeRawUnsafe(
+   813→          `INSERT INTO "User" ("id","username","password","name","role","permissions","policeRank","createdAt","updatedAt")
+   814→           SELECT 'su-admin-001','admin',$1,'System Administrator','SUPERUSER','[]','',NOW(),NOW()
+   815→           WHERE NOT EXISTS (SELECT 1 FROM "User" WHERE "username"='admin')`,
+   816→          hashed
+   817→        );
+   818→        await prisma2.$executeRawUnsafe(
+   819→          `INSERT INTO "PoliceAlertConfig" ("id","createdAt","updatedAt")
+   820→           SELECT 'default-alert-config',NOW(),NOW()
+   821→           WHERE NOT EXISTS (SELECT 1 FROM "PoliceAlertConfig" WHERE "id"='default-alert-config')`
+   822→        );
+   823→        // Seed default SubscriptionPlans
+   824→        await prisma2.$executeRawUnsafe(
+   825→          `INSERT INTO "SubscriptionPlan" ("id","name","cycle","price","isActive","createdAt","updatedAt")
+   826→           SELECT 'plan-monthly-001','Monthly','MONTHLY',500,true,NOW(),NOW()
+   827→           WHERE NOT EXISTS (SELECT 1 FROM "SubscriptionPlan" WHERE "id"='plan-monthly-001')`
+   828→        );
+   829→        await prisma2.$executeRawUnsafe(
+   830→          `INSERT INTO "SubscriptionPlan" ("id","name","cycle","price","isActive","createdAt","updatedAt")
+   831→           SELECT 'plan-quarterly-001','Quarterly','QUARTERLY',1400,true,NOW(),NOW()
+   832→           WHERE NOT EXISTS (SELECT 1 FROM "SubscriptionPlan" WHERE "id"='plan-quarterly-001')`
+   833→        );
+   834→        await prisma2.$executeRawUnsafe(
+   835→          `INSERT INTO "SubscriptionPlan" ("id","name","cycle","price","isActive","createdAt","updatedAt")
+   836→           SELECT 'plan-semi-annual-001','Semi-Annual','SEMI_ANNUAL',2600,true,NOW(),NOW()
+   837→           WHERE NOT EXISTS (SELECT 1 FROM "SubscriptionPlan" WHERE "id"='plan-semi-annual-001')`
+   838→        );
+   839→        await prisma2.$executeRawUnsafe(
+   840→          `INSERT INTO "SubscriptionPlan" ("id","name","cycle","price","isActive","createdAt","updatedAt")
+   841→           SELECT 'plan-yearly-001','Annual','YEARLY',4800,true,NOW(),NOW()
+   842→           WHERE NOT EXISTS (SELECT 1 FROM "SubscriptionPlan" WHERE "id"='plan-yearly-001')`
+   843→        );
+   844→        console.log("[init-db] SUPERUSER and plans seeded via Prisma.");
+   845→      } finally {
+   846→        await prisma2.$disconnect().catch(() => {});
+   847→      }
+   848→
+   849→      console.log("[init-db] Database initialization complete via Prisma fallback.");
+   850→      _initDone = true;
+   851→    } catch (prismaErr) {
+   852→      console.error("[init-db] Prisma fallback also failed:", prismaErr instanceof Error ? prismaErr.message : String(prismaErr));
+   853→      _initDone = false;
+   854→      _initPromise = null; // Allow retry
+   855→      throw new Error(
+   856→        `Database initialization failed. pg error: ${pgError instanceof Error ? pgError.message : String(pgError)} | Prisma error: ${prismaErr instanceof Error ? prismaErr.message : String(prismaErr)}`
+   857→      );
+   858→    }
+   859→  })();
+   860→
+   861→  return _initPromise;
+   862→}
+   863→
+   864→/**
+   865→ * Force-run just the migrations + indexes on the live database.
+   866→ * Useful after deploying schema changes to add new columns without full re-init.
+   867→ * All migrations use EXCEPTION WHEN duplicate_column so they are safe to re-run.
+   868→ */
+   869→export async function forceMigrate(): Promise<void> {
+   870→  console.log("[forceMigrate] Running migrations on existing database...");
    871→  try {
-   872→    await execViaPrisma(INDEXES_SQL);
-   873→    console.log("[forceMigrate] Indexes verified.");
+   872→    await execViaPrisma(MIGRATIONS_SQL);
+   873→    console.log("[forceMigrate] Migrations applied.");
    874→  } catch (err) {
-   875→    console.error("[forceMigrate] Index creation failed:", err instanceof Error ? err.message : String(err));
-   876→    // Don't throw — indexes are best-effort
+   875→    console.error("[forceMigrate] Migration failed:", err instanceof Error ? err.message : String(err));
+   876→    throw err;
    877→  }
-   878→  // Reset init flag so next ensureDatabase() will do a full check
-   879→  _initDone = false;
-   880→  _initPromise = null;
-   881→}
-   882→
+   878→  try {
+   879→    await execViaPrisma(INDEXES_SQL);
+   880→    console.log("[forceMigrate] Indexes verified.");
+   881→  } catch (err) {
+   882→    console.error("[forceMigrate] Index creation failed:", err instanceof Error ? err.message : String(err));
+   883→    // Don't throw — indexes are best-effort
+   884→  }
+   885→  // Reset init flag so next ensureDatabase() will do a full check
+   886→  _initDone = false;
+   887→  _initPromise = null;
+   888→}
+   889→
