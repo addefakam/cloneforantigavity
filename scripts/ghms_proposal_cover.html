@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GHMS Proposal Cover</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --c-primary: #32454e;
+    --c-accent: #1f6c92;
+    --c-muted: #747b7e;
+    --c-bg: #f4f5f5;
+    --c-text: #131515;
+    --c-border: #acbdc5;
+    --c-cover-block: #566a74;
+  }
+
+  @page {
+    size: 794px 1123px;
+    margin: 0;
+  }
+
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 794px;
+    height: 1123px;
+    margin: 0;
+    padding: 0;
+    background: var(--c-bg);
+    font-family: 'Inter', 'FreeSerif', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .cover-page {
+    position: relative;
+    width: 794px;
+    height: 1123px;
+    overflow: hidden;
+  }
+
+  /* Layer 0: Base background */
+  .cover-base {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: #ffffff;
+  }
+
+  /* Layer 1: Background decorative - CLIPPED */
+  .cover-bg-layer {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    z-index: 1;
+  }
+
+  /* Grid pattern */
+  .grid-pattern {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(50, 69, 78, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(50, 69, 78, 0.03) 1px, transparent 1px);
+    background-size: 50px 50px;
+  }
+
+  /* Right-side decorative block */
+  .deco-block {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 280px;
+    height: 100%;
+    background: linear-gradient(180deg, var(--c-cover-block) 0%, var(--c-primary) 100%);
+    opacity: 0.08;
+  }
+
+  /* Layer 2: Structure lines */
+  .cover-structure {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+  }
+
+  /* Left anchor line */
+  .anchor-line {
+    position: absolute;
+    left: 90px;
+    top: 112px;
+    width: 6px;
+    height: 900px;
+    background: var(--c-primary);
+    z-index: 1;
+  }
+
+  /* Horizontal accent line under title */
+  .accent-rule {
+    position: absolute;
+    left: 148px;
+    top: 600px;
+    width: 200px;
+    height: 3px;
+    background: var(--c-accent);
+    border-radius: 2px;
+  }
+
+  /* Bottom line */
+  .bottom-rule {
+    position: absolute;
+    left: 148px;
+    bottom: 160px;
+    width: 480px;
+    height: 1px;
+    background: var(--c-border);
+    opacity: 0.5;
+  }
+
+  /* Layer 3: Text content */
+  .cover-content {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+  }
+
+  /* Kicker - Report type */
+  .kicker {
+    position: absolute;
+    left: 148px;
+    top: 170px;
+    font-size: 14pt;
+    font-weight: 400;
+    letter-spacing: 4pt;
+    text-transform: uppercase;
+    color: var(--c-muted);
+    opacity: 0.7;
+    line-height: 1.4;
+  }
+
+  /* Hero Title */
+  .hero-title {
+    position: absolute;
+    left: 148px;
+    top: 260px;
+    width: 510px;
+    font-size: 38pt;
+    font-weight: 900;
+    color: var(--c-text);
+    line-height: 1.15;
+    letter-spacing: -0.5pt;
+  }
+
+  .hero-title .line-accent {
+    color: var(--c-accent);
+  }
+
+  /* Summary block */
+  .summary-block {
+    position: absolute;
+    left: 148px;
+    top: 635px;
+    width: 470px;
+    font-size: 13pt;
+    font-weight: 300;
+    color: var(--c-muted);
+    line-height: 1.7;
+    opacity: 0.9;
+  }
+
+  /* Meta info */
+  .meta-block {
+    position: absolute;
+    left: 148px;
+    top: 800px;
+    font-size: 11pt;
+    color: var(--c-muted);
+    line-height: 1.8;
+  }
+
+  .meta-block .label {
+    font-weight: 700;
+    color: var(--c-text);
+    text-transform: uppercase;
+    letter-spacing: 1pt;
+    font-size: 9pt;
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  .meta-row {
+    display: flex;
+    gap: 60px;
+    margin-bottom: 8px;
+  }
+
+  /* Footer */
+  .cover-footer {
+    position: absolute;
+    left: 148px;
+    bottom: 100px;
+    font-size: 9pt;
+    letter-spacing: 2.5pt;
+    text-transform: uppercase;
+    color: var(--c-muted);
+    opacity: 0.5;
+  }
+
+  /* Small decorative squares */
+  .deco-sq {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--c-accent);
+    opacity: 0.3;
+  }
+  .deco-sq-1 { right: 320px; top: 160px; }
+  .deco-sq-2 { right: 300px; top: 160px; background: var(--c-accent); opacity: 0.15; }
+
+  @media screen {
+    html, body {
+      background: #e0e0e0;
+    }
+    .cover-page {
+      margin: 20px auto;
+      box-shadow: 0 4px 40px rgba(0,0,0,0.15);
+      transform-origin: top center;
+      scale: min(1, calc(100vh / 1123));
+    }
+  }
+</style>
+</head>
+<body>
+<div class="cover-page">
+  <!-- Layer 0: Base -->
+  <div class="cover-base"></div>
+
+  <!-- Layer 1: Background decorative -->
+  <div class="cover-bg-layer">
+    <div class="grid-pattern"></div>
+    <div class="deco-block"></div>
+    <div class="deco-sq deco-sq-1"></div>
+    <div class="deco-sq deco-sq-2"></div>
+  </div>
+
+  <!-- Layer 2: Structure -->
+  <div class="cover-structure">
+    <div class="anchor-line"></div>
+    <div class="accent-rule"></div>
+    <div class="bottom-rule"></div>
+  </div>
+
+  <!-- Layer 3: Content -->
+  <div class="cover-content">
+    <div class="kicker">Proposal for Digital Transformation</div>
+    <div class="hero-title">
+      Guest House<br>Management<br>System
+    </div>
+    <div class="summary-block">
+      A comprehensive SaaS platform for multi-tenant guest house operations, integrated law enforcement security, smart anomaly detection, and real-time analytics to modernize hospitality management and strengthen public safety across all registered establishments.
+    </div>
+    <div class="meta-block">
+      <div class="meta-row">
+        <div>
+          <span class="label">Prepared For</span>
+          Stakeholders and Investment Partners
+        </div>
+        <div>
+          <span class="label">Date</span>
+          August 2026
+        </div>
+      </div>
+      <div class="meta-row">
+        <div>
+          <span class="label">Document Type</span>
+          Technical and Financial Proposal
+        </div>
+        <div>
+          <span class="label">Version</span>
+          1.0
+        </div>
+      </div>
+    </div>
+    <div class="cover-footer">Confidential - For Authorized Review Only</div>
+  </div>
+</div>
+</body>
+</html>
