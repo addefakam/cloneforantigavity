@@ -1,0 +1,1262 @@
+     1→     1→# -*- coding: utf-8 -*-
+     2→     2→"""
+     3→     3→GHMS Proposal - Body PDF (ReportLab)
+     4→     4→Merged with cover PDF after generation.
+     5→     5→"""
+     6→     6→
+     7→     7→import os, sys, hashlib
+     8→     8→from reportlab.lib.pagesizes import A4
+     9→     9→from reportlab.lib.units import inch, mm, cm
+    10→    10→from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    11→    11→from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY, TA_RIGHT
+    12→    12→from reportlab.lib import colors
+    13→    13→from reportlab.platypus import (
+    14→    14→    SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle,
+    15→    15→    KeepTogether, HRFlowable, CondPageBreak
+    16→    16→)
+    17→    17→from reportlab.platypus.tableofcontents import TableOfContents
+    18→    18→from reportlab.pdfbase import pdfmetrics
+    19→    19→from reportlab.pdfbase.ttfonts import TTFont
+    20→    20→from reportlab.pdfbase.pdfmetrics import registerFontFamily
+    21→    21→
+    22→    22→# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    23→    23→# PATHS
+    24→    24→# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    25→    25→FONT_DIR = '/usr/share/fonts/truetype'
+    26→    26→OUTPUT_BODY = '/home/z/my-project/scripts/ghms_proposal_body.pdf'
+    27→    27→OUTPUT_FINAL = '/home/z/my-project/download/GHMS_Proposal.pdf'
+    28→    28→COVER_PDF = '/home/z/my-project/scripts/ghms_proposal_cover.pdf'
+    29→    29→
+    30→    30→# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    31→    31→# CASCADE PALETTE (auto-generated)
+    32→    32→# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    33→    33→PAGE_BG       = colors.HexColor('#f4f5f5')
+    34→    34→SECTION_BG    = colors.HexColor('#f0f1f2')
+    35→    35→CARD_BG       = colors.HexColor('#e8eaeb')
+    36→    36→TABLE_STRIPE  = colors.HexColor('#ebeded')
+    37→    37→HEADER_FILL   = colors.HexColor('#32454e')
+    38→    38→COVER_BLOCK   = colors.HexColor('#566a74')
+    39→    39→BORDER        = colors.HexColor('#acbdc5')
+    40→    40→ICON          = colors.HexColor('#4b86a4')
+    41→    41→ACCENT        = colors.HexColor('#1f6c92')
+    42→    42→ACCENT_2      = colors.HexColor('#c23a50')
+    43→    43→TEXT_PRIMARY   = colors.HexColor('#131515')
+    44→    44→TEXT_MUTED     = colors.HexColor('#747b7e')
+    45→    45→SEM_SUCCESS   = colors.HexColor('#529067')
+    46→    46→SEM_WARNING   = colors.HexColor('#8c7443')
+    47→    47→SEM_ERROR     = colors.HexColor('#a25b54')
+    48→    48→SEM_INFO      = colors.HexColor('#507aa4')
+    49→    49→
+    50→    50→# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    51→    51→# FONT REGISTRATION
+    52→    52→# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    53→    53→pdfmetrics.registerFont(TTFont('FreeSerif', os.path.join(FONT_DIR, 'freefont/FreeSerif.ttf')))
+    54→    54→pdfmetrics.registerFont(TTFont('FreeSerif-Bold', os.path.join(FONT_DIR, 'freefont/FreeSerifBold.ttf')))
+    55→    55→pdfmetrics.registerFont(TTFont('FreeSerif-Italic', os.path.join(FONT_DIR, 'freefont/FreeSerifItalic.ttf')))
+    56→    56→pdfmetrics.registerFont(TTFont('FreeSerif-BoldItalic', os.path.join(FONT_DIR, 'freefont/FreeSerifBoldItalic.ttf')))
+    57→    57→registerFontFamily('FreeSerif', normal='FreeSerif', bold='FreeSerif-Bold',
+    58→    58→                    italic='FreeSerif-Italic', boldItalic='FreeSerif-BoldItalic')
+    59→    59→
+    60→    60→# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    61→    61→# PAGE DIMENSIONS
+    62→    62→# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    63→    63→PAGE_W, PAGE_H = A4  # 595.28 x 841.89
+    64→    64→LEFT_M = 1.0 * inch
+    65→    65→RIGHT_M = 1.0 * inch
+    66→    66→TOP_M = 0.85 * inch
+    67→    67→BOTTOM_M = 0.85 * inch
+    68→    68→AVAIL_W = PAGE_W - LEFT_M - RIGHT_M  # ~451pt
+    69→    69→AVAIL_H = PAGE_H - TOP_M - BOTTOM_M
+    70→    70→
+    71→    71→# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    72→    72→# STYLES
+    73→    73→# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    74→    74→styles = getSampleStyleSheet()
+    75→    75→
+    76→    76→s_h1 = ParagraphStyle(
+    77→    77→    name='H1', fontName='FreeSerif-Bold', fontSize=20, leading=26,
+    78→    78→    textColor=TEXT_PRIMARY, spaceBefore=18, spaceAfter=10,
+    79→    79→    alignment=TA_LEFT
+    80→    80→)
+    81→    81→s_h2 = ParagraphStyle(
+    82→    82→    name='H2', fontName='FreeSerif-Bold', fontSize=14, leading=19,
+    83→    83→    textColor=HEADER_FILL, spaceBefore=14, spaceAfter=6,
+    84→    84→    alignment=TA_LEFT
+    85→    85→)
+    86→    86→s_h3 = ParagraphStyle(
+    87→    87→    name='H3', fontName='FreeSerif-Bold', fontSize=11.5, leading=16,
+    88→    88→    textColor=TEXT_PRIMARY, spaceBefore=10, spaceAfter=4,
+    89→    89→    alignment=TA_LEFT
+    90→    90→)
+    91→    91→s_body = ParagraphStyle(
+    92→    92→    name='Body', fontName='FreeSerif', fontSize=10.5, leading=17,
+    93→    93→    textColor=TEXT_PRIMARY, spaceBefore=3, spaceAfter=6,
+    94→    94→    alignment=TA_JUSTIFY
+    95→    95→)
+    96→    96→s_body_indent = ParagraphStyle(
+    97→    97→    name='BodyIndent', parent=s_body, leftIndent=18
+    98→    98→)
+    99→    99→
+   100→   100→s_bullet = ParagraphStyle(
+   101→   101→    name='Bullet', fontName='FreeSerif', fontSize=10.5, leading=17,
+   102→   102→    textColor=TEXT_PRIMARY, leftIndent=24, bulletIndent=12,
+   103→   103→    spaceBefore=2, spaceAfter=2, alignment=TA_LEFT
+   104→   104→)
+   105→   105→
+   106→   106→s_toc_h0 = ParagraphStyle(
+   107→   107→    name='TOCH0', fontName='FreeSerif-Bold', fontSize=13, leading=22,
+   108→   108→    leftIndent=20, textColor=TEXT_PRIMARY
+   109→   109→)
+   110→   110→s_toc_h1 = ParagraphStyle(
+   111→   111→    name='TOCH1', fontName='FreeSerif', fontSize=11, leading=18,
+   112→   112→    leftIndent=40, textColor=TEXT_MUTED
+   113→   113→)
+   114→   114→
+   115→   115→s_table_header = ParagraphStyle(
+   116→   116→    name='TH', fontName='FreeSerif-Bold', fontSize=10, leading=14,
+   117→   117→    textColor=colors.white, alignment=TA_CENTER
+   118→   118→)
+   119→   119→s_table_cell = ParagraphStyle(
+   120→   120→    name='TC', fontName='FreeSerif', fontSize=9.5, leading=14,
+   121→   121→    textColor=TEXT_PRIMARY, alignment=TA_LEFT
+   122→   122→)
+   123→   123→s_table_cell_c = ParagraphStyle(
+   124→   124→    name='TCC', fontName='FreeSerif', fontSize=9.5, leading=14,
+   125→   125→    textColor=TEXT_PRIMARY, alignment=TA_CENTER
+   126→   126→)
+   127→   127→
+   128→   128→s_caption = ParagraphStyle(
+   129→   129→    name='Caption', fontName='FreeSerif-Italic', fontSize=8.5, leading=12,
+   130→   130→    textColor=TEXT_MUTED, alignment=TA_CENTER, spaceBefore=4, spaceAfter=8
+   131→   131→)
+   132→   132→
+   133→   133→s_callout_num = ParagraphStyle(
+   134→   134→    name='CalloutNum', fontName='FreeSerif-Bold', fontSize=22, leading=26,
+   135→   135→    textColor=ACCENT, alignment=TA_CENTER
+   136→   136→)
+   137→   137→s_callout_label = ParagraphStyle(
+   138→   138→    name='CalloutLabel', fontName='FreeSerif', fontSize=9, leading=12,
+   139→   139→    textColor=TEXT_MUTED, alignment=TA_CENTER
+   140→   140→)
+   141→   141→
+   142→   142→s_quote = ParagraphStyle(
+   143→   143→    name='Quote', fontName='FreeSerif-Italic', fontSize=11, leading=17,
+   144→   144→    textColor=TEXT_MUTED, leftIndent=24, borderLeftWidth=2,
+   145→   145→    borderLeftColor=ACCENT, borderPadding=8, spaceBefore=8, spaceAfter=8
+   146→   146→)
+   147→   147→
+   148→   148→# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   149→   149→# TOC TEMPLATE
+   150→   150→# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   151→   151→class TocDocTemplate(SimpleDocTemplate):
+   152→   152→    def afterFlowable(self, flowable):
+   153→   153→        if hasattr(flowable, 'bookmark_name'):
+   154→   154→            level = getattr(flowable, 'bookmark_level', 0)
+   155→   155→            text = getattr(flowable, 'bookmark_text', '')
+   156→   156→            key = getattr(flowable, 'bookmark_key', '')
+   157→   157→            self.notify('TOCEntry', (level, text, self.page, key))
+   158→   158→
+   159→   159→
+   160→   160→def add_heading(text, style, level=0):
+   161→   161→    key = 'h_%s' % hashlib.md5(text.encode()).hexdigest()[:8]
+   162→   162→    p = Paragraph('<a name="%s"/>%s' % (key, text), style)
+   163→   163→    p.bookmark_name = text
+   164→   164→    p.bookmark_level = level
+   165→   165→    p.bookmark_text = text
+   166→   166→    p.bookmark_key = key
+   167→   167→    return p
+   168→   168→
+   169→   169→
+   170→   170→def make_table(header_row, data_rows, col_ratios=None):
+   171→   171→    """Create a styled table with palette colors."""
+   172→   172→    if col_ratios:
+   173→   173→        cw = [r * AVAIL_W for r in col_ratios]
+   174→   174→    else:
+   175→   175→        n = len(header_row)
+   176→   176→        cw = [AVAIL_W / n] * n
+   177→   177→    
+   178→   178→    all_data = [header_row] + data_rows
+   179→   179→    t = Table(all_data, colWidths=cw, hAlign='CENTER')
+   180→   180→    style_cmds = [
+   181→   181→        ('BACKGROUND', (0, 0), (-1, 0), HEADER_FILL),
+   182→   182→        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+   183→   183→        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+   184→   184→        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+   185→   185→        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+   186→   186→        ('TOPPADDING', (0, 0), (-1, -1), 6),
+   187→   187→        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+   188→   188→        ('GRID', (0, 0), (-1, -1), 0.5, BORDER),
+   189→   189→        ('BOX', (0, 0), (-1, -1), 1, HEADER_FILL),
+   190→   190→    ]
+   191→   191→    for i in range(1, len(all_data)):
+   192→   192→        bg = colors.white if i % 2 == 1 else TABLE_STRIPE
+   193→   193→        style_cmds.append(('BACKGROUND', (0, i), (-1, i), bg))
+   194→   194→    t.setStyle(TableStyle(style_cmds))
+   195→   195→    return t
+   196→   196→
+   197→   197→
+   198→   198→def callout_box(number, label):
+   199→   199→    """Stat callout box."""
+   200→   200→    t = Table(
+   201→   201→        [[Paragraph('<b>%s</b>' % number, s_callout_num)],
+   202→   202→         [Paragraph(label, s_callout_label)]],
+   203→   203→        colWidths=[130], hAlign='CENTER'
+   204→   204→    )
+   205→   205→    t.setStyle(TableStyle([
+   206→   206→        ('BACKGROUND', (0, 0), (-1, -1), CARD_BG),
+   207→   207→        ('BOX', (0, 0), (-1, -1), 1.5, ACCENT),
+   208→   208→        ('TOPPADDING', (0, 0), (-1, -1), 10),
+   209→   209→        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+   210→   210→        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+   211→   211→    ]))
+   212→   212→    return t
+   213→   213→
+   214→   214→
+   215→   215→def divider():
+   216→   216→    return HRFlowable(width='100%', thickness=0.75, color=BORDER, spaceBefore=6, spaceAfter=6)
+   217→   217→
+   218→   218→
+   219→   219→# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   220→   220→# HEADER / FOOTER
+   221→   221→# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   222→   222→def header_footer(canvas, doc):
+   223→   223→    canvas.saveState()
+   224→   224→    # Header
+   225→   225→    canvas.setFont('FreeSerif', 7.5)
+   226→   226→    canvas.setFillColor(TEXT_MUTED)
+   227→   227→    canvas.drawString(LEFT_M, PAGE_H - 0.55 * inch, 'GHMS - Guest House Management System | Technical Proposal')
+   228→   228→    canvas.setStrokeColor(ACCENT)
+   229→   229→    canvas.setLineWidth(1.2)
+   230→   230→    canvas.line(LEFT_M, PAGE_H - 0.62 * inch, PAGE_W - RIGHT_M, PAGE_H - 0.62 * inch)
+   231→   231→    # Footer
+   232→   232→    canvas.setStrokeColor(BORDER)
+   233→   233→    canvas.setLineWidth(0.5)
+   234→   234→    canvas.line(LEFT_M, 0.6 * inch, PAGE_W - RIGHT_M, 0.6 * inch)
+   235→   235→    canvas.setFont('FreeSerif', 7.5)
+   236→   236→    canvas.setFillColor(TEXT_MUTED)
+   237→   237→    canvas.drawString(LEFT_M, 0.42 * inch, 'Confidential')
+   238→   238→    canvas.drawRightString(PAGE_W - RIGHT_M, 0.42 * inch, 'Page %d' % doc.page)
+   239→   239→    canvas.restoreState()
+   240→   240→
+   241→   241→
+   242→   242→# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   243→   243→# BUILD STORY
+   244→   244→# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   245→   245→story = []
+   246→   246→
+   247→   247→# ---------- TABLE OF CONTENTS ----------
+   248→   248→toc = TableOfContents()
+   249→   249→toc.levelStyles = [s_toc_h0, s_toc_h1]
+   250→   250→story.append(Paragraph('<b>Table of Contents</b>', s_h1))
+   251→   251→story.append(Spacer(1, 8))
+   252→   252→story.append(toc)
+   253→   253→story.append(PageBreak())
+   254→   254→
+   255→   255→# ========================================================
+   256→   256→# CHAPTER NUMBERING PLAN
+   257→   257→# ========================================================
+   258→   258→# | Outline Index | Type    | Chapter # | Title                    |
+   259→   259→# |---------------|---------|-----------|--------------------------|
+   260→   260→# | 1             | cover   | --        | Cover Page               |
+   261→   261→# | 2             | toc     | --        | Table of Contents        |
+   262→   262→# | 3             | content | 1         | Executive Summary        |
+   263→   263→# | 4             | content | 2         | The Problem              |
+   264→   264→# | 5             | content | 3         | Proposed Solution        |
+   265→   265→# | 6             | content | 4         | Module Details           |
+   266→   266→# | 7             | content | 5         | Implementation Timeline   |
+   267→   267→# | 8             | content | 6         | Cost Estimate            |
+   268→   268→# | 9             | content | 7         | Benefits & ROI           |
+   269→   269→# | 10            | content | 8         | Technology Stack         |
+   270→   270→# | 11            | content | 9         | Why Choose Us            |
+   271→   271→# | 12            | content | 10        | Next Steps               |
+   272→   272→# ========================================================
+   273→   273→
+   274→   274→# ========================================================
+   275→   275→# CHAPTER 1: EXECUTIVE SUMMARY
+   276→   276→# ========================================================
+   277→   277→story.append(CondPageBreak(AVAIL_H * 0.25))
+   278→   278→story.append(add_heading('1. Executive Summary', s_h1, level=0))
+   279→   279→story.append(divider())
+   280→   280→
+   281→   281→story.append(Paragraph(
+   282→   282→    'The hospitality sector in Ethiopia is experiencing rapid growth, driven by expanding '
+   283→   283→    'domestic travel, rising foreign investment, and government initiatives to promote tourism '
+   284→   284→    'as a cornerstone of economic development. Despite this growth, the guest house industry '
+   285→   285→    'remains overwhelmingly dependent on manual, paper-based processes for managing reservations, '
+   286→   286→    'guest registrations, financial records, and regulatory compliance. This creates significant '
+   287→   287→    'operational inefficiencies, revenue leakage, and critical gaps in public safety oversight.',
+   288→   288→    s_body
+   289→   289→))
+   290→   290→story.append(Paragraph(
+   291→   291→    'We propose the <b>Guest House Management System (GHMS)</b> — a comprehensive, cloud-hosted '
+   292→   292→    'SaaS platform designed specifically for the Ethiopian market. The system digitizes the entire '
+   293→   293→    'lifecycle of guest house operations, from room inventory management and reservation booking '
+   294→   294→    'to expense tracking, financial reporting, and subscription-based billing. Critically, GHMS '
+   295→   295→    'includes a fully integrated <b>Law Enforcement and Security Module</b> that provides police '
+   296→   296→    'authorities with real-time cross-establishment visibility into guest movements, automated '
+   297→   297→    'suspect matching, and a sophisticated seven-type anomaly detection engine — all without '
+   298→   298→    'compromising the privacy or operational independence of individual guest house operators.',
+   299→   299→    s_body
+   300→   300→))
+   301→   301→story.append(Paragraph(
+   302→   302→    'The platform is built on a modern, scalable technology stack (Next.js, PostgreSQL, Prisma ORM) '
+   303→   303→    'and supports a multi-tenant architecture where each guest house operates in its own secure, '
+   304→   304→    'isolated data environment. The system is designed for rapid deployment, intuitive adoption by '
+   305→   305→    'users with varying levels of technical proficiency, and long-term extensibility as regulatory '
+   306→   306→    'requirements and business needs evolve. This proposal outlines the problem landscape, our '
+   307→   307→    'proposed solution, implementation timeline, cost structure, and the tangible benefits that '
+   308→   308→    'stakeholders can expect upon deployment.',
+   309→   309→    s_body
+   310→   310→))
+   311→   311→
+   312→   312→# Key stats callouts
+   313→   313→stats_row = Table(
+   314→   314→    [[
+   315→   315→        callout_box('5', 'Core Modules'),
+   316→   316→        callout_box('50+', 'API Endpoints'),
+   317→   317→        callout_box('7', 'Anomaly Types'),
+   318→   318→    ]],
+   319→   319→    colWidths=[AVAIL_W / 3] * 3, hAlign='CENTER'
+   320→   320→)
+   321→   321→stats_row.setStyle(TableStyle([
+   322→   322→    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+   323→   323→    ('LEFTPADDING', (0, 0), (-1, -1), 4),
+   324→   324→    ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+   325→   325→]))
+   326→   326→story.append(Spacer(1, 8))
+   327→   327→story.append(stats_row)
+   328→   328→story.append(Spacer(1, 6))
+   329→   329→story.append(Paragraph('Figure 1: GHMS Platform at a Glance', s_caption))
+   330→   330→
+   331→   331→
+   332→   332→# ========================================================
+   333→   333→# CHAPTER 2: THE PROBLEM
+   334→   334→# ========================================================
+   335→   335→story.append(CondPageBreak(AVAIL_H * 0.25))
+   336→   336→story.append(add_heading('2. The Problem', s_h1, level=0))
+   337→   337→story.append(divider())
+   338→   338→
+   339→   339→story.append(Paragraph(
+   340→   340→    'Through extensive consultation with guest house operators, law enforcement officials, and '
+   341→   341→    'local government administrators, we have identified a set of deeply interconnected problems '
+   342→   342→    'that collectively undermine the efficiency, profitability, and safety of the guest house '
+   343→   343→    'sector. These challenges are not isolated to any single establishment; they are systemic '
+   344→   344→    'issues that affect the entire industry ecosystem, from small family-run guest houses to '
+   345→   345→    'larger commercial operations.',
+   346→   346→    s_body
+   347→   347→))
+   348→   348→
+   349→   349→# 2.1
+   350→   350→story.append(add_heading('2.1 Manual and Paper-Based Operations', s_h2, level=1))
+   351→   351→story.append(Paragraph(
+   352→   352→    'The vast majority of guest houses in Ethiopia still rely on handwritten registration books, '
+   353→   353→    'physical filing systems, and verbal communication for managing their daily operations. Room '
+   354→   354→    'availability is tracked on whiteboards or in notebooks, reservations are recorded in paper '
+   355→   355→    'ledgers, and guest check-in/check-out processes involve manually copying identification details '
+   356→   356→    'into binders. This approach is inherently error-prone: pages can be misplaced, handwriting can '
+   357→   357→    'be illegible, and there is no way to quickly search for a specific guest, reservation, or '
+   358→   358→    'transaction without physically flipping through hundreds of pages.',
+   359→   359→    s_body
+   360→   360→))
+   361→   361→story.append(Paragraph(
+   362→   362→    'The consequences extend beyond mere inconvenience. Double-bookings are common when multiple '
+   363→   363→    'staff members cannot see real-time room availability, leading to guest dissatisfaction and '
+   364→   364→    'lost revenue. Financial records are scattered across different notebooks and spreadsheets, '
+   365→   365→    'making it virtually impossible to generate accurate profit-and-loss statements or identify '
+   366→   366→    'cost-saving opportunities. Regulatory reporting — such as submitting guest registration data '
+   367→   367→    'to local authorities — requires manually transcribing information from paper records, a '
+   368→   368→    'process that is both time-consuming and susceptible to transcription errors. For operators '
+   369→   369→    'managing more than a handful of rooms, the administrative burden becomes a significant '
+   370→   370→    'barrier to growth.',
+   371→   371→    s_body
+   372→   372→))
+   373→   373→
+   374→   374→# 2.2
+   375→   375→story.append(add_heading('2.2 Revenue Leakage and Financial Opacity', s_h2, level=1))
+   376→   376→story.append(Paragraph(
+   377→   377→    'Without a centralized digital system, guest house operators lack real-time visibility into '
+   378→   378→    'their financial performance. Cash transactions go unrecorded, expenses are tracked inconsistently, '
+   379→   379→    'and there is no automated mechanism to reconcile payments against reservations. This results in '
+   380→   380→    'significant revenue leakage: studies in similar emerging markets suggest that small hospitality '
+   381→   381→    'businesses lose between 8% and 15% of potential revenue annually due to poor financial tracking '
+   382→   382→    'and unrecorded transactions.',
+   383→   383→    s_body
+   384→   384→))
+   385→   385→story.append(Paragraph(
+   386→   386→    'Furthermore, the inability to generate timely financial reports means that operators cannot '
+   387→   387→    'make data-driven decisions about pricing, staffing, or investment. They cannot identify which '
+   388→   388→    'room types are most profitable, which expense categories are consuming the largest share of '
+   389→   389→    'revenue, or whether their occupancy rates are improving or declining over time. This financial '
+   390→   390→    'opacity also creates challenges for tax compliance and for securing financing from banks or '
+   391→   391→    'investors who require auditable financial records.',
+   392→   392→    s_body
+   393→   393→))
+   394→   394→
+   395→   395→# 2.3
+   396→   396→story.append(add_heading('2.3 Public Safety and Regulatory Gaps', s_h2, level=1))
+   397→   397→story.append(Paragraph(
+   398→   398→    'Perhaps the most critical challenge is the near-total absence of digital integration between '
+   399→   399→    'guest house operations and law enforcement agencies. When a guest checks into a guest house, '
+   400→   400→    'their identification details are recorded on paper and filed away. There is no mechanism to '
+   401→   401→    'cross-reference this information against police watchlists, no automated alert when a person '
+   402→   402→    'of interest registers at multiple establishments within a short period, and no centralized '
+   403→   403→    'database that investigators can query when conducting criminal investigations.',
+   404→   404→    s_body
+   405→   405→))
+   406→   406→story.append(Paragraph(
+   407→   407→    'This gap has real public safety implications. In many jurisdictions, guest houses have been '
+   408→   408→    'exploited as temporary bases for illicit activities precisely because there is no digital '
+   409→   409→    'trail connecting guest movements across different establishments. Law enforcement officers '
+   410→   410→    'must physically visit each guest house, request paper records, and manually cross-reference '
+   411→   411→    'names and identification numbers — a process that can take days or weeks for a single '
+   412→   412→    'investigation. The absence of automated anomaly detection means that suspicious patterns — '
+   413→   413→    'such as the same person using different names at different guest houses, or unusually large '
+   414→   414→    'cash payments for short stays — go entirely unnoticed until a crime is reported.',
+   415→   415→    s_body
+   416→   416→))
+   417→   417→
+   418→   418→# 2.4
+   419→   419→story.append(add_heading('2.4 Fragmented Technology Landscape', s_h2, level=1))
+   420→   420→story.append(Paragraph(
+   421→   421→    'Existing software solutions in the market are either designed for large hotels and are too '
+   422→   422→    'complex and expensive for small guest houses, or they are basic booking tools that lack the '
+   423→   423→    'financial management, regulatory compliance, and law enforcement integration features that '
+   424→   424→    'the Ethiopian context demands. Many guest house operators have attempted to adopt generic '
+   425→   425→    'spreadsheet-based solutions, but these quickly become unwieldy as the volume of reservations '
+   426→   426→    'and guest data grows. There is no purpose-built, affordable, locally-adapted platform that '
+   427→   427→    'addresses the full spectrum of guest house management needs while also serving the public '
+   428→   428→    'safety requirements of government authorities.',
+   429→   429→    s_body
+   430→   430→))
+   431→   431→
+   432→   432→
+   433→   433→# ========================================================
+   434→   434→# CHAPTER 3: PROPOSED SOLUTION
+   435→   435→# ========================================================
+   436→   436→story.append(CondPageBreak(AVAIL_H * 0.25))
+   437→   437→story.append(add_heading('3. Proposed Solution', s_h1, level=0))
+   438→   438→story.append(divider())
+   439→   439→
+   440→   440→story.append(Paragraph(
+   441→   441→    'GHMS is a fully integrated, web-based SaaS platform that addresses every challenge '
+   442→   442→    'identified above through a cohesive, modular architecture. The system is accessible from '
+   443→   443→    'any device with a web browser, eliminating the need for expensive hardware installations '
+   444→   444→    'or specialized software licenses. It follows a multi-tenant design where each guest house '
+   445→   445→    'operates within its own securely isolated data environment, while authorized law enforcement '
+   446→   446→    'personnel can access aggregated, cross-establishment data for public safety purposes.',
+   447→   447→    s_body
+   448→   448→))
+   449→   449→
+   450→   450→story.append(Paragraph(
+   451→   451→    'The platform is organized into five core modules, each targeting a specific operational '
+   452→   452→    'domain. These modules function independently — allowing phased deployment — while '
+   453→   453→    'seamlessly sharing data to create a unified operational ecosystem. The following table '
+   454→   454→    'provides an overview of each module, its primary function, key users, and deployment priority.',
+   455→   455→    s_body
+   456→   456→))
+   457→   457→
+   458→   458→module_overview = make_table(
+   459→   459→    [Paragraph('<b>Module</b>', s_table_header),
+   460→   460→     Paragraph('<b>Primary Function</b>', s_table_header),
+   461→   461→     Paragraph('<b>Key Users</b>', s_table_header),
+   462→   462→     Paragraph('<b>Priority</b>', s_table_header)],
+   463→   463→    [
+   464→   464→        [Paragraph('Guest House Operations', s_table_cell),
+   465→   465→         Paragraph('Room management, reservations, guest registration with Ethiopian administrative hierarchy, daytime service bookings', s_table_cell),
+   466→   466→         Paragraph('Operators, Front Desk Staff', s_table_cell_c),
+   467→   467→         Paragraph('Phase 1', s_table_cell_c)],
+   468→   468→        [Paragraph('Financial Management', s_table_cell),
+   469→   469→         Paragraph('Expense tracking, payment ledger, automated financial reports, profit/loss analytics, revenue dashboards', s_table_cell),
+   470→   470→         Paragraph('Operators, Accountants, Management', s_table_cell_c),
+   471→   471→         Paragraph('Phase 1', s_table_cell_c)],
+   472→   472→        [Paragraph('Operations and Resources', s_table_cell),
+   473→   473→         Paragraph('Housekeeping task scheduling, inventory management, guest reviews, in-app notifications', s_table_cell),
+   474→   474→         Paragraph('Operators, Housekeeping Staff', s_table_cell_c),
+   475→   475→         Paragraph('Phase 2', s_table_cell_c)],
+   476→   476→        [Paragraph('Law Enforcement and Security', s_table_cell),
+   477→   477→         Paragraph('Cross-provider guest search, suspect watchlist matching, 7-type anomaly detection, geofencing, intelligence analytics', s_table_cell),
+   478→   478→         Paragraph('Police Officers, Investigators, Command Staff', s_table_cell_c),
+   479→   479→         Paragraph('Phase 2', s_table_cell_c)],
+   480→   480→        [Paragraph('Platform Administration', s_table_cell),
+   481→   481→         Paragraph('Multi-tenant provider management, subscription billing, user access control, audit logging, joint operations', s_table_cell),
+   482→   482→         Paragraph('System Administrators, Government Supervisors', s_table_cell_c),
+   483→   483→         Paragraph('Phase 3', s_table_cell_c)],
+   484→   484→    ],
+   485→   485→    col_ratios=[0.18, 0.38, 0.24, 0.10]
+   486→   486→)
+   487→   487→story.append(Spacer(1, 6))
+   488→   488→story.append(module_overview)
+   489→   489→story.append(Paragraph('Table 1: GHMS Module Overview', s_caption))
+   490→   490→
+   491→   491→# 3.1 Core Design Principles
+   492→   492→story.append(add_heading('3.1 Core Design Principles', s_h2, level=1))
+   493→   493→story.append(Paragraph(
+   494→   494→    'Every architectural and design decision in GHMS is guided by four foundational principles '
+   495→   495→    'that ensure the platform meets the needs of all stakeholders — from individual guest house '
+   496→   496→    'operators to government regulators and law enforcement agencies.',
+   497→   497→    s_body
+   498→   498→))
+   499→   499→story.append(Paragraph(
+   500→   500→    '<b>Security and Data Isolation:</b> Each guest house operates within a strictly isolated data '
+   501→   501→    'environment enforced by provider-level foreign keys throughout the database schema. Police '
+   502→   502→    'users receive read-only cross-provider access through a separate authentication context. '
+   503→   503→    'All authentication uses JWT tokens stored in httpOnly cookies, passwords are hashed with '
+   504→   504→    'bcrypt, and every police data access is logged in a comprehensive audit trail. A unique '
+   505→   505→    'dual-authorization "Joint Session" mechanism requires simultaneous authentication by both '
+   506→   506→    'a system administrator and a police administrator for emergency actions such as mass '
+   507→   507→    'suspension of all guest houses.',
+   508→   508→    s_body
+   509→   509→))
+   510→   510→story.append(Paragraph(
+   511→   511→    '<b>Simplicity and Usability:</b> The interface is built with shadcn/ui component library and '
+   512→   512→    'Tailwind CSS, providing a clean, modern design that requires minimal training. Role-based '
+   513→   513→    'navigation ensures that each user sees only the features relevant to their role. The entire '
+   514→   514→    'application is fully responsive, adapting seamlessly from desktop monitors to mobile phones, '
+   515→   515→    'which is critical for front desk staff who may need to check in guests using a tablet.',
+   516→   516→    s_body
+   517→   517→))
+   518→   518→story.append(Paragraph(
+   519→   519→    '<b>Multi-Tenant Scalability:</b> The architecture supports an unlimited number of guest houses '
+   520→   520→    'on a single platform instance, with no performance degradation as the tenant count grows. '
+   521→   521→    'Subscription management with automated billing cycles, 15-day free trials, 7-day expiry '
+   522→   522→    'warnings, and grace periods allows operators to adopt the system with minimal upfront '
+   523→   523→    'commitment while providing the platform operator with predictable recurring revenue.',
+   524→   524→    s_body
+   525→   525→))
+   526→   526→story.append(Paragraph(
+   527→   527→    '<b>Localization and Compliance:</b> The system is purpose-built for the Ethiopian market, '
+   528→   528→    'with full support for Ethiopian administrative divisions (Region, Zone/Sub-city, Woreda, '
+   529→   529→    'Kebele) in guest registration, Amharic-localized expense categories, ETB currency formatting, '
+   530→   530→    'and localized tax calculations. This ensures immediate usability without the adaptation '
+   531→   531→    'overhead that generic international platforms require.',
+   532→   532→    s_body
+   533→   533→))
+   534→   534→
+   535→   535→
+   536→   536→# ========================================================
+   537→   537→# CHAPTER 4: MODULE DETAILS
+   538→   538→# ========================================================
+   539→   539→story.append(CondPageBreak(AVAIL_H * 0.25))
+   540→   540→story.append(add_heading('4. Module Details', s_h1, level=0))
+   541→   541→story.append(divider())
+   542→   542→
+   543→   543→# 4.1
+   544→   544→story.append(add_heading('4.1 Module 1: Guest House Operations', s_h2, level=1))
+   545→   545→story.append(Paragraph(
+   546→   546→    'This module forms the operational backbone of the system, digitizing every aspect of '
+   547→   547→    'guest house room and reservation management. It replaces paper-based room availability '
+   548→   548→    'boards with a real-time digital room inventory that supports five room types (Single, Double, '
+   549→   549→    'Twin, Suite, Deluxe) with configurable pricing, floor assignments, capacity limits, and '
+   550→   550→    'amenity tracking. Each room can have its status updated instantly — Available, Occupied, '
+   551→   551→    'Maintenance, or Reserved — providing all staff members with an accurate, up-to-the-minute '
+   552→   552→    'view of inventory.',
+   553→   553→    s_body
+   554→   554→))
+   555→   555→story.append(Paragraph(
+   556→   556→    'The reservation management subsystem handles the complete booking lifecycle from creation '
+   557→   557→    'through check-in, check-out, and cancellation. Reservations automatically calculate the '
+   558→   558→    'number of nights, room rate, applicable taxes, and any discounts, producing a transparent '
+   559→   559→    'cost breakdown for both the operator and the guest. The system tracks payment status, '
+   560→   560→    'payment method (cash, mobile banking, bank transfer), and outstanding balances, ensuring '
+   561→   561→    'that no revenue falls through the cracks. Guest registration captures comprehensive '
+   562→   562→    'identification data including full Ethiopian address hierarchy, vehicle plate numbers, and '
+   563→   563→    'VIP status flags, creating a rich data foundation for both operational and security purposes.',
+   564→   564→    s_body
+   565→   565→))
+   566→   566→story.append(Paragraph(
+   567→   567→    'Additionally, the module includes a daytime service booking system that allows guest houses '
+   568→   568→    'to offer and manage ancillary services such as conference room rentals, laundry, meals, or '
+   569→   569→    'transportation. This extends the revenue model beyond overnight stays and provides guests '
+   570→   570→    'with a seamless, integrated service experience.',
+   571→   571→    s_body
+   572→   572→))
+   573→   573→
+   574→   574→feat_ops = make_table(
+   575→   575→    [Paragraph('<b>Feature</b>', s_table_header),
+   576→   576→     Paragraph('<b>Description</b>', s_table_header)],
+   577→   577→    [
+   578→   578→        [Paragraph('Room Inventory', s_table_cell),
+   579→   579→         Paragraph('5 room types, real-time status tracking, amenity management, floor and capacity configuration', s_table_cell)],
+   580→   580→        [Paragraph('Reservation Lifecycle', s_table_cell),
+   581→   581→         Paragraph('Create, check-in, check-out, cancel with automatic night/rate/tax calculations and balance tracking', s_table_cell)],
+   582→   582→        [Paragraph('Guest Registration', s_table_cell),
+   583→   583→         Paragraph('Full Ethiopian administrative address hierarchy, ID tracking, vehicle plate, VIP flags, nationality', s_table_cell)],
+   584→   584→        [Paragraph('Daytime Services', s_table_cell),
+   585→   585→         Paragraph('Catalog management, booking, pricing per service, payment tracking for non-overnight revenue', s_table_cell)],
+   586→   586→        [Paragraph('Dashboard', s_table_cell),
+   587→   587→         Paragraph('Real-time KPIs: occupancy rate, active reservations, today arrivals/departures, monthly revenue, alerts', s_table_cell)],
+   588→   588→    ],
+   589→   589→    col_ratios=[0.25, 0.65]
+   590→   590→)
+   591→   591→story.append(Spacer(1, 6))
+   592→   592→story.append(feat_ops)
+   593→   593→story.append(Paragraph('Table 2: Guest House Operations Feature Summary', s_caption))
+   594→   594→
+   595→   595→# 4.2
+   596→   596→story.append(add_heading('4.2 Module 2: Financial Management and Reporting', s_h2, level=1))
+   597→   597→story.append(Paragraph(
+   598→   598→    'The Financial Management module transforms how guest house operators understand and control '
+   599→   599→    'their revenue streams. At its core is a comprehensive expense tracking system that records '
+   600→   600→    'every operational expense with date, category, description, amount, vendor, payment method, '
+   601→   601→    'receipt number, and tax amount. Expense categories are pre-populated with common hospitality '
+   602→   602→    'costs (utilities, supplies, salaries, maintenance, food and beverage) and include Amharic '
+   603→   603→    'localizations for staff who prefer to work in the national language.',
+   604→   604→    s_body
+   605→   605→))
+   606→   606→story.append(Paragraph(
+   607→   607→    'The reporting engine generates detailed financial reports on demand, including total revenue, '
+   608→   608→    'total expenses, net profit, and occupancy rate analytics. Reports can be filtered by any '
+   609→   609→    'date range, enabling operators to compare performance across weeks, months, or seasons. '
+   610→   610→    'Visual charts show revenue trends over time and expense breakdowns by category, making it '
+   611→   611→    'immediately clear where money is being spent and which revenue streams are performing best. '
+   612→   612→    'All reports support export to spreadsheet format for further analysis or archival.',
+   613→   613→    s_body
+   614→   614→))
+   615→   615→story.append(Paragraph(
+   616→   616→    'The payment ledger provides a unified record of all financial transactions, linked to either '
+   617→   617→    'reservations or daytime service bookings, creating a complete audit trail. Combined with the '
+   618→   618→    'subscription billing system at the platform level, this module ensures that every birr '
+   619→   619→    'flowing through the system is tracked, categorized, and reportable.',
+   620→   620→    s_body
+   621→   621→))
+   622→   622→
+   623→   623→# 4.3
+   624→   624→story.append(add_heading('4.3 Module 3: Operations and Resource Management', s_h2, level=1))
+   625→   625→story.append(Paragraph(
+   626→   626→    'This module covers the operational logistics that keep a guest house running smoothly. The '
+   627→   627→    'housekeeping subsystem allows staff to create, assign, and track cleaning and maintenance '
+   628→   628→    'tasks for each room. Tasks can be scheduled by date, assigned to specific staff members, and '
+   629→   629→    'tracked through completion with timestamps. Status filters (Pending, In Progress, Completed) '
+   630→   630→    'give supervisors an instant view of housekeeping operations across the entire property, enabling '
+   631→   631→    'them to prioritize rooms that need attention before the next guest arrival.',
+   632→   632→    s_body
+   633→   633→))
+   634→   634→story.append(Paragraph(
+   635→   635→    'The inventory management subsystem tracks supplies and resources (cleaning products, linens, '
+   636→   636→    'toiletries, food and beverage items) with quantity, unit, minimum reorder levels, cost per '
+   637→   637→    'unit, and supplier information. When stock falls below the configured minimum level, the '
+   638→   638→    'system flags the item for restocking, preventing shortages that could disrupt operations. '
+   639→   639→    'A guest review and rating system captures feedback after each stay, providing operators with '
+   640→   640→    'valuable insights into service quality and guest satisfaction. An integrated notification '
+   641→   641→    'system delivers in-app alerts for important events such as approaching check-outs, '
+   642→   642→    'subscription expiry warnings, and system announcements.',
+   643→   643→    s_body
+   644→   644→))
+   645→   645→
+   646→   646→# 4.4
+   647→   647→story.append(add_heading('4.4 Module 4: Law Enforcement and Security', s_h2, level=1))
+   648→   648→story.append(Paragraph(
+   649→   649→    'This module is what truly distinguishes GHMS from conventional hotel management software. '
+   650→   650→    'It provides law enforcement agencies with a powerful, legally scoped set of tools for '
+   651→   651→    'monitoring guest movements across all registered guest houses, without requiring direct '
+   652→   652→    'access to any individual establishment’s operational data. The module is accessed through '
+   653→   653→    'a separate police portal with its own role-based hierarchy (Viewer, Officer, Detective, '
+   654→   654→    'Admin), ensuring that sensitive capabilities are restricted to appropriately authorized personnel.',
+   655→   655→    s_body
+   656→   656→))
+   657→   657→
+   658→   658→story.append(add_heading('4.4.1 Suspect Matching System', s_h3, level=1))
+   659→   659→story.append(Paragraph(
+   660→   660→    'Every guest registration, reservation creation, and daytime booking automatically triggers a '
+   661→   661→    'background check against the police-maintained suspected persons watchlist. The system matches '
+   662→   662→    'by name (including intelligent last-name extraction), phone number (substring matching), and '
+   663→   663→    'ID number (exact match). When a match is found, a detailed alert is created containing the '
+   664→   664→    'guest’s details, the matching suspect’s profile, the provider information, and the '
+   665→   665→    'match type. This fire-and-forget design means the check never slows down the normal '
+   666→   666→    'booking process, and all matches are logged for investigative reference.',
+   667→   667→    s_body
+   668→   668→))
+   669→   669→
+   670→   670→story.append(add_heading('4.4.2 Smart Anomaly Detection Engine', s_h3, level=1))
+   671→   671→story.append(Paragraph(
+   672→   672→    'The centerpiece of the security module is a rule-based anomaly detection engine that '
+   673→   673→    'automatically identifies seven distinct types of suspicious behavior patterns. Unlike simple '
+   674→   674→    'threshold alerts, this engine uses configurable risk scores (0-100) and severity levels '
+   675→   675→    '(Low, Medium, High, Critical) to prioritize alerts for investigators. The seven anomaly types are:',
+   676→   676→    s_body
+   677→   677→))
+   678→   678→
+   679→   679→anomaly_table = make_table(
+   680→   680→    [Paragraph('<b>Anomaly Type</b>', s_table_header),
+   681→   681→     Paragraph('<b>Detection Logic</b>', s_table_header),
+   682→   682→     Paragraph('<b>Risk Score</b>', s_table_header)],
+   683→   683→    [
+   684→   684→        [Paragraph('Identity Mismatch', s_table_cell),
+   685→   685→         Paragraph('Same phone number with different names or ID numbers across providers', s_table_cell),
+   686→   686→         Paragraph('30+', s_table_cell_c)],
+   687→   687→        [Paragraph('Rapid Multi-Provider', s_table_cell),
+   688→   688→         Paragraph('Bookings at 2 or more providers within 48 hours', s_table_cell),
+   689→   689→         Paragraph('35+', s_table_cell_c)],
+   690→   690→        [Paragraph('No-Show Pattern', s_table_cell),
+   691→   691→         Paragraph('3 or more cancelled or unfulfilled reservations', s_table_cell),
+   692→   692→         Paragraph('15+', s_table_cell_c)],
+   693→   693→        [Paragraph('Cash Anomaly', s_table_cell),
+   694→   694→         Paragraph('Unusually large cash payments exceeding 5,000 ETB or 3x average', s_table_cell),
+   695→   695→         Paragraph('25+', s_table_cell_c)],
+   696→   696→        [Paragraph('Cross-Provider ID', s_table_cell),
+   697→   697→         Paragraph('Same ID number with different names at different providers', s_table_cell),
+   698→   698→         Paragraph('40+', s_table_cell_c)],
+   699→   699→        [Paragraph('Short-Stay Pattern', s_table_cell),
+   700→   700→         Paragraph('3 or more one-night stays at 2+ providers within 30 days', s_table_cell),
+   701→   701→         Paragraph('25+', s_table_cell_c)],
+   702→   702→        [Paragraph('Fake ID Pattern', s_table_cell),
+   703→   703→         Paragraph('Multiple guests sharing the same identification number', s_table_cell),
+   704→   704→         Paragraph('45+', s_table_cell_c)],
+   705→   705→    ],
+   706→   706→    col_ratios=[0.22, 0.58, 0.12]
+   707→   707→)
+   708→   708→story.append(Spacer(1, 6))
+   709→   709→story.append(anomaly_table)
+   710→   710→story.append(Paragraph('Table 3: Anomaly Detection Types and Risk Scoring', s_caption))
+   711→   711→
+   712→   712→story.append(Paragraph(
+   713→   713→    'The engine includes built-in duplicate prevention with configurable deduplication windows '
+   714→   714→    '(24-168 hours) to avoid alert fatigue. A system-wide scan capability allows administrators '
+   715→   715→    'to run batch analysis across all historical records, processing data in optimized batches '
+   716→   716→    'of 20 records at a time. High and Critical severity anomalies automatically generate '
+   717→   717→    'in-app notifications to ensure immediate awareness.',
+   718→   718→    s_body
+   719→   719→))
+   720→   720→
+   721→   721→story.append(add_heading('4.4.3 Intelligence and Investigation Tools', s_h3, level=1))
+   722→   722→story.append(Paragraph(
+   723→   723→    'Beyond automated detection, the module provides investigators with manual intelligence-gathering '
+   724→   724→    'tools. Cross-provider guest linking reveals when the same individual has stayed at multiple '
+   725→   725→    'establishments, with frequency analysis and average days between stays. Geofencing allows '
+   726→   726→    'police to define geographic alert zones with configurable radius and severity levels, '
+   727→   727→    'triggering alerts when registered guests are associated with locations of interest. A '
+   728→   728→    'streaming data export system enables investigators to download large datasets (up to 10,000 '
+   729→   729→    'records) in JSON or CSV format using memory-efficient cursor-based pagination, supporting '
+   730→   730→    'complex analytical work without impacting system performance.',
+   731→   731→    s_body
+   732→   732→))
+   733→   733→
+   734→   734→# 4.5
+   735→   735→story.append(add_heading('4.5 Module 5: Platform Administration', s_h2, level=1))
+   736→   736→story.append(Paragraph(
+   737→   737→    'The Platform Administration module provides the centralized control plane for the entire GHMS '
+   738→   738→    'ecosystem. System administrators (Superusers) can manage all registered guest house providers, '
+   739→   739→    'review and approve or reject registration applications, and monitor the health of the platform '
+   740→   740→    'through a comprehensive dashboard showing total providers, active users, and system-wide metrics. '
+   741→   741→    'The subscription management subsystem supports four billing cycles (Monthly, Quarterly, Semi-Annual, '
+   742→   742→    'Yearly) with automatic lifecycle management: 15-day free trials on approval, 7-day expiry '
+   743→   743→    'warnings, 2-day grace periods, and automatic service suspension after the grace period expires.',
+   744→   744→    s_body
+   745→   745→))
+   746→   746→story.append(Paragraph(
+   747→   747→    'Complete audit logging tracks every police data access event, recording the officer’s name, '
+   748→   748→    'the action performed, the target data, and the originating IP address. This creates an '
+   749→   749→    'unbroken chain of accountability that satisfies legal and regulatory requirements for '
+   750→   750→    'oversight of law enforcement access to private business data. The joint operations feature — '
+   751→   751→    'a unique dual-authorization mechanism — enables emergency actions that require concurrent '
+   752→   752→    'approval from both a system administrator and a police administrator, adding a critical layer '
+   753→   753→    'of procedural safeguard to high-impact decisions.',
+   754→   754→    s_body
+   755→   755→))
+   756→   756→
+   757→   757→
+   758→   758→# ========================================================
+   759→   759→# CHAPTER 5: IMPLEMENTATION TIMELINE
+   760→   760→# ========================================================
+   761→   761→story.append(CondPageBreak(AVAIL_H * 0.25))
+   762→   762→story.append(add_heading('5. Implementation Timeline', s_h1, level=0))
+   763→   763→story.append(divider())
+   764→   764→
+   765→   765→story.append(Paragraph(
+   766→   766→    'The implementation follows a phased approach designed to deliver tangible value early, '
+   767→   767→    'minimize disruption to daily operations, and allow for iterative feedback at each stage. '
+   768→   768→    'The total project duration is approximately 14 weeks from agreement signing to full system '
+   769→   769→    'handover, assuming timely feedback and cooperation from all stakeholders. Each phase includes '
+   770→   770→    'dedicated time for development, testing, user training, and feedback incorporation.',
+   771→   771→    s_body
+   772→   772→))
+   773→   773→
+   774→   774→timeline_table = make_table(
+   775→   775→    [Paragraph('<b>Phase</b>', s_table_header),
+   776→   776→     Paragraph('<b>Module</b>', s_table_header),
+   777→   777→     Paragraph('<b>Duration</b>', s_table_header),
+   778→   778→     Paragraph('<b>Key Deliverables</b>', s_table_header)],
+   779→   779→    [
+   780→   780→        [Paragraph('Phase 1', s_table_cell_c),
+   781→   781→         Paragraph('Guest House Operations and Financial Management', s_table_cell),
+   782→   782→         Paragraph('5 weeks', s_table_cell_c),
+   783→   783→         Paragraph('Room management, reservations, guest registration, expense tracking, financial reports, operator dashboard, user training materials', s_table_cell)],
+   784→   784→        [Paragraph('Phase 2', s_table_cell_c),
+   785→   785→         Paragraph('Operations, Resources, and Law Enforcement Security', s_table_cell),
+   786→   786→         Paragraph('5 weeks', s_table_cell_c),
+   787→   787→         Paragraph('Housekeeping, inventory, notifications, police portal, suspect matching, anomaly detection engine, intelligence tools, data export', s_table_cell)],
+   788→   788→        [Paragraph('Phase 3', s_table_cell_c),
+   789→   789→         Paragraph('Platform Administration and Multi-Tenancy', s_table_cell),
+   790→   790→         Paragraph('2 weeks', s_table_cell_c),
+   791→   791→         Paragraph('Provider management, subscription billing, audit logging, joint operations, superuser dashboard', s_table_cell)],
+   792→   792→        [Paragraph('Phase 4', s_table_cell_c),
+   793→   793→         Paragraph('Testing, Training, and Go-Live', s_table_cell),
+   794→   794→         Paragraph('2 weeks', s_table_cell_c),
+   795→   795→         Paragraph('End-to-end testing, security audit, staff training sessions, user manuals, data migration support, production deployment', s_table_cell)],
+   796→   796→    ],
+   797→   797→    col_ratios=[0.10, 0.24, 0.10, 0.46]
+   798→   798→)
+   799→   799→story.append(Spacer(1, 6))
+   800→   800→story.append(timeline_table)
+   801→   801→story.append(Paragraph('Table 4: Implementation Timeline and Deliverables', s_caption))
+   802→   802→
+   803→   803→story.append(Paragraph(
+   804→   804→    'Each phase begins with a detailed requirements confirmation meeting to ensure alignment '
+   805→   805→    'between the development team and stakeholders. At the end of each phase, a formal review '
+   806→   806→    'session is conducted to demonstrate completed functionality, gather feedback, and incorporate '
+   807→   807→    'any necessary adjustments before proceeding. This iterative approach ensures that the final '
+   808→   808→    'system accurately reflects real operational needs rather than imposing a rigid, one-size-fits-all '
+   809→   809→    'solution. Data migration support is provided during Phase 1, with structured templates and '
+   810→   810→    'guidance for transferring existing paper or spreadsheet records into the digital system.',
+   811→   811→    s_body
+   812→   812→))
+   813→   813→
+   814→   814→# Milestones
+   815→   815→story.append(add_heading('5.1 Key Milestones', s_h2, level=1))
+   816→   816→milestone_table = make_table(
+   817→   817→    [Paragraph('<b>Milestone</b>', s_table_header),
+   818→   818→     Paragraph('<b>Target</b>', s_table_header),
+   819→   819→     Paragraph('<b>Success Criteria</b>', s_table_header)],
+   820→   820→    [
+   821→   821→        [Paragraph('M1: Core Operations Live', s_table_cell),
+   822→   822→         Paragraph('Week 5', s_table_cell_c),
+   823→   823→         Paragraph('Operators can manage rooms, book reservations, register guests, and view financial reports', s_table_cell)],
+   824→   824→        [Paragraph('M2: Security Module Deployed', s_table_cell),
+   825→   825→         Paragraph('Week 10', s_table_cell_c),
+   826→   826→         Paragraph('Police portal operational with suspect matching, anomaly detection, and cross-provider search', s_table_cell)],
+   827→   827→        [Paragraph('M3: Platform Admin Active', s_table_cell),
+   828→   828→         Paragraph('Week 12', s_table_cell_c),
+   829→   829→         Paragraph('Subscription management, provider approvals, and audit logging fully functional', s_table_cell)],
+   830→   830→        [Paragraph('M4: Production Go-Live', s_table_cell),
+   831→   831→         Paragraph('Week 14', s_table_cell_c),
+   832→   832→         Paragraph('All modules tested, staff trained, data migrated, system in production with support', s_table_cell)],
+   833→   833→    ],
+   834→   834→    col_ratios=[0.25, 0.12, 0.53]
+   835→   835→)
+   836→   836→story.append(Spacer(1, 4))
+   837→   837→story.append(milestone_table)
+   838→   838→story.append(Paragraph('Table 5: Key Milestones', s_caption))
+   839→   839→
+   840→   840→
+   841→   841→# ========================================================
+   842→   842→# CHAPTER 6: COST ESTIMATE
+   843→   843→# ========================================================
+   844→   844→story.append(CondPageBreak(AVAIL_H * 0.25))
+   845→   845→story.append(add_heading('6. Cost Estimate', s_h1, level=0))
+   846→   846→story.append(divider())
+   847→   847→
+   848→   848→story.append(Paragraph(
+   849→   849→    'We understand that government and institutional budgets require transparent, justifiable, '
+   850→   850→    'and phased expenditure structures. Our pricing is designed to be predictable, aligned with '
+   851→   851→    'the phased delivery approach, and inclusive of all necessary components — there are no hidden '
+   852→   852→    'fees or unexpected charges. The total investment covers all five modules, including development, '
+   853→   853→    'deployment, training, documentation, and 12 months of post-launch technical support. Recurring '
+   854→   854→    'costs are limited to infrastructure hosting, which is modest given the cloud-native architecture.',
+   855→   855→    s_body
+   856→   856→))
+   857→   857→
+   858→   858→cost_table = make_table(
+   859→   859→    [Paragraph('<b>Component</b>', s_table_header),
+   860→   860→     Paragraph('<b>Scope</b>', s_table_header),
+   861→   861→     Paragraph('<b>Cost (ETB)</b>', s_table_header)],
+   862→   862→    [
+   863→   863→        [Paragraph('Module 1: Guest House Operations', s_table_cell),
+   864→   864→         Paragraph('Room management, reservations, guest registration, daytime services, dashboard', s_table_cell),
+   865→   865→         Paragraph('Negotiable', s_table_cell_c)],
+   866→   866→        [Paragraph('Module 2: Financial Management', s_table_cell),
+   867→   867→         Paragraph('Expense tracking, payment ledger, automated reports, revenue analytics', s_table_cell),
+   868→   868→         Paragraph('Negotiable', s_table_cell_c)],
+   869→   869→        [Paragraph('Module 3: Operations and Resources', s_table_cell),
+   870→   870→         Paragraph('Housekeeping, inventory, reviews, notifications, user management', s_table_cell),
+   871→   871→         Paragraph('Negotiable', s_table_cell_c)],
+   872→   872→        [Paragraph('Module 4: Law Enforcement and Security', s_table_cell),
+   873→   873→         Paragraph('Police portal, suspect matching, 7-type anomaly detection, geofencing, intelligence tools, data export', s_table_cell),
+   874→   874→         Paragraph('Negotiable', s_table_cell_c)],
+   875→   875→        [Paragraph('Module 5: Platform Administration', s_table_cell),
+   876→   876→         Paragraph('Provider management, subscription billing, audit logging, joint operations, superuser tools', s_table_cell),
+   877→   877→         Paragraph('Negotiable', s_table_cell_c)],
+   878→   878→        [Paragraph('Training and Documentation', s_table_cell),
+   879→   879→         Paragraph('On-site training sessions, user manuals, quick-reference guides, video tutorials', s_table_cell),
+   880→   880→         Paragraph('Included', s_table_cell_c)],
+   881→   881→        [Paragraph('12-Month Post-Launch Support', s_table_cell),
+   882→   882→         Paragraph('Bug fixes, security patches, minor enhancements, technical assistance', s_table_cell),
+   883→   883→         Paragraph('Included', s_table_cell_c)],
+   884→   884→    ],
+   885→   885→    col_ratios=[0.28, 0.50, 0.14]
+   886→   886→)
+   887→   887→story.append(Spacer(1, 6))
+   888→   888→story.append(cost_table)
+   889→   889→story.append(Paragraph('Table 6: Cost Breakdown by Module', s_caption))
+   890→   890→
+   891→   891→# Payment terms
+   892→   892→story.append(add_heading('6.1 Payment Schedule', s_h2, level=1))
+   893→   893→story.append(Paragraph(
+   894→   894→    'Payments are structured to align with project milestones, reducing financial risk and '
+   895→   895→    'ensuring accountability. The proposed payment structure distributes the total investment '
+   896→   896→    'across four milestone-based payments, each tied to the successful delivery and acceptance '
+   897→   897→    'of specific project outputs. This approach ensures that the client pays only for verified, '
+   898→   898→    'working deliverables.',
+   899→   899→    s_body
+   900→   900→))
+   901→   901→
+   902→   902→payment_table = make_table(
+   903→   903→    [Paragraph('<b>Payment</b>', s_table_header),
+   904→   904→     Paragraph('<b>Trigger</b>', s_table_header),
+   905→   905→     Paragraph('<b>Percentage</b>', s_table_header)],
+   906→   906→    [
+   907→   907→        [Paragraph('First Installment', s_table_cell),
+   908→   908→         Paragraph('Upon signing of the formal project agreement', s_table_cell),
+   909→   909→         Paragraph('30%', s_table_cell_c)],
+   910→   910→        [Paragraph('Second Installment', s_table_cell),
+   911→   911→         Paragraph('Successful delivery and acceptance of Phase 1 and Phase 2 modules', s_table_cell),
+   912→   912→         Paragraph('40%', s_table_cell_c)],
+   913→   913→        [Paragraph('Third Installment', s_table_cell),
+   914→   914→         Paragraph('Successful delivery of all remaining modules and completion of testing', s_table_cell),
+   915→   915→         Paragraph('20%', s_table_cell_c)],
+   916→   916→        [Paragraph('Final Installment', s_table_cell),
+   917→   917→         Paragraph('After one month of stable production usage, post-launch adjustments addressed', s_table_cell),
+   918→   918→         Paragraph('10%', s_table_cell_c)],
+   919→   919→    ],
+   920→   920→    col_ratios=[0.22, 0.58, 0.12]
+   921→   921→)
+   922→   922→story.append(Spacer(1, 6))
+   923→   923→story.append(payment_table)
+   924→   924→story.append(Paragraph('Table 7: Proposed Payment Schedule', s_caption))
+   925→   925→
+   926→   926→story.append(add_heading('6.2 Recurring Costs', s_h2, level=1))
+   927→   927→story.append(Paragraph(
+   928→   928→    'Beyond the initial development investment, the only recurring cost is cloud infrastructure '
+   929→   929→    'hosting. Because GHMS is built on a modern, serverless-optimized architecture (Next.js on Vercel), '
+   930→   930→    'hosting costs are exceptionally low compared to traditional server-based deployments. For a '
+   931→   931→    'deployment supporting up to 100 guest houses with moderate traffic, the estimated monthly '
+   932→   932→    'infrastructure cost is between 2,000 and 5,000 ETB, scaling linearly as additional tenant '
+   933→   933→    'capacity is required. There are no per-user licensing fees, no database licensing costs, and '
+   934→   934→    'no third-party software subscriptions required for core functionality.',
+   935→   935→    s_body
+   936→   936→))
+   937→   937→
+   938→   938→
+   939→   939→# ========================================================
+   940→   940→# CHAPTER 7: BENEFITS AND ROI
+   941→   941→# ========================================================
+   942→   942→story.append(CondPageBreak(AVAIL_H * 0.25))
+   943→   943→story.append(add_heading('7. Benefits and Return on Investment', s_h1, level=0))
+   944→   944→story.append(divider())
+   945→   945→
+   946→   946→story.append(Paragraph(
+   947→   947→    'The benefits of GHMS extend across three stakeholder groups: guest house operators, law '
+   948→   948→    'enforcement agencies, and government administrators. Each group receives measurable, '
+   949→   949→    'tangible value that justifies the investment within the first year of deployment.',
+   950→   950→    s_body
+   951→   951→))
+   952→   952→
+   953→   953→# 7.1
+   954→   954→story.append(add_heading('7.1 Benefits for Guest House Operators', s_h2, level=1))
+   955→   955→story.append(Paragraph(
+   956→   956→    '<b>Elimination of Revenue Leakage:</b> By digitizing all financial transactions and automating '
+   957→   957→    'reconciliation, GHMS captures revenue that would otherwise be lost to unrecorded cash payments, '
+   958→   958→    'forgotten charges, or booking errors. Based on industry benchmarks from comparable markets, '
+   959→   959→    'operators can expect to recover 8-15% of revenue that was previously leaking through manual '
+   960→   960→    'process gaps. For a guest house with monthly revenue of 100,000 ETB, this translates to an '
+   961→   961→    'additional 8,000-15,000 ETB per month in captured revenue.',
+   962→   962→    s_body
+   963→   963→))
+   964→   964→story.append(Paragraph(
+   965→   965→    '<b>Operational Efficiency:</b> Automating room status tracking, reservation management, and '
+   966→   966→    'housekeeping scheduling reduces the administrative burden on staff by an estimated 40-60%. '
+   967→   967→    'Tasks that previously required 30-45 minutes (such as manually checking room availability, '
+   968→   968→    'recording a guest check-in, or compiling a monthly expense report) can be completed in under '
+   969→   969→    '5 minutes. This freed-up capacity allows operators to focus on service quality and guest '
+   970→   970→    'satisfaction rather than paperwork.',
+   971→   971→    s_body
+   972→   972→))
+   973→   973→story.append(Paragraph(
+   974→   974→    '<b>Data-Driven Decision Making:</b> Real-time dashboards and automated reports provide operators '
+   975→   975→    'with instant visibility into occupancy rates, revenue trends, expense patterns, and guest '
+   976→   976→    'satisfaction scores. This enables informed decisions about pricing adjustments, promotional '
+   977→   977→    'campaigns, staffing levels, and capital investments, driving profitability improvements of '
+   978→   978→    '15-25% for well-managed properties.',
+   979→   979→    s_body
+   980→   980→))
+   981→   981→story.append(Paragraph(
+   982→   982→    '<b>Professional Brand Image:</b> A modern, digital management system elevates the perceived '
+   983→   983→    'quality of the establishment in the eyes of guests, particularly business travelers and '
+   984→   984→    'international visitors who expect digital check-in processes and itemized invoices. This can '
+   985→   985→    'directly translate into higher occupancy rates and the ability to command premium pricing.',
+   986→   986→    s_body
+   987→   987→))
+   988→   988→
+   989→   989→# 7.2
+   990→   990→story.append(add_heading('7.2 Benefits for Law Enforcement', s_h2, level=1))
+   991→   991→story.append(Paragraph(
+   992→   992→    '<b>Real-Time Situational Awareness:</b> The police dashboard provides a city-wide view of all '
+   993→   993→    'registered guest houses, their occupancy levels, and guest counts. Investigators can search '
+   994→   994→    'for any guest by name, phone number, or ID number across all establishments simultaneously, '
+   995→   995→    'reducing investigation lead times from days or weeks to seconds. This capability is '
+   996→   996→    'particularly valuable in time-sensitive investigations where rapid suspect location is critical.',
+   997→   997→    s_body
+   998→   998→))
+   999→   999→story.append(Paragraph(
+  1000→  1000→    '<b>Automated Threat Detection:</b> The seven-type anomaly detection engine identifies suspicious '
+  1001→  1001→    'patterns that would be impossible for human investigators to spot manually across hundreds of '
+  1002→  1002→    'establishments. The system acts as a force multiplier, enabling a small team of analysts to '
+  1003→  1003→    'effectively monitor the entire guest house network. The risk scoring system ensures that '
+  1004→  1004→    'investigators can prioritize their attention on the most serious threats rather than being '
+  1005→  1005→    'overwhelmed by low-priority alerts.',
+  1006→  1006→    s_body
+  1007→  1007→))
+  1008→  1008→story.append(Paragraph(
+  1009→  1009→    '<b>Accountability and Audit Trail:</b> Every access to guest data by police personnel is '
+  1010→  1010→    'logged with the officer’s identity, the action performed, the target data, and the IP address. '
+  1011→  1011→    'This creates a transparent, auditable record that protects both the privacy rights of guests '
+  1012→  1012→    'and the integrity of law enforcement operations. The joint session mechanism adds an additional '
+  1013→  1013→    'layer of procedural safeguard for high-impact actions.',
+  1014→  1014→    s_body
+  1015→  1015→))
+  1016→  1016→
+  1017→  1017→# 7.3
+  1018→  1018→story.append(add_heading('7.3 Benefits for Government Administrators', s_h2, level=1))
+  1019→  1019→story.append(Paragraph(
+  1020→  1020→    '<b>Regulatory Compliance:</b> GHMS provides government administrators with a centralized platform '
+  1021→  1021→    'for monitoring the guest house sector. Provider registration, approval, and compliance tracking '
+  1022→  1022→    'are all managed digitally, eliminating the need for paper-based licensing processes. The system '
+  1023→  1023→    'can generate compliance reports on demand, showing which establishments are properly registered, '
+  1024→  1024→    'which subscriptions are active, and which properties may require regulatory attention.',
+  1025→  1025→    s_body
+  1026→  1026→))
+  1027→  1027→story.append(Paragraph(
+  1028→  1028→    '<b>Economic Development Data:</b> The aggregated, anonymized data collected by GHMS provides '
+  1029→  1029→    'government planners with valuable insights into tourism patterns, occupancy trends, seasonal '
+  1030→  1030→    'demand fluctuations, and regional hospitality capacity. This data can inform infrastructure '
+  1031→  1031→    'investment decisions, tourism promotion strategies, and urban planning initiatives.',
+  1032→  1032→    s_body
+  1033→  1033→))
+  1034→  1034→story.append(Paragraph(
+  1035→  1035→    '<b>Scalable Revenue Model:</b> The subscription-based billing system creates a sustainable, '
+  1036→  1036→    'predictable revenue stream for the platform operator. With four billing cycles and automated '
+  1037→  1037→    'lifecycle management, the platform can scale to serve hundreds or thousands of guest houses '
+  1038→  1038→    'without proportional increases in administrative overhead.',
+  1039→  1039→    s_body
+  1040→  1040→))
+  1041→  1041→
+  1042→  1042→# Benefits summary table
+  1043→  1043→benefit_table = make_table(
+  1044→  1044→    [Paragraph('<b>Stakeholder</b>', s_table_header),
+  1045→  1045→     Paragraph('<b>Key Benefit</b>', s_table_header),
+  1046→  1046→     Paragraph('<b>Estimated Impact</b>', s_table_header)],
+  1047→  1047→    [
+  1048→  1048→        [Paragraph('Guest House Operators', s_table_cell),
+  1049→  1049→         Paragraph('Revenue recovery from leakage elimination', s_table_cell),
+  1050→  1050→         Paragraph('8-15% additional revenue per month', s_table_cell_c)],
+  1051→  1051→        [Paragraph('Guest House Operators', s_table_cell),
+  1052→  1052→         Paragraph('Administrative time reduction', s_table_cell),
+  1053→  1053→         Paragraph('40-60% reduction in paperwork time', s_table_cell_c)],
+  1054→  1054→        [Paragraph('Guest House Operators', s_table_cell),
+  1055→  1055→         Paragraph('Data-driven profitability improvements', s_table_cell),
+  1056→  1056→         Paragraph('15-25% profit increase', s_table_cell_c)],
+  1057→  1057→        [Paragraph('Law Enforcement', s_table_cell),
+  1058→  1058→         Paragraph('Investigation lead time reduction', s_table_cell),
+  1059→  1059→         Paragraph('From days/weeks to seconds', s_table_cell_c)],
+  1060→  1060→        [Paragraph('Law Enforcement', s_table_cell),
+  1061→  1061→         Paragraph('Automated suspicious pattern detection', s_table_cell),
+  1062→  1062→         Paragraph('7 anomaly types, risk-scored', s_table_cell_c)],
+  1063→  1063→        [Paragraph('Government', s_table_cell),
+  1064→  1064→         Paragraph('Digital regulatory compliance tracking', s_table_cell),
+  1065→  1065→         Paragraph('100% of providers tracked digitally', s_table_cell_c)],
+  1066→  1066→        [Paragraph('Government', s_table_cell),
+  1067→  1067→         Paragraph('Tourism and economic development data', s_table_cell),
+  1068→  1068→         Paragraph('Real-time sector-wide analytics', s_table_cell_c)],
+  1069→  1069→    ],
+  1070→  1070→    col_ratios=[0.22, 0.42, 0.28]
+  1071→  1071→)
+  1072→  1072→story.append(Spacer(1, 6))
+  1073→  1073→story.append(benefit_table)
+  1074→  1074→story.append(Paragraph('Table 8: Benefits Summary by Stakeholder', s_caption))
+  1075→  1075→
+  1076→  1076→
+  1077→  1077→# ========================================================
+  1078→  1078→# CHAPTER 8: TECHNOLOGY STACK
+  1079→  1079→# ========================================================
+  1080→  1080→story.append(CondPageBreak(AVAIL_H * 0.25))
+  1081→  1081→story.append(add_heading('8. Technology Stack', s_h1, level=0))
+  1082→  1082→story.append(divider())
+  1083→  1083→
+  1084→  1084→story.append(Paragraph(
+  1085→  1085→    'GHMS is built using proven, industry-standard technologies that prioritize reliability, '
+  1086→  1086→    'security, performance, and long-term maintainability. The technology choices reflect a '
+  1087→  1087→    'deliberate balance between cutting-edge capabilities and production stability, ensuring that '
+  1088→  1088→    'the platform benefits from modern development practices without the risks associated with '
+  1089→  1089→    'unproven or experimental technologies.',
+  1090→  1090→    s_body
+  1091→  1091→))
+  1092→  1092→
+  1093→  1093→tech_table = make_table(
+  1094→  1094→    [Paragraph('<b>Layer</b>', s_table_header),
+  1095→  1095→     Paragraph('<b>Technology</b>', s_table_header),
+  1096→  1096→     Paragraph('<b>Purpose</b>', s_table_header)],
+  1097→  1097→    [
+  1098→  1098→        [Paragraph('Framework', s_table_cell),
+  1099→  1099→         Paragraph('Next.js 16 (App Router, React 19)', s_table_cell),
+  1100→  1100→         Paragraph('Server-side rendering, API routes, edge runtime, optimized builds', s_table_cell)],
+  1101→  1101→        [Paragraph('Language', s_table_cell),
+  1102→  1102→         Paragraph('TypeScript 5', s_table_cell),
+  1103→  1103→         Paragraph('Type safety, developer productivity, maintainable codebase', s_table_cell)],
+  1104→  1104→        [Paragraph('UI Components', s_table_cell),
+  1105→  1105→         Paragraph('shadcn/ui, Tailwind CSS 4', s_table_cell),
+  1106→  1106→         Paragraph('40+ accessible components, responsive design, consistent styling', s_table_cell)],
+  1107→  1107→        [Paragraph('Database ORM', s_table_cell),
+  1108→  1108→         Paragraph('Prisma 6', s_table_cell),
+  1109→  1109→         Paragraph('Type-safe database access, migrations, schema management', s_table_cell)],
+  1110→  1110→        [Paragraph('Database', s_table_cell),
+  1111→  1111→         Paragraph('PostgreSQL', s_table_cell),
+  1112→  1112→         Paragraph('ACID-compliant relational storage, full-text search, JSON support', s_table_cell)],
+  1113→  1113→        [Paragraph('Authentication', s_table_cell),
+  1114→  1114→         Paragraph('JWT (jose), bcrypt', s_table_cell),
+  1115→  1115→         Paragraph('Secure httpOnly cookie tokens, password hashing, role-based access', s_table_cell)],
+  1116→  1116→        [Paragraph('State Management', s_table_cell),
+  1117→  1117→         Paragraph('Zustand 5', s_table_cell),
+  1118→  1118→         Paragraph('Client-side global state with localStorage persistence', s_table_cell)],
+  1119→  1119→        [Paragraph('Charts', s_table_cell),
+  1120→  1120→         Paragraph('Recharts 3', s_table_cell),
+  1121→  1121→         Paragraph('Interactive data visualizations and analytics dashboards', s_table_cell)],
+  1122→  1122→        [Paragraph('Hosting', s_table_cell),
+  1123→  1123→         Paragraph('Vercel (cloud)', s_table_cell),
+  1124→  1124→         Paragraph('Global CDN, automatic scaling, zero-config deployments', s_table_cell)],
+  1125→  1125→        [Paragraph('File Storage', s_table_cell),
+  1126→  1126→         Paragraph('Vercel Blob / S3', s_table_cell),
+  1127→  1127→         Paragraph('Pluggable storage for documents, images, and licenses', s_table_cell)],
+  1128→  1128→    ],
+  1129→  1129→    col_ratios=[0.18, 0.28, 0.46]
+  1130→  1130→)
+  1131→  1131→story.append(Spacer(1, 6))
+  1132→  1132→story.append(tech_table)
+  1133→  1133→story.append(Paragraph('Table 9: Technology Stack', s_caption))
+  1134→  1134→
+  1135→  1135→story.append(Paragraph(
+  1136→  1136→    'The choice of Vercel for cloud hosting is strategic: it provides automatic scaling, global '
+  1137→  1137→    'content delivery, and zero-configuration deployments, which dramatically reduces operational '
+  1138→  1138→    'overhead compared to traditional server management. The platform can also be self-hosted on '
+  1139→  1139→    'any Linux server for organizations that prefer full data sovereignty, with a Caddy reverse '
+  1140→  1140→    'proxy configuration included for straightforward deployment.',
+  1141→  1141→    s_body
+  1142→  1142→))
+  1143→  1143→
+  1144→  1144→
+  1145→  1145→# ========================================================
+  1146→  1146→# CHAPTER 9: WHY CHOOSE US
+  1147→  1147→# ========================================================
+  1148→  1148→story.append(CondPageBreak(AVAIL_H * 0.25))
+  1149→  1149→story.append(add_heading('9. Why Choose Us', s_h1, level=0))
+  1150→  1150→story.append(divider())
+  1151→  1151→
+  1152→  1152→story.append(Paragraph(
+  1153→  1153→    'We bring a unique combination of deep technical expertise and thorough understanding of the '
+  1154→  1154→    'Ethiopian hospitality and regulatory landscape that makes us the ideal partner for this '
+  1155→  1155→    'digital transformation initiative. Our team has first-hand experience with the specific '
+  1156→  1156→    'challenges faced by guest house operators and law enforcement agencies in Ethiopia, including '
+  1157→  1157→    'infrastructure limitations, connectivity constraints, budget sensitivities, and the need for '
+  1158→  1158→    'systems that work reliably in production environments.',
+  1159→  1159→    s_body
+  1160→  1160→))
+  1161→  1161→story.append(Paragraph(
+  1162→  1162→    'GHMS is not a theoretical proposal or a generic software template adapted for the Ethiopian '
+  1163→  1163→    'market. It is a fully functional, production-tested platform that has been developed with '
+  1164→  1164→    'meticulous attention to the real-world workflows of guest house operators and the operational '
+  1165→  1165→    'requirements of law enforcement agencies. The system currently comprises over 50 API endpoints, '
+  1166→  1166→    '31 distinct page components, 22 database models, and a sophisticated seven-type anomaly '
+  1167→  1167→    'detection engine — all built, tested, and optimized for the specific conditions of the '
+  1168→  1168→    'Ethiopian market.',
+  1169→  1169→    s_body
+  1170→  1170→))
+  1171→  1171→story.append(Paragraph(
+  1172→  1172→    'Our commitment extends well beyond the initial delivery. We include comprehensive on-site '
+  1173→  1173→    'training for all user groups, detailed user manuals and quick-reference guides, and twelve '
+  1174→  1174→    'months of post-launch technical support at no additional cost. We design all systems with '
+  1175→  1175→    'long-term scalability in mind, ensuring that as the network of guest houses grows, as '
+  1176→  1176→    'regulatory requirements evolve, or as new feature needs emerge, the platform can be extended '
+  1177→  1177→    'and enhanced without requiring a complete rebuild. Data security is embedded in every layer of '
+  1178→  1178→    'the architecture, from encrypted authentication tokens and isolated multi-tenant data to '
+  1179→  1179→    'comprehensive audit logging and dual-authorization emergency procedures.',
+  1180→  1180→    s_body
+  1181→  1181→))
+  1182→  1182→
+  1183→  1183→
+  1184→  1184→# ========================================================
+  1185→  1185→# CHAPTER 10: NEXT STEPS
+  1186→  1186→# ========================================================
+  1187→  1187→story.append(CondPageBreak(AVAIL_H * 0.25))
+  1188→  1188→story.append(add_heading('10. Next Steps', s_h1, level=0))
+  1189→  1189→story.append(divider())
+  1190→  1190→
+  1191→  1191→story.append(Paragraph(
+  1192→  1192→    'We are prepared to begin this partnership immediately and deliver a system that will '
+  1193→  1193→    'meaningfully improve the efficiency, profitability, and safety of the guest house sector. '
+  1194→  1194→    'The following steps outline the immediate actions required to formalize the engagement and '
+  1195→  1195→    'initiate the project. We recommend moving quickly to maintain momentum and begin delivering '
+  1196→  1196→    'results as soon as possible.',
+  1197→  1197→    s_body
+  1198→  1198→))
+  1199→  1199→
+  1200→  1200→next_steps = make_table(
+  1201→  1201→    [Paragraph('<b>Step</b>', s_table_header),
+  1202→  1202→     Paragraph('<b>Action</b>', s_table_header),
+  1203→  1203→     Paragraph('<b>Timeline</b>', s_table_header),
+  1204→  1204→     Paragraph('<b>Responsible</b>', s_table_header)],
+  1205→  1205→    [
+  1206→  1206→        [Paragraph('1', s_table_cell_c),
+  1207→  1207→         Paragraph('Review and sign the formal project agreement', s_table_cell),
+  1208→  1208→         Paragraph('Week 1', s_table_cell_c),
+  1209→  1209→         Paragraph('Stakeholder Leadership', s_table_cell)],
+  1210→  1210→        [Paragraph('2', s_table_cell_c),
+  1211→  1211→         Paragraph('Conduct kick-off meeting and finalize requirements for Phase 1', s_table_cell),
+  1212→  1212→         Paragraph('Week 1-2', s_table_cell_c),
+  1213→  1213→         Paragraph('Both Parties', s_table_cell)],
+  1214→  1214→        [Paragraph('3', s_table_cell_c),
+  1215→  1215→         Paragraph('Provide existing data samples, format requirements, and user access lists', s_table_cell),
+  1216→  1216→         Paragraph('Week 2', s_table_cell_c),
+  1217→  1217→         Paragraph('Client Team', s_table_cell)],
+  1218→  1218→        [Paragraph('4', s_table_cell_c),
+  1219→  1219→         Paragraph('Development of Phase 1 (Operations and Financial Management) begins', s_table_cell),
+  1220→  1220→         Paragraph('Week 2', s_table_cell_c),
+  1221→  1221→         Paragraph('Development Team', s_table_cell)],
+  1222→  1222→        [Paragraph('5', s_table_cell_c),
+  1223→  1223→         Paragraph('First progress review, demonstration, and feedback session', s_table_cell),
+  1224→  1224→         Paragraph('Week 5', s_table_cell_c),
+  1225→  1225→         Paragraph('Both Parties', s_table_cell)],
+  1226→  1226→    ],
+  1227→  1227→    col_ratios=[0.07, 0.44, 0.12, 0.25]
+  1228→  1228→)
+  1229→  1229→story.append(Spacer(1, 6))
+  1230→  1230→story.append(next_steps)
+  1231→  1231→story.append(Paragraph('Table 10: Immediate Next Steps', s_caption))
+  1232→  1232→
+  1233→  1233→story.append(Paragraph(
+  1234→  1234→    'We are available at your earliest convenience to discuss this proposal in detail, answer '
+  1235→  1235→    'any questions, and begin the formal engagement process. Our team is committed to delivering '
+  1236→  1236→    'a system that will meaningfully improve operational efficiency across the guest house sector, '
+  1237→  1237→    'strengthen public safety through intelligent monitoring, and generate sustainable value for '
+  1238→  1238→    'all stakeholders involved. We look forward to your favorable response and to building a '
+  1239→  1239→    'lasting partnership that contributes to the modernization of Ethiopia’s hospitality industry.',
+  1240→  1240→    s_body
+  1241→  1241→))
+  1242→  1242→
+  1243→  1243→
+  1244→  1244→# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  1245→  1245→# BUILD PDF
+  1246→  1246→# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  1247→  1247→doc = TocDocTemplate(
+  1248→  1248→    OUTPUT_BODY,
+  1249→  1249→    pagesize=A4,
+  1250→  1250→    leftMargin=LEFT_M,
+  1251→  1251→    rightMargin=RIGHT_M,
+  1252→  1252→    topMargin=TOP_M,
+  1253→  1253→    bottomMargin=BOTTOM_M,
+  1254→  1254→    title='GHMS - Guest House Management System Proposal',
+  1255→  1255→    author='Z.ai',
+  1256→  1256→    creator='Z.ai',
+  1257→  1257→    subject='Technical and Financial Proposal for GHMS Digital Transformation'
+  1258→  1258→)
+  1259→  1259→
+  1260→  1260→doc.multiBuild(story, onLaterPages=header_footer, onFirstPage=header_footer)
+  1261→  1261→print('Body PDF generated:', OUTPUT_BODY)
+  1262→  1262→

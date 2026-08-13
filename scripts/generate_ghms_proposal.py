@@ -12,7 +12,7 @@ from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY, TA_RIGHT
 from reportlab.lib import colors
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle,
-    KeepTogether, HRFlowable, CondPageBreak
+    KeepTogether, HRFlowable, CondPageBreak, Image
 )
 from reportlab.platypus.tableofcontents import TableOfContents
 from reportlab.pdfbase import pdfmetrics
@@ -26,6 +26,7 @@ FONT_DIR = '/usr/share/fonts/truetype'
 OUTPUT_BODY = '/home/z/my-project/scripts/ghms_proposal_body.pdf'
 OUTPUT_FINAL = '/home/z/my-project/download/GHMS_Proposal.pdf'
 COVER_PDF = '/home/z/my-project/scripts/ghms_proposal_cover.pdf'
+FIG_DIR = '/home/z/my-project/scripts/ghms_figures'
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # CASCADE PALETTE (auto-generated)
@@ -263,12 +264,10 @@ story.append(PageBreak())
 # | 4             | content | 2         | The Problem              |
 # | 5             | content | 3         | Proposed Solution        |
 # | 6             | content | 4         | Module Details           |
-# | 7             | content | 5         | Implementation Timeline   |
-# | 8             | content | 6         | Cost Estimate            |
-# | 9             | content | 7         | Benefits & ROI           |
-# | 10            | content | 8         | Technology Stack         |
-# | 11            | content | 9         | Why Choose Us            |
-# | 12            | content | 10        | Next Steps               |
+# | 7             | content | 5         | Benefits & ROI           |
+# | 8             | content | 6         | Technology Stack         |
+# | 9             | content | 7         | Why Choose Us            |
+# | 10            | content | 8         | Next Steps               |
 # ========================================================
 
 # ========================================================
@@ -327,6 +326,12 @@ story.append(Spacer(1, 8))
 story.append(stats_row)
 story.append(Spacer(1, 6))
 story.append(Paragraph('Figure 1: GHMS Platform at a Glance', s_caption))
+
+# Figure: Old Manual vs New Digital Comparison
+story.append(Spacer(1, 10))
+img1 = Image(os.path.join(FIG_DIR, 'fig1_comparison.png'), width=AVAIL_W, height=AVAIL_W * 0.5)
+story.append(img1)
+story.append(Paragraph('Figure 2: Old Manual System vs. New Digital GHMS Comparison', s_caption))
 
 
 # ========================================================
@@ -488,6 +493,12 @@ story.append(Spacer(1, 6))
 story.append(module_overview)
 story.append(Paragraph('Table 1: GHMS Module Overview', s_caption))
 
+# Figure: Architecture Overview
+story.append(Spacer(1, 10))
+img2 = Image(os.path.join(FIG_DIR, 'fig2_architecture.png'), width=AVAIL_W, height=AVAIL_W * 0.655)
+story.append(img2)
+story.append(Paragraph('Figure 3: GHMS System Architecture Overview', s_caption))
+
 # 3.1 Core Design Principles
 story.append(add_heading('3.1 Core Design Principles', s_h2, level=1))
 story.append(Paragraph(
@@ -591,6 +602,12 @@ feat_ops = make_table(
 story.append(Spacer(1, 6))
 story.append(feat_ops)
 story.append(Paragraph('Table 2: Guest House Operations Feature Summary', s_caption))
+
+# Figure: Module Interaction Map
+story.append(Spacer(1, 10))
+img3 = Image(os.path.join(FIG_DIR, 'fig3_modules.png'), width=AVAIL_W, height=AVAIL_W * 0.555)
+story.append(img3)
+story.append(Paragraph('Figure 4: GHMS Module Interaction Map', s_caption))
 
 # 4.2
 story.append(add_heading('4.2 Module 2: Financial Management and Reporting', s_h2, level=1))
@@ -709,6 +726,12 @@ story.append(Spacer(1, 6))
 story.append(anomaly_table)
 story.append(Paragraph('Table 3: Anomaly Detection Types and Risk Scoring', s_caption))
 
+# Figure: Anomaly Detection Engine
+story.append(Spacer(1, 10))
+img4 = Image(os.path.join(FIG_DIR, 'fig4_anomaly.png'), width=AVAIL_W, height=AVAIL_W * 0.59)
+story.append(img4)
+story.append(Paragraph('Figure 5: Anomaly Detection Engine Flow', s_caption))
+
 story.append(Paragraph(
     'The engine includes built-in duplicate prevention with configurable deduplication windows '
     '(24-168 hours) to avoid alert fatigue. A system-wide scan capability allows administrators '
@@ -756,191 +779,10 @@ story.append(Paragraph(
 
 
 # ========================================================
-# CHAPTER 5: IMPLEMENTATION TIMELINE
+# CHAPTER 5: BENEFITS AND ROI
 # ========================================================
 story.append(CondPageBreak(AVAIL_H * 0.25))
-story.append(add_heading('5. Implementation Timeline', s_h1, level=0))
-story.append(divider())
-
-story.append(Paragraph(
-    'The implementation follows a phased approach designed to deliver tangible value early, '
-    'minimize disruption to daily operations, and allow for iterative feedback at each stage. '
-    'The total project duration is approximately 14 weeks from agreement signing to full system '
-    'handover, assuming timely feedback and cooperation from all stakeholders. Each phase includes '
-    'dedicated time for development, testing, user training, and feedback incorporation.',
-    s_body
-))
-
-timeline_table = make_table(
-    [Paragraph('<b>Phase</b>', s_table_header),
-     Paragraph('<b>Module</b>', s_table_header),
-     Paragraph('<b>Duration</b>', s_table_header),
-     Paragraph('<b>Key Deliverables</b>', s_table_header)],
-    [
-        [Paragraph('Phase 1', s_table_cell_c),
-         Paragraph('Guest House Operations and Financial Management', s_table_cell),
-         Paragraph('5 weeks', s_table_cell_c),
-         Paragraph('Room management, reservations, guest registration, expense tracking, financial reports, operator dashboard, user training materials', s_table_cell)],
-        [Paragraph('Phase 2', s_table_cell_c),
-         Paragraph('Operations, Resources, and Law Enforcement Security', s_table_cell),
-         Paragraph('5 weeks', s_table_cell_c),
-         Paragraph('Housekeeping, inventory, notifications, police portal, suspect matching, anomaly detection engine, intelligence tools, data export', s_table_cell)],
-        [Paragraph('Phase 3', s_table_cell_c),
-         Paragraph('Platform Administration and Multi-Tenancy', s_table_cell),
-         Paragraph('2 weeks', s_table_cell_c),
-         Paragraph('Provider management, subscription billing, audit logging, joint operations, superuser dashboard', s_table_cell)],
-        [Paragraph('Phase 4', s_table_cell_c),
-         Paragraph('Testing, Training, and Go-Live', s_table_cell),
-         Paragraph('2 weeks', s_table_cell_c),
-         Paragraph('End-to-end testing, security audit, staff training sessions, user manuals, data migration support, production deployment', s_table_cell)],
-    ],
-    col_ratios=[0.10, 0.24, 0.10, 0.46]
-)
-story.append(Spacer(1, 6))
-story.append(timeline_table)
-story.append(Paragraph('Table 4: Implementation Timeline and Deliverables', s_caption))
-
-story.append(Paragraph(
-    'Each phase begins with a detailed requirements confirmation meeting to ensure alignment '
-    'between the development team and stakeholders. At the end of each phase, a formal review '
-    'session is conducted to demonstrate completed functionality, gather feedback, and incorporate '
-    'any necessary adjustments before proceeding. This iterative approach ensures that the final '
-    'system accurately reflects real operational needs rather than imposing a rigid, one-size-fits-all '
-    'solution. Data migration support is provided during Phase 1, with structured templates and '
-    'guidance for transferring existing paper or spreadsheet records into the digital system.',
-    s_body
-))
-
-# Milestones
-story.append(add_heading('5.1 Key Milestones', s_h2, level=1))
-milestone_table = make_table(
-    [Paragraph('<b>Milestone</b>', s_table_header),
-     Paragraph('<b>Target</b>', s_table_header),
-     Paragraph('<b>Success Criteria</b>', s_table_header)],
-    [
-        [Paragraph('M1: Core Operations Live', s_table_cell),
-         Paragraph('Week 5', s_table_cell_c),
-         Paragraph('Operators can manage rooms, book reservations, register guests, and view financial reports', s_table_cell)],
-        [Paragraph('M2: Security Module Deployed', s_table_cell),
-         Paragraph('Week 10', s_table_cell_c),
-         Paragraph('Police portal operational with suspect matching, anomaly detection, and cross-provider search', s_table_cell)],
-        [Paragraph('M3: Platform Admin Active', s_table_cell),
-         Paragraph('Week 12', s_table_cell_c),
-         Paragraph('Subscription management, provider approvals, and audit logging fully functional', s_table_cell)],
-        [Paragraph('M4: Production Go-Live', s_table_cell),
-         Paragraph('Week 14', s_table_cell_c),
-         Paragraph('All modules tested, staff trained, data migrated, system in production with support', s_table_cell)],
-    ],
-    col_ratios=[0.25, 0.12, 0.53]
-)
-story.append(Spacer(1, 4))
-story.append(milestone_table)
-story.append(Paragraph('Table 5: Key Milestones', s_caption))
-
-
-# ========================================================
-# CHAPTER 6: COST ESTIMATE
-# ========================================================
-story.append(CondPageBreak(AVAIL_H * 0.25))
-story.append(add_heading('6. Cost Estimate', s_h1, level=0))
-story.append(divider())
-
-story.append(Paragraph(
-    'We understand that government and institutional budgets require transparent, justifiable, '
-    'and phased expenditure structures. Our pricing is designed to be predictable, aligned with '
-    'the phased delivery approach, and inclusive of all necessary components — there are no hidden '
-    'fees or unexpected charges. The total investment covers all five modules, including development, '
-    'deployment, training, documentation, and 12 months of post-launch technical support. Recurring '
-    'costs are limited to infrastructure hosting, which is modest given the cloud-native architecture.',
-    s_body
-))
-
-cost_table = make_table(
-    [Paragraph('<b>Component</b>', s_table_header),
-     Paragraph('<b>Scope</b>', s_table_header),
-     Paragraph('<b>Cost (ETB)</b>', s_table_header)],
-    [
-        [Paragraph('Module 1: Guest House Operations', s_table_cell),
-         Paragraph('Room management, reservations, guest registration, daytime services, dashboard', s_table_cell),
-         Paragraph('Negotiable', s_table_cell_c)],
-        [Paragraph('Module 2: Financial Management', s_table_cell),
-         Paragraph('Expense tracking, payment ledger, automated reports, revenue analytics', s_table_cell),
-         Paragraph('Negotiable', s_table_cell_c)],
-        [Paragraph('Module 3: Operations and Resources', s_table_cell),
-         Paragraph('Housekeeping, inventory, reviews, notifications, user management', s_table_cell),
-         Paragraph('Negotiable', s_table_cell_c)],
-        [Paragraph('Module 4: Law Enforcement and Security', s_table_cell),
-         Paragraph('Police portal, suspect matching, 7-type anomaly detection, geofencing, intelligence tools, data export', s_table_cell),
-         Paragraph('Negotiable', s_table_cell_c)],
-        [Paragraph('Module 5: Platform Administration', s_table_cell),
-         Paragraph('Provider management, subscription billing, audit logging, joint operations, superuser tools', s_table_cell),
-         Paragraph('Negotiable', s_table_cell_c)],
-        [Paragraph('Training and Documentation', s_table_cell),
-         Paragraph('On-site training sessions, user manuals, quick-reference guides, video tutorials', s_table_cell),
-         Paragraph('Included', s_table_cell_c)],
-        [Paragraph('12-Month Post-Launch Support', s_table_cell),
-         Paragraph('Bug fixes, security patches, minor enhancements, technical assistance', s_table_cell),
-         Paragraph('Included', s_table_cell_c)],
-    ],
-    col_ratios=[0.28, 0.50, 0.14]
-)
-story.append(Spacer(1, 6))
-story.append(cost_table)
-story.append(Paragraph('Table 6: Cost Breakdown by Module', s_caption))
-
-# Payment terms
-story.append(add_heading('6.1 Payment Schedule', s_h2, level=1))
-story.append(Paragraph(
-    'Payments are structured to align with project milestones, reducing financial risk and '
-    'ensuring accountability. The proposed payment structure distributes the total investment '
-    'across four milestone-based payments, each tied to the successful delivery and acceptance '
-    'of specific project outputs. This approach ensures that the client pays only for verified, '
-    'working deliverables.',
-    s_body
-))
-
-payment_table = make_table(
-    [Paragraph('<b>Payment</b>', s_table_header),
-     Paragraph('<b>Trigger</b>', s_table_header),
-     Paragraph('<b>Percentage</b>', s_table_header)],
-    [
-        [Paragraph('First Installment', s_table_cell),
-         Paragraph('Upon signing of the formal project agreement', s_table_cell),
-         Paragraph('30%', s_table_cell_c)],
-        [Paragraph('Second Installment', s_table_cell),
-         Paragraph('Successful delivery and acceptance of Phase 1 and Phase 2 modules', s_table_cell),
-         Paragraph('40%', s_table_cell_c)],
-        [Paragraph('Third Installment', s_table_cell),
-         Paragraph('Successful delivery of all remaining modules and completion of testing', s_table_cell),
-         Paragraph('20%', s_table_cell_c)],
-        [Paragraph('Final Installment', s_table_cell),
-         Paragraph('After one month of stable production usage, post-launch adjustments addressed', s_table_cell),
-         Paragraph('10%', s_table_cell_c)],
-    ],
-    col_ratios=[0.22, 0.58, 0.12]
-)
-story.append(Spacer(1, 6))
-story.append(payment_table)
-story.append(Paragraph('Table 7: Proposed Payment Schedule', s_caption))
-
-story.append(add_heading('6.2 Recurring Costs', s_h2, level=1))
-story.append(Paragraph(
-    'Beyond the initial development investment, the only recurring cost is cloud infrastructure '
-    'hosting. Because GHMS is built on a modern, serverless-optimized architecture (Next.js on Vercel), '
-    'hosting costs are exceptionally low compared to traditional server-based deployments. For a '
-    'deployment supporting up to 100 guest houses with moderate traffic, the estimated monthly '
-    'infrastructure cost is between 2,000 and 5,000 ETB, scaling linearly as additional tenant '
-    'capacity is required. There are no per-user licensing fees, no database licensing costs, and '
-    'no third-party software subscriptions required for core functionality.',
-    s_body
-))
-
-
-# ========================================================
-# CHAPTER 7: BENEFITS AND ROI
-# ========================================================
-story.append(CondPageBreak(AVAIL_H * 0.25))
-story.append(add_heading('7. Benefits and Return on Investment', s_h1, level=0))
+story.append(add_heading('5. Benefits and Return on Investment', s_h1, level=0))
 story.append(divider())
 
 story.append(Paragraph(
@@ -951,7 +793,7 @@ story.append(Paragraph(
 ))
 
 # 7.1
-story.append(add_heading('7.1 Benefits for Guest House Operators', s_h2, level=1))
+story.append(add_heading('5.1 Benefits for Guest House Operators', s_h2, level=1))
 story.append(Paragraph(
     '<b>Elimination of Revenue Leakage:</b> By digitizing all financial transactions and automating '
     'reconciliation, GHMS captures revenue that would otherwise be lost to unrecorded cash payments, '
@@ -987,7 +829,7 @@ story.append(Paragraph(
 ))
 
 # 7.2
-story.append(add_heading('7.2 Benefits for Law Enforcement', s_h2, level=1))
+story.append(add_heading('5.2 Benefits for Law Enforcement', s_h2, level=1))
 story.append(Paragraph(
     '<b>Real-Time Situational Awareness:</b> The police dashboard provides a city-wide view of all '
     'registered guest houses, their occupancy levels, and guest counts. Investigators can search '
@@ -1015,7 +857,7 @@ story.append(Paragraph(
 ))
 
 # 7.3
-story.append(add_heading('7.3 Benefits for Government Administrators', s_h2, level=1))
+story.append(add_heading('5.3 Benefits for Government Administrators', s_h2, level=1))
 story.append(Paragraph(
     '<b>Regulatory Compliance:</b> GHMS provides government administrators with a centralized platform '
     'for monitoring the guest house sector. Provider registration, approval, and compliance tracking '
@@ -1071,14 +913,20 @@ benefit_table = make_table(
 )
 story.append(Spacer(1, 6))
 story.append(benefit_table)
-story.append(Paragraph('Table 8: Benefits Summary by Stakeholder', s_caption))
+story.append(Paragraph('Table 4: Benefits Summary by Stakeholder', s_caption))
+
+# Figure: Benefits Impact Overview
+story.append(Spacer(1, 10))
+img5 = Image(os.path.join(FIG_DIR, 'fig5_benefits.png'), width=AVAIL_W, height=AVAIL_W * 0.505)
+story.append(img5)
+story.append(Paragraph('Figure 6: Benefits Impact by Stakeholder Group', s_caption))
 
 
 # ========================================================
-# CHAPTER 8: TECHNOLOGY STACK
+# CHAPTER 6: TECHNOLOGY STACK
 # ========================================================
 story.append(CondPageBreak(AVAIL_H * 0.25))
-story.append(add_heading('8. Technology Stack', s_h1, level=0))
+story.append(add_heading('6. Technology Stack', s_h1, level=0))
 story.append(divider())
 
 story.append(Paragraph(
@@ -1130,7 +978,7 @@ tech_table = make_table(
 )
 story.append(Spacer(1, 6))
 story.append(tech_table)
-story.append(Paragraph('Table 9: Technology Stack', s_caption))
+story.append(Paragraph('Table 5: Technology Stack', s_caption))
 
 story.append(Paragraph(
     'The choice of Vercel for cloud hosting is strategic: it provides automatic scaling, global '
@@ -1143,10 +991,10 @@ story.append(Paragraph(
 
 
 # ========================================================
-# CHAPTER 9: WHY CHOOSE US
+# CHAPTER 7: WHY CHOOSE US
 # ========================================================
 story.append(CondPageBreak(AVAIL_H * 0.25))
-story.append(add_heading('9. Why Choose Us', s_h1, level=0))
+story.append(add_heading('7. Why Choose Us', s_h1, level=0))
 story.append(divider())
 
 story.append(Paragraph(
@@ -1182,10 +1030,10 @@ story.append(Paragraph(
 
 
 # ========================================================
-# CHAPTER 10: NEXT STEPS
+# CHAPTER 8: NEXT STEPS
 # ========================================================
 story.append(CondPageBreak(AVAIL_H * 0.25))
-story.append(add_heading('10. Next Steps', s_h1, level=0))
+story.append(add_heading('8. Next Steps', s_h1, level=0))
 story.append(divider())
 
 story.append(Paragraph(
@@ -1228,7 +1076,7 @@ next_steps = make_table(
 )
 story.append(Spacer(1, 6))
 story.append(next_steps)
-story.append(Paragraph('Table 10: Immediate Next Steps', s_caption))
+story.append(Paragraph('Table 6: Immediate Next Steps', s_caption))
 
 story.append(Paragraph(
     'We are available at your earliest convenience to discuss this proposal in detail, answer '
