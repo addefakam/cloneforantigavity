@@ -1,0 +1,65 @@
+[
+  {
+    "url": "https://www.reddit.com/r/nextjs/comments/s7lnaj/deploying_nextjs_prisma_app_on_vercel",
+    "name": "Deploying Nextjs, Prisma app on Vercel?",
+    "snippet": "Is it possible to deploy a Nextjs+Prisma app on Vercel?I am just using a file (SQlite) for my database.",
+    "host_name": "www.reddit.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://vercel.com/kb/guide/nextjs-prisma-postgres",
+    "name": "Build a fullstack app with Next.js 16 and Prisma Postgres",
+    "snippet": "Nov 3, 2025 — Create a fullstack blog with the Next . js App Router, Prisma , Sign in with Vercel , Prisma Postgres from the Vercel Marketplace, and deploy it ...",
+    "host_name": "vercel.com",
+    "rank": 1,
+    "date": "Nov 3, 2025",
+    "favicon": ""
+  },
+  {
+    "url": "https://makerkit.dev/blog/tutorials/best-hosting-nextjs",
+    "name": "10 Best Next.js Hosting Providers in 2026",
+    "snippet": "Jan 21, 2026 — Compare the best Next.js hosting providers in 2026. Vercel , Cloudflare, Railway, AWS, and self-hosting options with real costs, pros/cons, ...",
+    "host_name": "makerkit.dev",
+    "rank": 2,
+    "date": "Jan 21, 2026",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.prisma.io/docs/orm/prisma-client/deployment/serverless/deploy-to-vercel",
+    "name": "Deploy to Vercel | Prisma Documentation",
+    "snippet": "This guide takes you through the steps to set up and deploy a serverless application that uses Prisma to Vercel . Vercel is a cloud platform that hosts ... Read more",
+    "host_name": "www.prisma.io",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://northflank.com/blog/best-vercel-alternatives-for-scalable-deployments",
+    "name": "Best Vercel alternatives in 2026 | Blog",
+    "snippet": "May 4, 2026 — Best Vercel alternatives in 2026: Northflank, Netlify, AWS Amplify, Cloud Run, Heroku, Render, and more, hosting for static sites, web services ...",
+    "host_name": "northflank.com",
+    "rank": 4,
+    "date": "May 4, 2026",
+    "favicon": ""
+  },
+  {
+    "url": "https://danubedata.ro/blog/best-vercel-alternatives-nextjs-hosting-2025",
+    "name": "Best Vercel Alternatives for Next.js Hosting in 2025",
+    "snippet": "Jan 17, 2026 — Tired of Vercel's pricing? Discover the best Vercel alternatives for hosting Next.js applications in 2025. Compare Netlify, Railway, Render, ...",
+    "host_name": "danubedata.ro",
+    "rank": 5,
+    "date": "Jan 17, 2026",
+    "favicon": ""
+  },
+  {
+    "url": "https://medium.com/@touhidulislamnl/deploying-next-js-prisma-postgresql-on-a-vps-complete-production-guide-00e067d58faa",
+    "name": "Deploying Next.js + Prisma + PostgreSQL on a VPS",
+    "snippet": "1. Connect to Your VPS · 2. Update Server Packages · 3. Install Node.js · 4. Install Git · 5. Install PostgreSQL · 6. Login to PostgreSQL · 7. Create ... Read more",
+    "host_name": "medium.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  }
+]

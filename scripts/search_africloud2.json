@@ -1,0 +1,47 @@
+[
+  {
+    "url": "https://africloud.com",
+    "name": "Cloud VPS Hosting in Portugal, South Africa & Nigeria",
+    "snippet": "All plans include IPv6, full root access , and instant deployment . Save 50% on every payment with code 50NEW . Applied to every renewal. VM1. $20/month. $10 ... Read more",
+    "host_name": "africloud.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=cN7R8KljCCY&vl=en",
+    "name": "AFRICLOUD: Cloud VPS Hosting from Lisbon & Johannesburg",
+    "snippet": "Cloud servers run on AMD EPYC processors with NVMe storage and deploy in under two minutes with full root access . ▸ AMD EPYC processors and ...",
+    "host_name": "www.youtube.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://vps.us/blog/how-to-choose-the-right-vps-for-running-docker-containers",
+    "name": "How to Choose the Right VPS for Running Docker",
+    "snippet": "May 24, 2025 — At least 2 GB RAM, NVMe storage, and a 64-bit Linux OS (Ubuntu, Debian, or CentOS) 25 GB of fast NVMe storage. Full root access , KVM ...",
+    "host_name": "vps.us",
+    "rank": 2,
+    "date": "May 24, 2025",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.arubacloud.com/vps/docker",
+    "name": "Docker VPS Hosting: Fast Deployment & Secure Cloud",
+    "snippet": "Deploy your Docker containers in seconds with our pre-installed Docker VPS. Get full root access , scalable resources, and secure European data centers.",
+    "host_name": "www.arubacloud.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.networksolutions.com/hosting/docker",
+    "name": "Docker VPS",
+    "snippet": "Dedicated resources and full root access make it straightforward to deploy , manage, and scale Docker containers for web applications, APIs, and microservices.",
+    "host_name": "www.networksolutions.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  }
+]

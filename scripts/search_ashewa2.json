@@ -1,0 +1,47 @@
+[
+  {
+    "url": "https://vps.us/blog/how-to-choose-the-right-vps-for-running-docker-containers",
+    "name": "How to Choose the Right VPS for Running Docker",
+    "snippet": "For basic Docker setups, at least 2 GB of RAM is recommended to avoid performance issues. A configuration like KVM2-US – offering 2 vCores, 2 GB ...",
+    "host_name": "vps.us",
+    "rank": 0,
+    "date": "May 24, 2025",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.ramnode.com/guides/dockerbasics",
+    "name": "Docker Basics Guide on RamNode VPS",
+    "snippet": "Entry-level plans typically include 1GB RAM, 20GB SSD storage, and generous bandwidth allocations. set memory and CPU limits … container to 512MB RAM and 0.5 ...",
+    "host_name": "www.ramnode.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.arubacloud.com/vps/docker",
+    "name": "Docker VPS Hosting: Fast Deployment & Secure Cloud",
+    "snippet": "Deploy your Docker containers in seconds with our pre-installed Docker VPS. Get full root access, scalable resources, and secure European data centers.",
+    "host_name": "www.arubacloud.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://koromatech.com/what-is-a-vps-setup-guide-docker-real-app-deploy-on-ramnode",
+    "name": "What Is a VPS? (Setup Guide + Docker + Real App Deploy",
+    "snippet": "In this guide, we're going to break down what a VPS actually is, . Your VPS gets its own dedicated CPU allocation, its own RAM,",
+    "host_name": "koromatech.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.networksolutions.com/hosting/docker",
+    "name": "Docker VPS",
+    "snippet": "Engineered for developers like you · 1 vCPU Core · 2 GB DDR5 RAM · 50GB NVMe Storage · Unmetered Bandwidth · 24/7 support*.",
+    "host_name": "www.networksolutions.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  }
+]

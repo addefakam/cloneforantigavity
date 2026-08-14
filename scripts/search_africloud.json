@@ -1,0 +1,74 @@
+[
+  {
+    "url": "https://www.facebook.com/groups/softwareengineerundergraduatesclub/posts/1503959573944626",
+    "name": "Affordable VPS hosting providers for Next.js and Node.js",
+    "snippet": "Hi guys\n\nI'm looking for recommendations for a reliable and affordable VPS hosting provider for a POS web application that I'm planning to deploy ...",
+    "host_name": "www.facebook.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.hostinger.com/tutorials/best-node-js-hosting",
+    "name": "8 best Node.js hosting providers: Top features and pricing",
+    "snippet": "7 days ago — Free – 750 hours/month, $7/month per service . Standard – $25/month per service (2 GB. Postgres database pays around $35–$50/month total, A ...",
+    "host_name": "www.hostinger.com",
+    "rank": 1,
+    "date": "Aug 7, 2026",
+    "favicon": ""
+  },
+  {
+    "url": "https://stackoverflow.com/questions/12652863/nodejs-managed-hostings-vs-vps",
+    "name": "NodeJS Managed Hostings vs VPS [closed]",
+    "snippet": "Closed. This question is opinion-based. It is not currently accepting answers.             Want to improve this question? Because this question may ...",
+    "host_name": "stackoverflow.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://vps.us/blog/nodejs-vps-hosting",
+    "name": "Node.js VPS Hosting: What You Need to Know Before",
+    "snippet": "Dec 5, 2025 — Learn how node js vps hosting delivers performance, control and scalability for production apps — choose, configure, and secure your server.",
+    "host_name": "vps.us",
+    "rank": 3,
+    "date": "Dec 5, 2025",
+    "favicon": ""
+  },
+  {
+    "url": "https://africloud.com",
+    "name": "Cloud VPS Hosting in Portugal, South Africa & Nigeria",
+    "snippet": "All plans include IPv6, full root access, and instant deployment. networking, and platform … including 300+ cryptocurrencies. Pricing Pay with Crypto",
+    "host_name": "africloud.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.hostaccent.com/blog/best-cheap-vps-nodejs",
+    "name": "Best Cheap VPS for Node.js in 2026 (Specs + Top Picks)",
+    "snippet": "Apr 11, 2026 — from $5/month. Self host n8n on a VPS with Docker : the full setup, SSL, updates and backups, plus real costs. Run unlimited automations from ...",
+    "host_name": "www.hostaccent.com",
+    "rank": 5,
+    "date": "Apr 11, 2026",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.host4fun.com/vps/nodejs-vps",
+    "name": "Node.js VPS Hosting — Deploy Node.js Apps on Cloud VPS",
+    "snippet": "From $5/mo . A $5/mo VPS runs your Node.js app 24/7 with unlimited requests at a fixed cost. PostgreSQL, or Redis on the same VPS. From $5/mo.",
+    "host_name": "www.host4fun.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=cN7R8KljCCY&vl=en",
+    "name": "AFRICLOUD: Cloud VPS Hosting from Lisbon & Johannesburg",
+    "snippet": "AFRICLOUD operates cloud infrastructure . Cloud servers run on AMD EPYC processors with NVMe storage and deploy in under two minutes with full ...",
+    "host_name": "www.youtube.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  }
+]

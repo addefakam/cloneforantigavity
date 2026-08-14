@@ -1,0 +1,47 @@
+[
+  {
+    "url": "https://www.digitalocean.com/resources/articles/digitalocean-vs-hetzner",
+    "name": "DigitalOcean vs Hetzner: Comparing Cloud Hosting",
+    "snippet": "Aug 27, 2025 — DigitalOcean provides consistent and reliable cloud hosting. They offer a 99.99% uptime service level agreement (SLA) around network , power and ... Read more",
+    "host_name": "www.digitalocean.com",
+    "rank": 0,
+    "date": "Aug 27, 2025",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.reddit.com/r/hetzner/comments/1ri3em5/hetzner_vs_digitalocean_in_2026_reliability",
+    "name": "Hetzner vs DigitalOcean in 2026: reliability + real-world",
+    "snippet": "I’ve been running one Hetzner server for ~6 months and it’s been super reliable for me so far. I’m considering scaling more there vs moving some ...",
+    "host_name": "www.reddit.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://betterstack.com/community/guides/web-servers/digitalocean-vs-hetzner",
+    "name": "DigitalOcean vs. Hetzner Cloud: a side-by-side comparison",
+    "snippet": "Mar 9, 2026 — DigitalOcean vs Hetzner Cloud: compare pricing, performance, bandwidth, and managed services for 2 vCPU / 4 GB cloud servers in 2026.",
+    "host_name": "betterstack.com",
+    "rank": 2,
+    "date": "Mar 9, 2026",
+    "favicon": ""
+  },
+  {
+    "url": "https://forasoft.medium.com/what-hosting-provider-suits-you-aws-vs-digitalocean-vs-hetzner-2025-81a402c7457e",
+    "name": "AWS vs DigitalOcean vs Hetzner [2025] - Fora Soft - Medium",
+    "snippet": "Bottom line: Hetzner Cloud offers the lowest cost option, works especially well for European users, but has limited advanced features. How to ... Read more",
+    "host_name": "forasoft.medium.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.forasoft.com/blog/article/aws-vs-digitalocean-vs-hetzner-1302",
+    "name": "AWS vs DigitalOcean vs Hetzner in 2026 - Fora Soft",
+    "snippet": "Jul 16, 2026 — Hetzner wins price-adjusted performance ; For latency-bound real-time workloads (game servers, video conferencing, AI agents) Hetzner Dedicated ...",
+    "host_name": "www.forasoft.com",
+    "rank": 4,
+    "date": "Jul 16, 2026",
+    "favicon": ""
+  }
+]

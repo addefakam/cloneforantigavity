@@ -1,0 +1,74 @@
+[
+  {
+    "url": "https://vercel.com/docs/regions",
+    "name": "Global network and regions",
+    "snippet": "Vercel's CDN is a globally distributed platform that stores content and runs compute close to your users and data, reducing latency and ...",
+    "host_name": "vercel.com",
+    "rank": 0,
+    "date": "Mar 5, 2026",
+    "favicon": ""
+  },
+  {
+    "url": "https://vercel.com/docs/cdn",
+    "name": "Vercel CDN overview",
+    "snippet": "Vercel's CDN is a globally distributed network that caches content near your visitors, routes requests, and runs compute close to your data.",
+    "host_name": "vercel.com",
+    "rank": 1,
+    "date": "Jun 16, 2026",
+    "favicon": ""
+  },
+  {
+    "url": "https://blog.blazingcdn.com/en-us/vercel-cdn-internals-how-edge-network-boosts-nextjs-apps",
+    "name": "Vercel CDN Internals: How Edge Network Boosts NextJS Apps",
+    "snippet": "Explore how Vercel's Edge Network powers faster Next.js apps with global delivery, edge caching, and smart CDN strategies for improved ...",
+    "host_name": "blog.blazingcdn.com",
+    "rank": 2,
+    "date": "May 27, 2025",
+    "favicon": ""
+  },
+  {
+    "url": "https://vercel.com/blog/edge-config-ultra-low-latency-data-at-the-edge",
+    "name": "Edge Config: Ultra-low latency data at the edge",
+    "snippet": "Vercel's Edge Network, now very low latency. Most lookups return in 5 ms or less, and 99% of reads will return under 15 ms.",
+    "host_name": "vercel.com",
+    "rank": 3,
+    "date": "Nov 23, 2022",
+    "favicon": ""
+  },
+  {
+    "url": "https://vercel.com/blog/regional-execution-for-ultra-low-latency-rendering-at-the-edge",
+    "name": "Colocate your edge to your data on Vercel",
+    "snippet": "Users only need to connect to their nearby Vercel region to view the site. This provides much lower latency than traditional computing.",
+    "host_name": "vercel.com",
+    "rank": 4,
+    "date": "Oct 20, 2022",
+    "favicon": ""
+  },
+  {
+    "url": "https://eseospace.com/blog/evaluating-vercel-speed-scalability-and-seo-infrastructure",
+    "name": "Evaluating Vercel: Speed, Scalability, and SEO Infrastructure",
+    "snippet": "Static assets are cached on Vercel's CDN and served from the edge node nearest each user, dramatically reducing latency and TTFB.",
+    "host_name": "eseospace.com",
+    "rank": 5,
+    "date": "Oct 20, 2025",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.openstatus.dev/blog/monitoring-latency-vercel-edge-vs-serverless",
+    "name": "Monitoring latency: Vercel Serverless Function vs",
+    "snippet": "Edge functions are approximately 9 times faster than Serverless functions during cold starts, but only 2 times faster when the function is warm.",
+    "host_name": "www.openstatus.dev",
+    "rank": 6,
+    "date": "Mar 14, 2024",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.okoone.com/technologies/data/vercel",
+    "name": "Vercel",
+    "snippet": "Vercel's edge network and global CDN lets TikTok deliver content quickly to users worldwide, facilitating smooth video playback and an optimal user experience.",
+    "host_name": "www.okoone.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  }
+]
