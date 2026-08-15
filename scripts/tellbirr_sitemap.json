@@ -1,0 +1,29 @@
+[
+  {
+    "url": "https://developer.ethiotelecom.et/docs",
+    "name": "Developer Portal Documentation",
+    "snippet": "Get Started Sandbox Dev Portal Register and begin utilizing our developer portal for seamless payment API integration.",
+    "host_name": "developer.ethiotelecom.et",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://developer.ethiotelecom.et/user/faqs",
+    "name": "I try to integrate using",
+    "snippet": "May 28, 2024 — To gain access to the payment system, developers must register as an organization (merchant or distributor).",
+    "host_name": "developer.ethiotelecom.et",
+    "rank": 1,
+    "date": "May 28, 2024",
+    "favicon": ""
+  },
+  {
+    "url": "https://developer.ethiotelecom.et",
+    "name": "Developer Portal",
+    "snippet": "Build, test, and play in a safe environment GET STARTED Email:994@ethionet.et Phone: +251-994 / +251-980 Address: Addis Ababa, Ethiopia Website:www. ...",
+    "host_name": "developer.ethiotelecom.et",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  }
+]

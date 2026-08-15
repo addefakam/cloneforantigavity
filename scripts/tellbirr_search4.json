@@ -1,0 +1,74 @@
+[
+  {
+    "url": "https://developer.ethiotelecom.et/user/faqs",
+    "name": "I try to integrate using",
+    "snippet": "May 28, 2024 — Unique App ID , App secret, and RSA public key for both Sandbox and Production environments will be issued via email.",
+    "host_name": "developer.ethiotelecom.et",
+    "rank": 0,
+    "date": "May 28, 2024",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.linkedin.com/posts/alemayehu-kefiyalew_heydevelopers-productmanagers-vscode-activity-7409121866071564288-_vqm",
+    "name": "Integrate Telebirr API for Secure Mobile Payments",
+    "snippet": "Step-by-Step Guide 1. Register on the Developer Portal Visit . Create an account and log in to access the API documentation and sandbox tools 2. ...",
+    "host_name": "www.linkedin.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://developer.ethiotelecom.et/docs",
+    "name": "Developer Portal Documentation",
+    "snippet": "Sandbox Dev Portal Register and begin utilizing our developer portal for seamless payment API integration.",
+    "host_name": "developer.ethiotelecom.et",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://developer.north.com/products/merchant-management/merchant-boarding-api/integration-guide",
+    "name": "Merchant Boarding API Integration Guide",
+    "snippet": "Get step-by-step instructions for integrating the Merchant Boarding API with your environment. Log in to Partner Portal (Sandbox / Production. Navigate to ...",
+    "host_name": "developer.north.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://developer.mastercard.com/merchant-identifier/documentation/tutorials-and-guides/onboarding-checklist",
+    "name": "Onboarding Checklist | Merchant Identifier",
+    "snippet": "This guide outlines the end-to-end process , expected time frames, and requirements for moving your Merchant Identifier API integration from the Sandbox ... Read more",
+    "host_name": "developer.mastercard.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://docs.clover.com/dev/docs/generate-a-test-api-token",
+    "name": "Generate a merchant-specific test API token",
+    "snippet": "Create test merchant account. Steps. Log in to your sandbox Developer Dashboard . From the left navigation menu, in the bottom panel, click Test Merchants. Read more",
+    "host_name": "docs.clover.com",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://developer.visaacceptance.com/docs/vas/en-us/platform/developer/all/rest/rest-getting-started/restgs-http-message-intro/restgs-register-http.html",
+    "name": "Step 1: Sign Up for a Sandbox Account",
+    "snippet": "Step 1: Sign Up for a Sandbox Account Step 2: Create a Shared Secret Key Pair Step 3: Construct Messages Using JSON Web Tokens Step 4: Enable Message-Level ...",
+    "host_name": "developer.visaacceptance.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://developer.nexigroup.com/payengine/en-EU/docs/merchant-onboarding-for-apple-pay",
+    "name": "Merchant onboarding for Apple Pay | PayEngine",
+    "snippet": "Register and validate your merchant domain; Create a merchant identity certificate. Step 1: Create a merchant identifier. Log in to your Apple Developer account ... Read more",
+    "host_name": "developer.nexigroup.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  }
+]

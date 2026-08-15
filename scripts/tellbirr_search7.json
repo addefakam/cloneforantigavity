@@ -1,0 +1,29 @@
+[
+  {
+    "url": "https://developer.ethiotelecom.et/user/faqs",
+    "name": "I try to integrate using",
+    "snippet": "May 28, 2024 — I'm encountering issues with logging into a website and processing payments via Ethio Telecom's merchant code ---- using H5 integration. I have ... Read more",
+    "host_name": "developer.ethiotelecom.et",
+    "rank": 0,
+    "date": "May 28, 2024",
+    "favicon": ""
+  },
+  {
+    "url": "https://developer.ethiotelecom.et/docs/Schedule%20Payment/CreateDisburseOrder",
+    "name": "Step 5: CreateDisburseOrder",
+    "snippet": "Welcome to our Payment Integration Platform! H5 C2B Web Payment Integration . This interface is used for merchant to submit a direct transfer payment order.",
+    "host_name": "developer.ethiotelecom.et",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://developer.ethiotelecom.et/docs/category/mini-app-integration",
+    "name": "Mini App Integration | Developer Portal Documentation",
+    "snippet": "Welcome to our Payment Integration Platform! H5 Integration with SuperApp ... H5 C2B Web Payment Integration · H5 B2B Web Payment Integration · Subscription ... Read more",
+    "host_name": "developer.ethiotelecom.et",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  }
+]

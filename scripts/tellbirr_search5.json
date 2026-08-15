@@ -1,0 +1,74 @@
+[
+  {
+    "url": "https://developer.ethiotelecom.et/user/faqs",
+    "name": "I try to integrate using",
+    "snippet": "May 28, 2024 — Unique App ID , App secret , and RSA public key for both Sandbox and Production environments will be issued via email. Applicants",
+    "host_name": "developer.ethiotelecom.et",
+    "rank": 0,
+    "date": "May 28, 2024",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/eba-alemayehu/telebirr",
+    "name": "eba-alemayehu/telebirr",
+    "snippet": "This is a python helper package for Telebirr H5 Web payment integration helper. allocate appId and appKey to the corresponding third party client. Getting ...",
+    "host_name": "github.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.scribd.com/document/748520817/How-to-Integrate-Telebirr-in-Your-Web-App-by-Mukerem-Ali-Medium",
+    "name": "Telebirr API Integration Guide | PDF | Encryption | Json",
+    "snippet": "Step 1: Initializing API Parameters Begin by defining the necessary 12 parameters for the Telebirr API. These include `app_id\\`, `app_key`, /24, Creating the ...",
+    "host_name": "www.scribd.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.studocu.com/row/document/addis-ababa-institute-of-technology/computer-science/how-to-integrate-telebirr-in-your-web-app-by-mukerem-ali-medium/69769950",
+    "name": "Integrating Telebirr into Your Web App: A Step-by-Step Guide",
+    "snippet": "Sep 14, 2023 — Step 1 Create required values for the telebirr API . There are 12 values needed to send the request. Encrypt the JSON object by using the public ...",
+    "host_name": "www.studocu.com",
+    "rank": 3,
+    "date": "Sep 14, 2023",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.linkedin.com/posts/alemayehu-kefiyalew_heydevelopers-productmanagers-vscode-activity-7409121866071564288-_vqm",
+    "name": "Integrate Telebirr API for Secure Mobile Payments",
+    "snippet": "Here's how to get started with the telebirr payment gateway . Use the sandbox environment to test your integration. Discover how to configure ...",
+    "host_name": "www.linkedin.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://developer.ethiotelecom.et/docs/category/inapp-sdk-integration",
+    "name": "InApp SDK Integration | Developer Portal Documentation",
+    "snippet": "Process Step 1: Apply Fabric Token Step 2: Request Create Order Step 3: Start Pay Order Step 4: Backend API Notify Android InApp",
+    "host_name": "developer.ethiotelecom.et",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://dreamtech.et/blog/telebirr-chapa-payment-integration-ethiopia",
+    "name": "Telebirr and Chapa Payment Integration in Ethiopia",
+    "snippet": "Jul 15, 2026 — An engineering and operations checklist for Ethiopian payment integrations without assuming current provider approval or features. Read more",
+    "host_name": "dreamtech.et",
+    "rank": 6,
+    "date": "Jul 15, 2026",
+    "favicon": ""
+  },
+  {
+    "url": "https://packagist.org/packages/vptrading/h5-telebirr-laravel",
+    "name": "vptrading/h5-telebirr-laravel",
+    "snippet": "Dec 21, 2023 — Step One. Install the package using composer require vptrading/ h5 - telebirr -laravel · Step Two. Run the artisan command to publish the Vptrading/ ... Read more",
+    "host_name": "packagist.org",
+    "rank": 7,
+    "date": "Dec 21, 2023",
+    "favicon": ""
+  }
+]

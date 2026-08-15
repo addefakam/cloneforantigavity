@@ -1,0 +1,83 @@
+[
+  {
+    "url": "https://developer.ethiotelecom.et/docs/category/mini-app-integration",
+    "name": "Mini App Integration | Developer Portal Documentation",
+    "snippet": "The Refund Order interface can be used to process refunds for previously successful payments . This allows merchants to return funds to customers when necessary.",
+    "host_name": "developer.ethiotelecom.et",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://developer.ethiotelecom.et/user/faqs",
+    "name": "I try to integrate using",
+    "snippet": "May 28, 2024 — I'm encountering issues with logging into a website and processing payments via Ethio Telecom's merchant code ---- using H5 integration. I have ...",
+    "host_name": "developer.ethiotelecom.et",
+    "rank": 1,
+    "date": "May 28, 2024",
+    "favicon": ""
+  },
+  {
+    "url": "https://developer.ethiotelecom.et/docs/Schedule%20Payment/CreateDisburseOrder",
+    "name": "Step 5: CreateDisburseOrder",
+    "snippet": "This interface is used for merchant to submit a direct transfer payment order . In schedule payment scenario, the payer is the customer who authorize the ...",
+    "host_name": "developer.ethiotelecom.et",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://developer.ethiotelecom.et/docs",
+    "name": "Developer Portal Documentation",
+    "snippet": "Register and begin utilizing our developer portal for seamless payment API integration. Get Started. Copyright 1894-2026 © Ethio telecom . All rights reserved.",
+    "host_name": "developer.ethiotelecom.et",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/MelakuDemeke/telebirr-php",
+    "name": "a telebirr library for php",
+    "snippet": "This library provides a simple, easy-to-use API for handling Telebirr payments , fully compliant with the Telebirr H5 C2B Web Payment Integration Guide.",
+    "host_name": "github.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.linkedin.com/posts/f-i-t-s-u-m_gateway-ethiotelecom-developers-activity-7185980830219935745-eCGK",
+    "name": "#gateway #ethiotelecom #developers #telebirr | Fitsum Belay",
+    "snippet": "ethio telecom has recently launched its Developer Portal, providing tools and comprehensive documentation for seamless integration.",
+    "host_name": "www.linkedin.com",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://developer.ethiotelecom.et",
+    "name": "Ethio telecom developer portal",
+    "snippet": "Build, test, and play in a safe environment. GET STARTED. Email:994@ethionet. et . Phone: +251-994 / +251-980. Address: Addis Ababa, Ethiopia. Website :www.",
+    "host_name": "developer.ethiotelecom.et",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://docs.bigcommerce.com/developer/api-reference/rest/admin/management/order-operations/payment-actions/capture-order-payment",
+    "name": "Capture Order Payment | BigCommerce Docs",
+    "snippet": "Create Refund Quote · List Refunds for Order · Create Refund · Get Refund · List ... Generate Cart and Checkout URL for Quote · Assign Quote to BigCommerce Order ...",
+    "host_name": "docs.bigcommerce.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.ethiotelecom.et/telebirr/ethio-bill-payment",
+    "name": "ethio bill payment tele birr",
+    "snippet": "Via USSD. Dial *127#; Select '' pay Bills' from the menu;; Select short code (1) If beneficiary is registered, or (2) if not;; Enter short code of the ...",
+    "host_name": "www.ethiotelecom.et",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  }
+]

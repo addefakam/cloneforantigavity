@@ -1,0 +1,36 @@
+{
+  "code": 200,
+  "data": {
+    "description": "",
+    "external": {
+      "alternate": {
+        "https://developer.ethiotelecom.et/docs/blog/atom.xml": {
+          "title": "Developer Portal Documentation Atom Feed",
+          "type": "application/atom+xml"
+        },
+        "https://developer.ethiotelecom.et/docs/blog/rss.xml": {
+          "title": "Developer Portal Documentation RSS Feed",
+          "type": "application/rss+xml"
+        }
+      }
+    },
+    "html": "<html lang=\"en\" data-theme=\"light\"><head>\n    <meta charset=\"utf-8\">\n    <meta name=\"generator\" content=\"Docusaurus\">\n    <title>Developer Portal Documentation</title>\n    <link rel=\"alternate\" type=\"application/rss+xml\" href=\"/docs/blog/rss.xml\" title=\"Developer Portal Documentation RSS Feed\">\n<link rel=\"alternate\" type=\"application/atom+xml\" href=\"/docs/blog/atom.xml\" title=\"Developer Portal Documentation Atom Feed\">\n    <script defer=\"\" src=\"/docs/runtime~main.js\"></script><script defer=\"\" src=\"/docs/main.js\"></script><link href=\"/docs/styles.css\" rel=\"stylesheet\">\n  <script charset=\"utf-8\" data-webpack=\"developer-portal:chunk-__comp---theme-doc-category-generated-index-page-14-e-640\" src=\"/docs/__comp---theme-doc-category-generated-index-page-14-e-640.js\"></script><script charset=\"utf-8\" data-webpack=\"developer-portal:chunk-categoryGeneratedIndex---docs-category-inapp-sdk-integrationbdb-325\" src=\"/docs/categoryGeneratedIndex---docs-category-inapp-sdk-integrationbdb-325.js\"></script></head>\n  <body>\n    <script>\n(function() {\n  var defaultMode = 'light';\n  var respectPrefersColorScheme = false;\n\n  function setDataThemeAttribute(theme) {\n    document.documentElement.setAttribute('data-theme', theme);\n  }\n\n  function getQueryStringTheme() {\n    var theme = null;\n    try {\n      theme = new URLSearchParams(window.location.search).get('docusaurus-theme')\n    } catch(e) {}\n    return theme;\n  }\n\n  function getStoredTheme() {\n    var theme = null;\n    try {\n      theme = localStorage.getItem('theme');\n    } catch (err) {}\n    return theme;\n  }\n\n  var initialTheme = getQueryStringTheme() || getStoredTheme();\n  if (initialTheme !== null) {\n    setDataThemeAttribute(initialTheme);\n  } else {\n    if (\n      respectPrefersColorScheme &&\n      window.matchMedia('(prefers-color-scheme: dark)').matches\n    ) {\n      setDataThemeAttribute('dark');\n    } else if (\n      respectPrefersColorScheme &&\n      window.matchMedia('(prefers-color-scheme: light)').matches\n    ) {\n      setDataThemeAttribute('light');\n    } else {\n      setDataThemeAttribute(defaultMode === 'dark' ? 'dark' : 'light');\n    }\n  }\n})();\n\n            </script>\n    <div id=\"__docusaurus\"></div>\n    \n    \n  \n\n</body></html>",
+    "httpStatus": 200,
+    "httpStatusText": "OK",
+    "metadata": {
+      "generator": "Docusaurus",
+      "lang": "en"
+    },
+    "title": "Developer Portal Documentation",
+    "url": "https://developer.ethiotelecom.et/docs/category/inapp-sdk-integration",
+    "usage": {
+      "tokens": 530
+    }
+  },
+  "meta": {
+    "usage": {
+      "tokens": 530
+    }
+  },
+  "status": 200
+}
