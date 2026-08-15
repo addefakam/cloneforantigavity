@@ -1,0 +1,83 @@
+[
+  {
+    "url": "https://developer.ethiotelecom.et/docs",
+    "name": "Developer Portal Documentation",
+    "snippet": "Payment API Explore and identify the payment APIs. Register and begin utilizing our developer portal for seamless payment API integration .",
+    "host_name": "developer.ethiotelecom.et",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.scribd.com/document/797954347/integrate-API-with-telebirr",
+    "name": "Integrating Telebirr API for Payments | PDF | Php | Computing",
+    "snippet": "This documentation guides developers in correctly configuring the API requests, understanding response handling, and integrating the payment flow system",
+    "host_name": "www.scribd.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/MelakuDemeke/telebirr-php",
+    "name": "a telebirr library for php",
+    "snippet": "This library provides a simple, easy-to-use API for handling Telebirr payments , fully compliant with the Telebirr H5 C2B Web Payment Integration Guide . Read more",
+    "host_name": "github.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.linkedin.com/posts/alemayehu-kefiyalew_heydevelopers-productmanagers-vscode-activity-7409121866071564288-_vqm",
+    "name": "Integrate Telebirr API for Secure Mobile Payments",
+    "snippet": "The telebirr API is a powerful mobile payment gateway provided by ethio telecom that allows developers and businesses to integrate digital ...",
+    "host_name": "www.linkedin.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://developer.ethiotelecom.et/user/faqs",
+    "name": "I try to integrate using",
+    "snippet": "May 28, 2024 — I am currently working on integrating the Telebirr API into our web application. However, we have encountered an issue that we need assistance ...",
+    "host_name": "developer.ethiotelecom.et",
+    "rank": 4,
+    "date": "May 28, 2024",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.studocu.com/row/document/addis-ababa-institute-of-technology/computer-science/how-to-integrate-telebirr-in-your-web-app-by-mukerem-ali-medium/69769950",
+    "name": "Integrating Telebirr into Your Web App: A Step-by-Step Guide",
+    "snippet": "Sep 14, 2023 — Telebirr is a mobile money service developed. Requirements (2019- 2025 ) Ethiopia . Step 1 Create required values for the telebirr API . There are ...",
+    "host_name": "www.studocu.com",
+    "rank": 5,
+    "date": "Sep 14, 2023",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.telecompaper.com/news/ethio-telecom-launches-telebirr-engage-unified-messaging-and-payments-function-in-superapp--1497618",
+    "name": "Ethio Telecom launches Telebirr Engage unified",
+    "snippet": "Apr 17, 2024 — Ethio Telecom has also presented a developer portal for organisations that wish to integrate their system with Telebirr to perform system ... Read more",
+    "host_name": "www.telecompaper.com",
+    "rank": 6,
+    "date": "Apr 17, 2024",
+    "favicon": ""
+  },
+  {
+    "url": "https://dreamtech.et/blog/telebirr-chapa-payment-integration-ethiopia",
+    "name": "Telebirr and Chapa Payment Integration in Ethiopia",
+    "snippet": "Jul 15, 2026 — An engineering and operations checklist for Ethiopian payment integrations without assuming current provider approval or features. Read more",
+    "host_name": "dreamtech.et",
+    "rank": 7,
+    "date": "Jul 15, 2026",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.appther.com/blogs/fintech-app-development-ethiopia-telebirr-cbe-birr",
+    "name": "Fintech App Development in Ethiopia: Telebirr & CBE Birr",
+    "snippet": "Jun 11, 2026 — Telebirr offers integration options for businesses and developers that allow your app to accept payments from any Telebirr user. The Typical ... Read more",
+    "host_name": "www.appther.com",
+    "rank": 8,
+    "date": "Jun 11, 2026",
+    "favicon": ""
+  }
+]

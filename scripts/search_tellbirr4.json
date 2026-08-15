@@ -1,0 +1,74 @@
+[
+  {
+    "url": "https://www.linkedin.com/posts/alemayehu-kefiyalew_heydevelopers-productmanagers-vscode-activity-7409121866071564288-_vqm",
+    "name": "Integrate Telebirr API for Secure Mobile Payments",
+    "snippet": "Use the sandbox environment to test your integration Securely configure your API credentials, callback URLs, and transaction parameters",
+    "host_name": "www.linkedin.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.telecompaper.com/news/ethio-telecom-launches-telebirr-engage-unified-messaging-and-payments-function-in-superapp--1497618",
+    "name": "Ethio Telecom launches Telebirr Engage unified",
+    "snippet": "Apr 17, 2024 — Partners can conduct preliminary and sandbox testing before integrating into the primary Telebirr system. The portal encompasses a build ... Read more",
+    "host_name": "www.telecompaper.com",
+    "rank": 1,
+    "date": "Apr 17, 2024",
+    "favicon": ""
+  },
+  {
+    "url": "https://developer.ethiotelecom.et/docs",
+    "name": "Developer Portal Documentation",
+    "snippet": "Explore and identify the payment APIs. Sandbox Dev Portal Register and begin utilizing our developer portal for seamless payment API integration .",
+    "host_name": "developer.ethiotelecom.et",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.instagram.com/p/Dbe_hRZDSvj",
+    "name": "M-PESA simplifies your first steps! Guiding new developers",
+    "snippet": "Guiding new developers through setup, sandbox testing , and integration , so you can build your mini app with speed and confidence.",
+    "host_name": "www.instagram.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://dreamtech.et/blog/telebirr-chapa-payment-integration-ethiopia",
+    "name": "Telebirr and Chapa Payment Integration in Ethiopia",
+    "snippet": "Jul 15, 2026 — An engineering and operations checklist for Ethiopian payment integrations without assuming current provider approval or features. Read more",
+    "host_name": "dreamtech.et",
+    "rank": 4,
+    "date": "Jul 15, 2026",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/MelakuDemeke/telebirr-php",
+    "name": "a telebirr library for php",
+    "snippet": "This library provides a simple, easy-to-use API for handling Telebirr payments , fully compliant with the Telebirr H5 C2B Web Payment Integration Guide.",
+    "host_name": "github.com",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.scribd.com/document/797954347/integrate-API-with-telebirr",
+    "name": "Integrating Telebirr API for Payments | PDF | Php | Computing",
+    "snippet": "Before going live, thoroughly test the integration in a sandbox environment (if available). , you will use their API to initiate payment requests ・ a step-by- ...",
+    "host_name": "www.scribd.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://m-pesa.safaricom.et/accept-m-pesa-payments-on-your-website",
+    "name": "Accept M‑PESA payments on your website",
+    "snippet": "M ‑ PESA APIs for Developers is a platform enabling businesses to connect their solutions and applications to M ‑ PESA for payment services. Read more",
+    "host_name": "m-pesa.safaricom.et",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  }
+]

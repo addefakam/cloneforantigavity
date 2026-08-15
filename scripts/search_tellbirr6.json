@@ -1,0 +1,65 @@
+[
+  {
+    "url": "https://github.com/eba-alemayehu/telebirr",
+    "name": "eba-alemayehu/telebirr",
+    "snippet": "This is a python helper package for Telebirr H5 Web payment integration helper. telebirr payment landing page URL to redirect the customer to H5 Web Payment .",
+    "host_name": "github.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://developer.ethiotelecom.et/user/faqs",
+    "name": "I try to integrate using",
+    "snippet": "May 28, 2024 — Given this situation, I kindly request your guidance on how I can obtain either a Telebirr API key or a short code for testing and development ... Read more",
+    "host_name": "developer.ethiotelecom.et",
+    "rank": 1,
+    "date": "May 28, 2024",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.scribd.com/document/748520817/How-to-Integrate-Telebirr-in-Your-Web-App-by-Mukerem-Ali-Medium",
+    "name": "Telebirr API Integration Guide | PDF | Encryption | Json",
+    "snippet": "Step 1: Initializing API Parameters · 1 from datetime import datetime · Step 2: Constructing the Request String (StringA) · Step 3: Creating the JSON Payload · Step ... Read more",
+    "host_name": "www.scribd.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.linkedin.com/pulse/how-api-telebirr-yafet-getachew-teffera",
+    "name": "How not to API: Telebirr",
+    "snippet": "The Telebirr API implementation is severely flawed, I write this short article with three aims: APIKEY, short- code , public key and VPN ...",
+    "host_name": "www.linkedin.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.studocu.com/row/document/addis-ababa-institute-of-technology/computer-science/how-to-integrate-telebirr-in-your-web-app-by-mukerem-ali-medium/69769950",
+    "name": "Integrating Telebirr into Your Web App: A Step-by-Step Guide",
+    "snippet": "Sep 14, 2023 — Step 1 Create required values for the telebirr API. There are 12 values needed to send the request . you must decrypt the text using the same  ...",
+    "host_name": "www.studocu.com",
+    "rank": 4,
+    "date": "Sep 14, 2023",
+    "favicon": ""
+  },
+  {
+    "url": "https://iopenhome.alipay.com/docs/ac/ams/cgl4ti",
+    "name": "Encrypt and decrypt a message | API reference | Antom Docs",
+    "snippet": "May 13, 2021 — Encrypt the message with AES symmetric encryption algorithm , and then encrypt the symmetric key with RSA asymmetric encryption algorithm. Read more",
+    "host_name": "iopenhome.alipay.com",
+    "rank": 5,
+    "date": "May 13, 2021",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/MelakuDemeke/telebirr-php",
+    "name": "a telebirr library for php",
+    "snippet": "This library provides a simple, easy-to-use API for handling Telebirr payments , fully compliant with the Telebirr H5 C2B Web Payment Integration Guide. Quick ... Read more",
+    "host_name": "github.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  }
+]

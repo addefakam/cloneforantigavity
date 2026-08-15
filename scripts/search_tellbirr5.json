@@ -1,0 +1,65 @@
+[
+  {
+    "url": "https://github.com/eba-alemayehu/telebirr",
+    "name": "eba-alemayehu/telebirr",
+    "snippet": "This is a python helper package for Telebirr H5 Web payment integration helper. allocate appId and appKey to the corresponding third party client. notify third ...",
+    "host_name": "github.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://developer.ethiotelecom.et/user/faqs",
+    "name": "I try to integrate using",
+    "snippet": "May 28, 2024 — I am currently working on integrating the Telebirr API into our web application. I was trying to integrate H5 C2B web checkout. returned ...",
+    "host_name": "developer.ethiotelecom.et",
+    "rank": 1,
+    "date": "May 28, 2024",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.scribd.com/document/748520817/How-to-Integrate-Telebirr-in-Your-Web-App-by-Mukerem-Ali-Medium",
+    "name": "Telebirr API Integration Guide | PDF | Encryption | Json",
+    "snippet": "To start integrating the Telebirr API into your web application, the Telebirr API responds with a payment URL (toPayURL). This URL is then presented to the ...",
+    "host_name": "www.scribd.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.linkedin.com/posts/alemayehu-kefiyalew_heydevelopers-productmanagers-vscode-activity-7409121866071564288-_vqm",
+    "name": "Integrate Telebirr API for Secure Mobile Payments",
+    "snippet": "The telebirr API is a powerful mobile payment gateway … integration options: B2B Integration – for businesses receiving payments",
+    "host_name": "www.linkedin.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.studocu.com/row/document/addis-ababa-institute-of-technology/computer-science/how-to-integrate-telebirr-in-your-web-app-by-mukerem-ali-medium/69769950",
+    "name": "Integrating Telebirr into Your Web App: A Step-by-Step Guide",
+    "snippet": "Sep 14, 2023 — Telebirr server call your notify url API using text media as parser format. So your notify API . must be accept Text /plain type request datas ... Read more",
+    "host_name": "www.studocu.com",
+    "rank": 4,
+    "date": "Sep 14, 2023",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.etdemy.com/course/details/1/telebirr-h5-web-payment-integration",
+    "name": "Telebirr H5 Web Payment Integration",
+    "snippet": "Aug 20, 2025 — This is the first comprehensive online course on integrating Telebirr's H5 Web Payment API . Designed for all skill levels, you'll learn to ...",
+    "host_name": "www.etdemy.com",
+    "rank": 5,
+    "date": "Aug 20, 2025",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/MelakuDemeke/telebirr-php",
+    "name": "a telebirr library for php",
+    "snippet": "This library provides a simple, easy-to-use API for handling Telebirr payments , fully compliant with the Telebirr H5 C2B Web Payment Integration Guide. Read more",
+    "host_name": "github.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  }
+]

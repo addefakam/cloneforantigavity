@@ -1,0 +1,65 @@
+[
+  {
+    "url": "https://dreamtech.et/blog/telebirr-chapa-payment-integration-ethiopia",
+    "name": "Telebirr and Chapa Payment Integration in Ethiopia",
+    "snippet": "Jul 15, 2026 — Telebirr or Chapa payment integration with provider onboarding , The merchant must confirm current eligibility, onboarding , commercial terms, ...",
+    "host_name": "dreamtech.et",
+    "rank": 0,
+    "date": "Jul 15, 2026",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.scribd.com/document/797954347/integrate-API-with-telebirr",
+    "name": "Integrating Telebirr API for Payments | PDF | Php | Computing",
+    "snippet": "To integrate the Telebirr API , first, you need to register as a merchant with Telebirr to obtain credentials like the API key and merchant ID.",
+    "host_name": "www.scribd.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.linkedin.com/posts/alemayehu-kefiyalew_heydevelopers-productmanagers-vscode-activity-7409121866071564288-_vqm",
+    "name": "Integrate Telebirr API for Secure Mobile Payments",
+    "snippet": "ethio telecom's telebirr API makes it easy, fast, and secure. The telebirr API is a powerful mobile payment gateway provided by ethio telecom … ...",
+    "host_name": "www.linkedin.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/MelakuDemeke/telebirr-php",
+    "name": "a telebirr library for php",
+    "snippet": "This library provides a simple, easy-to-use API for handling Telebirr payments , fully compliant with the Telebirr H5 C2B Web Payment Integration Guide. Read more",
+    "host_name": "github.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.ethiotelecom.et/telebirr/telebirr-registration-requirements-with-registration-form",
+    "name": "telebirr Registration Requirements with registration form",
+    "snippet": "Transaction done remotely via API integration between telebirr and Merchant application? Doesn't require physical presence of the payer, can be done at the ...",
+    "host_name": "www.ethiotelecom.et",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://verify.et/docs/get-started",
+    "name": "Start Ethiopian Transaction Verification API",
+    "snippet": "Integrate Ethiopian Transaction Verification . Create an API key, submit a verification, then choose whether your app waits briefly, polls for completion, ... Read more",
+    "host_name": "verify.et",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.appther.com/blogs/fintech-app-development-ethiopia-telebirr-cbe-birr",
+    "name": "Fintech App Development in Ethiopia: Telebirr & CBE Birr",
+    "snippet": "Jun 11, 2026 — The integration concepts mirror Telebirr : merchant onboarding with the bank, payment initiation from your backend, customer confirmation , and ...",
+    "host_name": "www.appther.com",
+    "rank": 6,
+    "date": "Jun 11, 2026",
+    "favicon": ""
+  }
+]
