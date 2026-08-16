@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+@page { size: 794px 1123px; margin: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 794px; height: 1123px; background: #f0f2f2; font-family: 'Inter', sans-serif; }
+.cover-page { position: relative; width: 794px; height: 1123px; background: #ffffff; overflow: hidden; }
+.cover-bg-layer { position: absolute; inset: 0; overflow: hidden; z-index: 1; }
+.grid-pattern { position: absolute; inset: 0; background-image: linear-gradient(rgba(77,101,113,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(77,101,113,0.03) 1px, transparent 1px); background-size: 40px 40px; }
+.accent-block { position: absolute; bottom: 0; right: 0; width: 55%; height: 45%; background: linear-gradient(135deg, #4d6571 0%, #3a6070 60%, #2d4a55 100%); clip-path: polygon(35% 0, 100% 0, 100% 100%, 0 100%); }
+.accent-block::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent, rgba(58,144,187,0.6), transparent); }
+.circle-accent { position: absolute; top: 8%; right: 8%; width: 180px; height: 180px; border-radius: 50%; border: 1.5px solid rgba(58,144,187,0.15); }
+.circle-accent::after { content: ''; position: absolute; top: 30px; left: 30px; right: 30px; bottom: 30px; border-radius: 50%; border: 1px solid rgba(58,144,187,0.1); }
+.cover-layer-2 { position: absolute; inset: 0; z-index: 2; }
+.anchor-line { position: absolute; left: 5%; top: 12%; bottom: 12%; width: 4px; background: linear-gradient(to bottom, transparent, #4d6571 15%, #4d6571 85%, transparent); border-radius: 3px; }
+.cover-layer-3 { position: absolute; inset: 0; z-index: 3; padding: 0; }
+.kicker { position: absolute; left: 12%; top: 18%; font-size: 11pt; font-weight: 400; letter-spacing: 4pt; text-transform: uppercase; color: #72797c; opacity: 0.7; }
+.hero-title { position: absolute; left: 12%; top: 25%; width: 55%; font-size: 34pt; font-weight: 900; line-height: 1.12; color: #151315; letter-spacing: -0.5px; }
+.hero-title span { color: #3a90bb; }
+.summary { position: absolute; left: 12%; top: 47%; width: 50%; font-size: 11.5pt; font-weight: 300; line-height: 1.65; color: #4d6571; }
+.meta-1 { position: absolute; left: 12%; top: 66%; font-size: 11pt; color: #72797c; }
+.meta-1 strong { color: #4d6571; font-weight: 600; }
+.meta-2 { position: absolute; left: 12%; top: 69.5%; font-size: 11pt; color: #72797c; }
+.meta-2 strong { color: #4d6571; font-weight: 600; }
+.meta-3 { position: absolute; left: 12%; top: 73%; font-size: 11pt; color: #72797c; }
+.meta-3 strong { color: #4d6571; font-weight: 600; }
+.footer-text { position: absolute; bottom: 5%; left: 12%; font-size: 9pt; color: #72797c; letter-spacing: 2pt; text-transform: uppercase; opacity: 0.5; }
+.badge { position: absolute; top: 18%; right: 8%; background: #3a90bb; color: white; font-size: 9pt; font-weight: 600; padding: 6px 14px; border-radius: 3px; letter-spacing: 1px; }
+</style>
+</head>
+<body>
+<div class="cover-page">
+  <div class="cover-bg-layer">
+    <div class="grid-pattern"></div>
+    <div class="accent-block"></div>
+    <div class="circle-accent"></div>
+  </div>
+  <div class="cover-layer-2">
+    <div class="anchor-line"></div>
+  </div>
+  <div class="cover-layer-3">
+    <div class="kicker">Business Proposal</div>
+    <div class="hero-title">Guest House<br>Management<br><span>System</span></div>
+    <div class="summary">A comprehensive digital platform designed to modernize guest house operations across Ethiopia, integrating reservation management, guest registration, financial tracking, and law enforcement intelligence into a single unified system.</div>
+    <div class="meta-1"><strong>Prepared for:</strong> Stakeholders and Concerned Parties</div>
+    <div class="meta-2"><strong>Date:</strong> August 2026</div>
+    <div class="meta-3"><strong>Classification:</strong> Confidential</div>
+    <div class="badge">CONFIDENTIAL</div>
+    <div class="footer-text">Digital Transformation for Ethiopian Hospitality</div>
+  </div>
+</div>
+</body>
+</html>

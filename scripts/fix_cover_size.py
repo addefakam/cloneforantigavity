@@ -1,30 +1,28 @@
-from pypdf import PdfReader, PdfWriter
-from pypdf.generic import ArrayObject, FloatObject, NameObject
-import copy
+import fitz, os, copy
 
-cover_reader = PdfReader('scripts/ghms_proposal_cover.pdf')
-body_reader = PdfReader('scripts/ghms_proposal_body.pdf')
+input_path = '/home/z/my-project/download/GHMS_Business_Proposal.pdf'
+output_path = '/home/z/my-project/download/GHMS_Business_Proposal.pdf'
+a4_w, a4_h = 595.28, 841.89
 
-bp = body_reader.pages[0]
-tw = float(bp.mediabox.width)
-th = float(bp.mediabox.height)
-
-cp = cover_reader.pages[0]
-sw = float(cp.mediabox.width)
-sh = float(cp.mediabox.height)
-
-print(f'Cover: {sw:.2f} x {sh:.2f}')
-print(f'Body:  {tw:.2f} x {th:.2f}')
-
-writer = PdfWriter()
-
-# Deep copy cover and override mediabox
-cp2 = copy.deepcopy(cp)
-cp2[NameObject('/MediaBox')] = ArrayObject([FloatObject(0), FloatObject(0), FloatObject(tw), FloatObject(th)])
-writer.add_page(cp2)
-
-for p in body_reader.pages:
-    writer.add_page(p)
-
-writer.write('download/GHMS_Proposal.pdf')
-print('Done. Total pages:', len(body_reader.pages) + 1)
+with fitz.open(input_path) as src:
+    with fitz.open() as out:
+        for i in range(src.page_count):
+            page = src.load_page(i)
+            rect = page.rect
+            pw, ph = rect.width, rect.height
+            if abs(pw - a4_w) > 1 or abs(ph - a4_h) > 1:
+                pix_w, pix_h = int(pw), int(ph)
+                new_rect = fitz.Rect(a4_w, 0, a4_w + a4_w, a4_h)
+                new_pix = fitz.Pixmap(pix_w, pix_h)
+                new_pix.write_bytes(page.get_pixmap(clip=new_rect).tobytes())
+                new_page = fitz.Page(new_pix)
+                out.insert_pdf(new_page)
+                print(f'Page {i}: rescaled')
+            else:
+                out.insert_pdf(page)
+                print(f'Page {i}: OK')
+        out.set_metadata({'title': 'GHMS Business Proposal', 'author': 'GHMS Team', 'subject': 'Guest House Management System Business Proposal'})
+        out.save(output_path)
+size_kb = os.path.getsize(output_path) / 1024
+print(f'{out.page_count} pages, {size_kb:.0f} KB')
+        print(f'Saved: {output_path}')
