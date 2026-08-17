@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useAppStore } from "lib/store";
+import { useAppStore } from "@/lib/store";
 import LoginPage from "@/components/ghms/login-page";
 import Sidebar from "@/components/ghms/sidebar";
 import PageRenderer from "@/components/ghms/page-renderer";
