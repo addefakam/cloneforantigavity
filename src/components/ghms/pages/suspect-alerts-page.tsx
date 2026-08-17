@@ -38,6 +38,7 @@ import {
   Building2,
   Clock,
   FileWarning,
+  DoorOpen,
 } from "lucide-react";
 
 interface SuspectInfo {
@@ -398,6 +399,15 @@ export default function SuspectAlertsPage() {
                     <p className="font-medium">{selectedMatch.providerName || "Unknown"}</p>
                   </div>
                 </div>
+                {details.roomNumber && (
+                  <div className="flex items-center gap-2.5">
+                    <DoorOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">Room</p>
+                      <p className="font-medium">{String(details.roomNumber)}{details.roomName ? ` - ${String(details.roomName)}` : ""}</p>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center gap-2.5">
                   <Badge variant="outline" className="text-xs">
                     {MATCH_TYPE_LABELS[selectedMatch.matchType] || selectedMatch.matchType}
