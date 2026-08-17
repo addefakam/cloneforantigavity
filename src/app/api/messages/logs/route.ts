@@ -5,8 +5,11 @@ import { getAuthContext, getProviderFilter, AuthError } from "@/lib/tenant";
 export async function GET(req: NextRequest) {
   try {
     const auth = await getAuthContext(req);
-    const { providerId } = getProviderFilter(auth);
-    if (!providerId) return NextResponse.json({ error: "Provider required" }, { status: 403 });
+    const filter = getProviderFilter(auth);
+
+    const where: Record<string, unknown> = filter.isPolice
+      ? {}
+      : { providerId: filter.providerId };
 
     const { searchParams } = req.nextUrl;
     const page = parseInt(searchParams.get("page") || "1");
@@ -14,7 +17,6 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get("status") || "";
     const channel = searchParams.get("channel") || "";
 
-    const where: Record<string, unknown> = { providerId };
     if (status) where.status = status;
     if (channel) where.channel = channel;
 
@@ -37,6 +39,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }
     console.error("[messages/logs GET]", error);
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes("does not exist") || msg.includes("Unknown table") || msg.includes("relation")) {
+      return NextResponse.json({ data: [], total: 0, page: 1, limit: 50, totalPages: 0 });
+    }
     return NextResponse.json({ error: "Failed to fetch message logs" }, { status: 500 });
   }
 }

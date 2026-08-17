@@ -6,12 +6,14 @@ import { logStaffActivity, getLogUserInfo } from "@/lib/staff-log";
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const auth = await getAuthContext(req);
-    const { providerId } = getProviderFilter(auth);
-    if (!providerId) return NextResponse.json({ error: "Provider required" }, { status: 403 });
+    const filter = getProviderFilter(auth);
 
     const { id } = await params;
     const booking = await db.groupBooking.findFirst({
-      where: { id, providerId },
+      where: {
+        id,
+        ...(filter.isPolice ? {} : { providerId: filter.providerId }),
+      },
       include: {
         reservations: {
           include: {
@@ -29,6 +31,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (error instanceof AuthError) {
       return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }
+    console.error("[group-bookings GET by id]", error);
     return NextResponse.json({ error: "Failed to fetch group booking" }, { status: 500 });
   }
 }

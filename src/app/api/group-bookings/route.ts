@@ -6,8 +6,11 @@ import { logStaffActivity, getLogUserInfo } from "@/lib/staff-log";
 export async function GET(req: NextRequest) {
   try {
     const auth = await getAuthContext(req);
-    const { providerId } = getProviderFilter(auth);
-    if (!providerId) return NextResponse.json({ error: "Provider required" }, { status: 403 });
+    const filter = getProviderFilter(auth);
+
+    const where: Record<string, unknown> = filter.isPolice
+      ? {}
+      : { providerId: filter.providerId };
 
     const { searchParams } = req.nextUrl;
     const status = searchParams.get("status") || "";
@@ -15,7 +18,6 @@ export async function GET(req: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
 
-    const where: Record<string, unknown> = { providerId };
     if (status) where.status = status;
     if (q) {
       where.OR = [
@@ -57,6 +59,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }
     console.error("[group-bookings GET]", error);
+    // If table doesn't exist yet, return empty data instead of crashing
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes("does not exist") || msg.includes("Unknown table") || msg.includes("relation\"public.GroupBooking\"")) {
+      return NextResponse.json({ data: [], total: 0, page: 1, limit: 20, totalPages: 0 });
+    }
     return NextResponse.json({ error: "Failed to fetch group bookings" }, { status: 500 });
   }
 }

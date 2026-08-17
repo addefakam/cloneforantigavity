@@ -16,7 +16,7 @@ const DEFAULT_TEMPLATES = [
     name: "Welcome Message",
     type: "WELCOME",
     channel: "WHATSAPP" as const,
-    body: "Welcome to {{guestHouseName}}, {{guestName}}! 🎉 Your room {{roomNumber}} is ready. Check-in time: {{checkInTime}}, Check-out: {{checkOutTime}}. Enjoy your stay! For any assistance, call us at {{guestHousePhone}}.",
+    body: "Welcome to {{guestHouseName}}, {{guestName}}! Your room {{roomNumber}} is ready. Check-in time: {{checkInTime}}, Check-out: {{checkOutTime}}. Enjoy your stay! For any assistance, call us at {{guestHousePhone}}.",
     isDefault: true,
   },
   {
@@ -38,8 +38,9 @@ const DEFAULT_TEMPLATES = [
 export async function GET(req: NextRequest) {
   try {
     const auth = await getAuthContext(req);
-    const { providerId } = getProviderFilter(auth);
-    if (!providerId) return NextResponse.json({ error: "Provider required" }, { status: 403 });
+    const filter = getProviderFilter(auth);
+    const providerId = filter.providerId;
+    if (!providerId) return NextResponse.json([]);
 
     let templates = await db.messageTemplate.findMany({
       where: { providerId },
@@ -65,6 +66,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }
     console.error("[message-templates GET]", error);
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes("does not exist") || msg.includes("Unknown table") || msg.includes("relation")) {
+      return NextResponse.json([]);
+    }
     return NextResponse.json({ error: "Failed to fetch templates" }, { status: 500 });
   }
 }
