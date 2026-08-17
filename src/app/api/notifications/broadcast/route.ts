@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
     // Build sender label
     const senderLabel =
       auth.role === "POLICE"
-        ? `Ethiopian Federal Police - ${RANK_LABELS[(auth.policeRank as keyof typeof RANK_LABELS)] || auth.policeRank}`
+        ? `Oromia Police - ${RANK_LABELS[(auth.policeRank as keyof typeof RANK_LABELS)] || auth.policeRank}`
         : "GHMS System Administrator";
     const priorityLabel =
       priority === "URGENT" ? "[URGENT] " : priority === "HIGH" ? "[HIGH PRIORITY] " : "";
