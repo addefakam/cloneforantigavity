@@ -99,7 +99,12 @@ export const apiDeleteGuest = (id: string) =>
   req(`/api/guests/${id}`, { method: "DELETE" });
 
 // Reservations
-export const apiGetReservations = (q?: string) => req(`/api/reservations${q ? `?${q}` : ""}`);
+export const apiGetReservations = async (q?: string) => {
+  const res = await req(`/api/reservations${q ? `?${q}` : ""}`);
+  // API returns { data: [...], total, ... } — unwrap to array
+  if (res && Array.isArray(res.data)) return res.data;
+  return Array.isArray(res) ? res : [];
+};
 export const apiCreateReservation = (data: Record<string, unknown>) =>
   req("/api/reservations", { method: "POST", body: JSON.stringify(data) });
 export const apiUpdateReservation = (id: string, data: Record<string, unknown>) =>
