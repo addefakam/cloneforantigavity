@@ -84,6 +84,26 @@ enum SuspectSeverity {
   CRITICAL
 }
 
+enum GroupBookingStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum MessageChannel {
+  SMS
+  WHATSAPP
+}
+
+enum MessageStatus {
+  PENDING
+  SENT
+  FAILED
+  DELIVERED
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model Provider {
@@ -120,6 +140,10 @@ model Provider {
   settings    Settings[]
   notifications Notification[]
   subscription Subscription?
+  groupBookings    GroupBooking[]
+  staffLogs        StaffLog[]
+  messageTemplates MessageTemplate[]
+  messageLogs      MessageLog[]
 
   @@index([status])
   @@index([createdAt])
@@ -241,8 +265,11 @@ model Reservation {
   provider Provider  @relation(fields: [providerId], references: [id])
   guest    Guest    @relation(fields: [guestId], references: [id])
   room     Room     @relation(fields: [roomId], references: [id])
+  groupBooking GroupBooking? @relation(fields: [groupBookingId], references: [id])
   payments Payment[]
   reviews  Review[]
+
+  groupBookingId String?
 
   @@index([providerId])
   @@index([guestId])
@@ -250,6 +277,7 @@ model Reservation {
   @@index([status])
   @@index([createdAt])
   @@index([checkIn])
+  @@index([groupBookingId])
 }
 
 model DaytimeService {
@@ -458,6 +486,100 @@ model Settings {
   provider Provider? @relation(fields: [providerId], references: [id])
 
   @@index([providerId])
+}
+
+// ─── Group Bookings ──────────────────────────────────────────────────────────
+
+model GroupBooking {
+  id           String             @id @default(cuid())
+  name         String
+  contactName  String             @default("")
+  contactPhone String             @default("")
+  contactEmail String             @default("")
+  startDate    String
+  endDate      String
+  notes        String             @default("")
+  status       GroupBookingStatus @default(PENDING)
+  totalRooms   Int                @default(0)
+  totalGuests  Int                @default(0)
+  totalCost    Float              @default(0)
+  providerId   String
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  provider     Provider      @relation(fields: [providerId], references: [id])
+  reservations Reservation[]
+
+  @@index([providerId])
+  @@index([status])
+  @@index([startDate])
+}
+
+// ─── Staff Activity Log ──────────────────────────────────────────────────────
+
+model StaffLog {
+  id         String   @id @default(cuid())
+  userId     String
+  userName   String   @default("")
+  action     String   // CHECKIN, CHECKOUT, CREATE_RESERVATION, UPDATE_RESERVATION, CANCEL_RESERVATION, CREATE_PAYMENT, CREATE_EXPENSE, UPDATE_ROOM, etc.
+  targetType String   @default("") // RESERVATION, GUEST, ROOM, PAYMENT, EXPENSE, GROUP_BOOKING, etc.
+  targetId   String   @default("")
+  details    String   @default("") // JSON with change details
+  ipAddress  String   @default("")
+  providerId String
+  provider   Provider @relation(fields: [providerId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@index([providerId])
+  @@index([userId])
+  @@index([action])
+  @@index([targetType])
+  @@index([createdAt])
+}
+
+// ─── Guest Communication ─────────────────────────────────────────────────────
+
+model MessageTemplate {
+  id         String         @id @default(cuid())
+  name       String         // "Check-in Reminder", "Welcome Message"
+  type       String         // CHECKIN_REMINDER, WELCOME, CHECKOUT_REMINDER, CUSTOM
+  channel    MessageChannel @default(SMS)
+  subject    String         @default("")
+  body       String         // Template body with placeholders: {{guestName}}, {{roomNumber}}, etc.
+  isDefault  Boolean        @default(false)
+  isActive   Boolean        @default(true)
+  providerId String
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  provider Provider @relation(fields: [providerId], references: [id])
+  logs     MessageLog[]
+
+  @@index([providerId])
+  @@index([type])
+}
+
+model MessageLog {
+  id            String        @id @default(cuid())
+  templateId    String?
+  recipient     String        // Phone number
+  channel       MessageChannel @default(SMS)
+  message       String        // Final rendered message
+  status        MessageStatus @default(PENDING)
+  errorMessage  String        @default("")
+  reservationId String?
+  guestId       String?
+  providerId    String
+  sentAt        DateTime?
+  createdAt     DateTime      @default(now())
+
+  provider Provider        @relation(fields: [providerId], references: [id])
+  template MessageTemplate? @relation(fields: [templateId], references: [id])
+
+  @@index([providerId])
+  @@index([recipient])
+  @@index([status])
+  @@index([createdAt])
 }
 
 // ─── Suspected Persons (Police-only) ─────────────────────────────────────────

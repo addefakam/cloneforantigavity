@@ -1,0 +1,110 @@
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { getAuthContext, getProviderFilter, AuthError } from "@/lib/tenant";
+import { logStaffActivity, getLogUserInfo } from "@/lib/staff-log";
+
+export async function GET(req: NextRequest) {
+  try {
+    const auth = await getAuthContext(req);
+    const { providerId } = getProviderFilter(auth);
+    if (!providerId) return NextResponse.json({ error: "Provider required" }, { status: 403 });
+
+    const { searchParams } = req.nextUrl;
+    const status = searchParams.get("status") || "";
+    const q = searchParams.get("q") || "";
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "20");
+
+    const where: Record<string, unknown> = { providerId };
+    if (status) where.status = status;
+    if (q) {
+      where.OR = [
+        { name: { contains: q, mode: "insensitive" } },
+        { contactName: { contains: q, mode: "insensitive" } },
+        { contactPhone: { contains: q, mode: "insensitive" } },
+      ];
+    }
+
+    const [data, total] = await Promise.all([
+      db.groupBooking.findMany({
+        where,
+        include: {
+          reservations: {
+            include: {
+              guest: { select: { id: true, name: true, phone: true } },
+              room: { select: { number: true, name: true, type: true } },
+            },
+            orderBy: { checkIn: "asc" },
+          },
+          _count: { select: { reservations: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      db.groupBooking.count({ where }),
+    ]);
+
+    return NextResponse.json({
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (error: unknown) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
+    console.error("[group-bookings GET]", error);
+    return NextResponse.json({ error: "Failed to fetch group bookings" }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const auth = await getAuthContext(req);
+    const { providerId } = getProviderFilter(auth);
+    if (!providerId) return NextResponse.json({ error: "Provider required" }, { status: 403 });
+
+    const body = await req.json();
+    const { name, contactName, contactPhone, contactEmail, startDate, endDate, notes } = body;
+
+    if (!name || !startDate || !endDate) {
+      return NextResponse.json({ error: "Name, startDate, and endDate are required" }, { status: 400 });
+    }
+
+    const groupBooking = await db.groupBooking.create({
+      data: {
+        name,
+        contactName: contactName || "",
+        contactPhone: contactPhone || "",
+        contactEmail: contactEmail || "",
+        startDate,
+        endDate,
+        notes: notes || "",
+        providerId,
+      },
+    });
+
+    const { userId, userName } = getLogUserInfo(req);
+    logStaffActivity({
+      req,
+      userId,
+      userName,
+      action: "CREATE_GROUP_BOOKING",
+      targetType: "GROUP_BOOKING",
+      targetId: groupBooking.id,
+      details: { name, startDate, endDate },
+      providerId,
+    });
+
+    return NextResponse.json(groupBooking, { status: 201 });
+  } catch (error: unknown) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
+    console.error("[group-bookings POST]", error);
+    return NextResponse.json({ error: "Failed to create group booking" }, { status: 500 });
+  }
+}

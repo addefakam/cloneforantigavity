@@ -1,0 +1,921 @@
+   220→    setLogsLoading(true);
+   221→    try {
+   222→      const params: Record<string, string | number> = { page: logsPage, limit: 10 };
+   223→      if (filterStatus !== "ALL") params.status = filterStatus;
+   224→      if (filterChannel !== "ALL") params.channel = filterChannel;
+   225→      const result: PaginatedLogs = await apiGetMessageLogs(params);
+   226→      setLogs(result.data ?? []);
+   227→      setLogsTotal(result.total ?? 0);
+   228→      setLogsPage(result.page ?? 1);
+   229→      setLogsTotalPages(result.totalPages ?? 1);
+   230→    } catch {
+   231→      toast.error("Failed to load message history");
+   232→    } finally {
+   233→      setLogsLoading(false);
+   234→    }
+   235→  }, [logsPage, filterStatus, filterChannel]);
+   236→
+   237→  useEffect(() => {
+   238→    fetchTemplates();
+   239→  }, [fetchTemplates, refreshKey]);
+   240→
+   241→  useEffect(() => {
+   242→    fetchLogs();
+   243→  }, [fetchLogs, refreshKey]);
+   244→
+   245→  // Reset to page 1 when filters change
+   246→  useEffect(() => {
+   247→    setLogsPage(1);
+   248→  }, [filterStatus, filterChannel]);
+   249→
+   250→  // ─── Template Helpers ─────────────────────────────────────────────────────
+   251→
+   252→  const openCreateTpl = () => {
+   253→    setEditingTpl(null);
+   254→    setTplForm(emptyTemplateForm);
+   255→    setTplDialogOpen(true);
+   256→  };
+   257→
+   258→  const openEditTpl = (tpl: MessageTemplate) => {
+   259→    setEditingTpl(tpl);
+   260→    setTplForm({
+   261→      name: tpl.name,
+   262→      type: tpl.type,
+   263→      channel: tpl.channel,
+   264→      body: tpl.body,
+   265→    });
+   266→    setTplDialogOpen(true);
+   267→  };
+   268→
+   269→  const handleSaveTpl = async () => {
+   270→    if (!tplForm.name.trim() || !tplForm.body.trim()) {
+   271→      toast.error("Template name and body are required");
+   272→      return;
+   273→    }
+   274→    setTplSaving(true);
+   275→    try {
+   276→      if (editingTpl) {
+   277→        await apiUpdateMessageTemplate(editingTpl.id, tplForm);
+   278→        toast.success("Template updated");
+   279→      } else {
+   280→        await apiCreateMessageTemplate(tplForm);
+   281→        toast.success("Template created");
+   282→      }
+   283→      setTplDialogOpen(false);
+   284→      fetchTemplates();
+   285→    } catch (err: unknown) {
+   286→      toast.error(err instanceof Error ? err.message : "Failed to save template");
+   287→    } finally {
+   288→      setTplSaving(false);
+   289→    }
+   290→  };
+   291→
+   292→  const handleDeleteTpl = async () => {
+   293→    if (!tplDeleteTarget) return;
+   294→    setTplDeleting(true);
+   295→    try {
+   296→      await apiDeleteMessageTemplate(tplDeleteTarget.id);
+   297→      toast.success("Template deleted");
+   298→      setTplDeleteTarget(null);
+   299→      fetchTemplates();
+   300→    } catch (err: unknown) {
+   301→      toast.error(err instanceof Error ? err.message : "Failed to delete template");
+   302→    } finally {
+   303→      setTplDeleting(false);
+   304→    }
+   305→  };
+   306→
+   307→  const handleToggleActive = async (tpl: MessageTemplate) => {
+   308→    const next = !tpl.isActive;
+   309→    setTogglingId(tpl.id);
+   310→    setTemplates((prev) =>
+   311→      prev.map((t) => (t.id === tpl.id ? { ...t, isActive: next } : t))
+   312→    );
+   313→    try {
+   314→      await apiUpdateMessageTemplate(tpl.id, { isActive: next });
+   315→      toast.success(next ? "Template activated" : "Template deactivated");
+   316→    } catch {
+   317→      toast.error("Failed to toggle template");
+   318→      setTemplates((prev) =>
+   319→        prev.map((t) => (t.id === tpl.id ? { ...t, isActive: !next } : t))
+   320→      );
+   321→    } finally {
+   322→      setTogglingId(null);
+   323→    }
+   324→  };
+   325→
+   326→  // ─── Send Message Helpers ─────────────────────────────────────────────────
+   327→
+   328→  const selectedTemplateForSingle = templates.find(
+   329→    (t) => t.id === singleForm.templateId
+   330→  );
+   331→
+   332→  const handleSingleTemplateChange = (templateId: string) => {
+   333→    const tpl = templates.find((t) => t.id === templateId);
+   334→    setSingleForm((prev) => ({
+   335→      ...prev,
+   336→      templateId,
+   337→      message: tpl ? tpl.body : "",
+   338→    }));
+   339→  };
+   340→
+   341→  const handleSendSingle = async () => {
+   342→    if (!singleForm.recipient.trim()) {
+   343→      toast.error("Recipient phone number is required");
+   344→      return;
+   345→    }
+   346→    if (!singleForm.message.trim()) {
+   347→      toast.error("Message body is required");
+   348→      return;
+   349→    }
+   350→    setSendingSingle(true);
+   351→    try {
+   352→      const payload: Record<string, string> = {
+   353→        recipient: singleForm.recipient.trim(),
+   354→        channel: singleForm.channel,
+   355→        message: singleForm.message,
+   356→      };
+   357→      if (singleForm.templateId) payload.templateId = singleForm.templateId;
+   358→      await apiSendMessage(payload);
+   359→      toast.success("Message sent successfully");
+   360→      setSingleForm(emptySingleForm);
+   361→      fetchLogs();
+   362→    } catch (err: unknown) {
+   363→      toast.error(err instanceof Error ? err.message : "Failed to send message");
+   364→    } finally {
+   365→      setSendingSingle(false);
+   366→    }
+   367→  };
+   368→
+   369→  const handleBulkSend = async () => {
+   370→    if (!bulkForm.templateId) {
+   371→      toast.error("Please select a template");
+   372→      return;
+   373→    }
+   374→    setSendingBulk(true);
+   375→    try {
+   376→      const result = await apiBulkSendMessages({
+   377→        templateId: bulkForm.templateId,
+   378→        status: bulkForm.status,
+   379→        channel: bulkForm.channel,
+   380→      });
+   381→      const sent = (result as Record<string, number>)?.sent ?? 0;
+   382→      const failed = (result as Record<string, number>)?.failed ?? 0;
+   383→      toast.success(`${sent} messages sent, ${failed} failed`);
+   384→      setBulkConfirmOpen(false);
+   385→      setBulkForm(emptyBulkForm);
+   386→      fetchLogs();
+   387→    } catch (err: unknown) {
+   388→      toast.error(err instanceof Error ? err.message : "Bulk send failed");
+   389→    } finally {
+   390→      setSendingBulk(false);
+   391→    }
+   392→  };
+   393→
+   394→  // ─── Render ───────────────────────────────────────────────────────────────
+   395→
+   396→  return (
+   397→    <div className="space-y-6 p-4 md:p-6">
+   398→      {/* Header */}
+   399→      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+   400→        <div>
+   401→          <h1 className="text-2xl font-bold tracking-tight">
+   402→            Guest Communication
+   403→          </h1>
+   404→          <p className="mt-1 text-sm text-muted-foreground">
+   405→            Send SMS/WhatsApp messages to guests
+   406→          </p>
+   407→        </div>
+   408→        {activeTab === "templates" && (
+   409→          <Button onClick={openCreateTpl} className="gap-2 shrink-0">
+   410→            <Plus className="h-4 w-4" />
+   411→            New Template
+   412→          </Button>
+   413→        )}
+   414→      </div>
+   415→
+   416→      <Tabs value={activeTab} onValueChange={setActiveTab}>
+   417→        <TabsList>
+   418→          <TabsTrigger value="templates" className="gap-2">
+   419→            <MessageSquare className="h-4 w-4" />
+   420→            Templates ({templates.length})
+   421→          </TabsTrigger>
+   422→          <TabsTrigger value="send" className="gap-2">
+   423→            <Send className="h-4 w-4" />
+   424→            Send Message
+   425→          </TabsTrigger>
+   426→          <TabsTrigger value="history" className="gap-2">
+   427→            <History className="h-4 w-4" />
+   428→            Message History
+   429→          </TabsTrigger>
+   430→        </TabsList>
+   431→
+   432→        {/* ─── Tab 1: Templates ────────────────────────────────────────────── */}
+   433→        <TabsContent value="templates">
+   434→          {tplLoading ? (
+   435→            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+   436→              {Array.from({ length: 6 }).map((_, i) => (
+   437→                <Skeleton key={i} className="h-52 rounded-xl" />
+   438→              ))}
+   439→            </div>
+   440→          ) : templates.length === 0 ? (
+   441→            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16">
+   442→              <MessageSquare className="h-12 w-12 text-gray-300 mb-3" />
+   443→              <p className="text-lg font-medium text-gray-500">
+   444→                No message templates
+   445→              </p>
+   446→              <p className="mt-1 text-sm text-gray-400">
+   447→                Create your first template to get started
+   448→              </p>
+   449→              <Button
+   450→                onClick={openCreateTpl}
+   451→                variant="outline"
+   452→                className="mt-4 gap-2"
+   453→              >
+   454→                <Plus className="h-4 w-4" /> New Template
+   455→              </Button>
+   456→            </div>
+   457→          ) : (
+   458→            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+   459→              {templates.map((tpl) => {
+   460→                const channelColor =
+   461→                  CHANNEL_BADGE[tpl.channel] ?? CHANNEL_BADGE.SMS;
+   462→                const typeColor = TYPE_BADGE[tpl.type] ?? TYPE_BADGE.CUSTOM;
+   463→                return (
+   464→                  <Card
+   465→                    key={tpl.id}
+   466→                    className={`gap-0 overflow-hidden py-0 transition-shadow hover:shadow-md ${
+   467→                      !tpl.isActive ? "opacity-60" : ""
+   468→                    }`}
+   469→                  >
+   470→                    <CardContent className="p-4">
+   471→                      <div className="flex items-start justify-between mb-3">
+   472→                        <div className="flex-1 min-w-0">
+   473→                          <h3 className="font-semibold text-gray-900 leading-tight truncate">
+   474→                            {tpl.name}
+   475→                          </h3>
+   476→                          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+   477→                            <Badge
+   478→                              variant="outline"
+   479→                              className={`text-xs ${typeColor}`}
+   480→                            >
+   481→                              {TYPE_LABELS[tpl.type] ?? tpl.type}
+   482→                            </Badge>
+   483→                            <Badge
+   484→                              variant="outline"
+   485→                              className={`text-xs ${channelColor}`}
+   486→                            >
+   487→                              {tpl.channel}
+   488→                            </Badge>
+   489→                            {tpl.isDefault && (
+   490→                              <Badge
+   491→                                variant="outline"
+   492→                                className="text-xs bg-amber-50 text-amber-700 border-amber-200"
+   493→                              >
+   494→                                Default
+   495→                              </Badge>
+   496→                            )}
+   497→                          </div>
+   498→                        </div>
+   499→                      </div>
+   500→
+   501→                      <p className="text-sm text-gray-600 line-clamp-2 mb-3 whitespace-pre-line">
+   502→                        {tpl.body}
+   503→                      </p>
+   504→
+   505→                      <div className="flex items-center justify-between">
+   506→                        <div className="flex items-center gap-2">
+   507→                          <Switch
+   508→                            checked={tpl.isActive}
+   509→                            disabled={togglingId === tpl.id}
+   510→                            onCheckedChange={() => handleToggleActive(tpl)}
+   511→                          />
+   512→                          <span className="text-xs text-muted-foreground">
+   513→                            {tpl.isActive ? "Active" : "Inactive"}
+   514→                          </span>
+   515→                        </div>
+   516→                        <div className="flex items-center gap-1">
+   517→                          <Button
+   518→                            variant="ghost"
+   519→                            size="icon"
+   520→                            className="h-8 w-8"
+   521→                            onClick={() => openEditTpl(tpl)}
+   522→                          >
+   523→                            <Pencil className="h-4 w-4" />
+   524→                          </Button>
+   525→                          <Button
+   526→                            variant="ghost"
+   527→                            size="icon"
+   528→                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+   529→                            disabled={tpl.isDefault}
+   530→                            onClick={() => setTplDeleteTarget(tpl)}
+   531→                          >
+   532→                            <Trash2 className="h-4 w-4" />
+   533→                          </Button>
+   534→                        </div>
+   535→                      </div>
+   536→                    </CardContent>
+   537→                  </Card>
+   538→                );
+   539→              })}
+   540→            </div>
+   541→          )}
+   542→        </TabsContent>
+   543→
+   544→        {/* ─── Tab 2: Send Message ─────────────────────────────────────────── */}
+   545→        <TabsContent value="send">
+   546→          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+   547→            {/* Single Message */}
+   548→            <Card>
+   549→              <CardHeader>
+   550→                <CardTitle className="flex items-center gap-2 text-lg">
+   551→                  <Send className="h-5 w-5 text-primary" />
+   552→                  Single Message
+   553→                </CardTitle>
+   554→              </CardHeader>
+   555→              <CardContent className="space-y-4">
+   556→                <div className="space-y-2">
+   557→                  <Label htmlFor="single-recipient">
+   558→                    Recipient Phone <span className="text-rose-500">*</span>
+   559→                  </Label>
+   560→                  <Input
+   561→                    id="single-recipient"
+   562→                    placeholder="+251912345678"
+   563→                    value={singleForm.recipient}
+   564→                    onChange={(e) =>
+   565→                      setSingleForm((p) => ({
+   566→                        ...p,
+   567→                        recipient: e.target.value,
+   568→                      }))
+   569→                    }
+   570→                  />
+   571→                </div>
+   572→
+   573→                <div className="space-y-2">
+   574→                  <Label htmlFor="single-channel">Channel</Label>
+   575→                  <Select
+   576→                    value={singleForm.channel}
+   577→                    onValueChange={(v) =>
+   578→                      setSingleForm((p) => ({ ...p, channel: v }))
+   579→                    }
+   580→                  >
+   581→                    <SelectTrigger id="single-channel">
+   582→                      <SelectValue />
+   583→                    </SelectTrigger>
+   584→                    <SelectContent>
+   585→                      <SelectItem value="SMS">SMS</SelectItem>
+   586→                      <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
+   587→                    </SelectContent>
+   588→                  </Select>
+   589→                </div>
+   590→
+   591→                <div className="space-y-2">
+   592→                  <Label htmlFor="single-template">Template (Optional)</Label>
+   593→                  <Select
+   594→                    value={singleForm.templateId}
+   595→                    onValueChange={handleSingleTemplateChange}
+   596→                  >
+   597→                    <SelectTrigger id="single-template">
+   598→                      <SelectValue placeholder="Select a template..." />
+   599→                    </SelectTrigger>
+   600→                    <SelectContent>
+   601→                      {templates
+   602→                        .filter((t) => t.isActive)
+   603→                        .map((t) => (
+   604→                          <SelectItem key={t.id} value={t.id}>
+   605→                            {t.name} ({t.channel})
+   606→                          </SelectItem>
+   607→                        ))}
+   608→                    </SelectContent>
+   609→                  </Select>
+   610→                </div>
+   611→
+   612→                <div className="space-y-2">
+   613→                  <Label htmlFor="single-message">
+   614→                    Message <span className="text-rose-500">*</span>
+   615→                  </Label>
+   616→                  <Textarea
+   617→                    id="single-message"
+   618→                    placeholder="Type your message here..."
+   619→                    rows={6}
+   620→                    value={singleForm.message}
+   621→                    onChange={(e) =>
+   622→                      setSingleForm((p) => ({
+   623→                        ...p,
+   624→                        message: e.target.value,
+   625→                      }))
+   626→                    }
+   627→                  />
+   628→                  {selectedTemplateForSingle && (
+   629→                    <p className="text-xs text-muted-foreground flex items-start gap-1.5">
+   630→                      <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+   631→                      Preview from template &ldquo;{selectedTemplateForSingle.name}
+   632→                      &rdquo;. You can edit before sending.
+   633→                    </p>
+   634→                  )}
+   635→                </div>
+   636→
+   637→                <Button
+   638→                  onClick={handleSendSingle}
+   639→                  disabled={sendingSingle}
+   640→                  className="w-full gap-2"
+   641→                >
+   642→                  <Send className="h-4 w-4" />
+   643→                  {sendingSingle ? "Sending..." : "Send Message"}
+   644→                </Button>
+   645→              </CardContent>
+   646→            </Card>
+   647→
+   648→            {/* Bulk Send */}
+   649→            <Card>
+   650→              <CardHeader>
+   651→                <CardTitle className="flex items-center gap-2 text-lg">
+   652→                  <Megaphone className="h-5 w-5 text-primary" />
+   653→                  Bulk Send
+   654→                </CardTitle>
+   655→              </CardHeader>
+   656→              <CardContent className="space-y-4">
+   657→                <div className="space-y-2">
+   658→                  <Label htmlFor="bulk-template">
+   659→                    Template <span className="text-rose-500">*</span>
+   660→                  </Label>
+   661→                  <Select
+   662→                    value={bulkForm.templateId}
+   663→                    onValueChange={(v) =>
+   664→                      setBulkForm((p) => ({ ...p, templateId: v }))
+   665→                    }
+   666→                  >
+   667→                    <SelectTrigger id="bulk-template">
+   668→                      <SelectValue placeholder="Select a template..." />
+   669→                    </SelectTrigger>
+   670→                    <SelectContent>
+   671→                      {templates
+   672→                        .filter((t) => t.isActive)
+   673→                        .map((t) => (
+   674→                          <SelectItem key={t.id} value={t.id}>
+   675→                            {t.name} ({t.channel})
+   676→                          </SelectItem>
+   677→                        ))}
+   678→                    </SelectContent>
+   679→                  </Select>
+   680→                </div>
+   681→
+   682→                <div className="space-y-2">
+   683→                  <Label htmlFor="bulk-status">Target Guests</Label>
+   684→                  <Select
+   685→                    value={bulkForm.status}
+   686→                    onValueChange={(v) =>
+   687→                      setBulkForm((p) => ({ ...p, status: v }))
+   688→                    }
+   689→                  >
+   690→                    <SelectTrigger id="bulk-status">
+   691→                      <SelectValue />
+   692→                    </SelectTrigger>
+   693→                    <SelectContent>
+   694→                      <SelectItem value="UPCOMING">Upcoming</SelectItem>
+   695→                      <SelectItem value="ACTIVE">Active</SelectItem>
+   696→                      <SelectItem value="COMPLETED">Completed</SelectItem>
+   697→                    </SelectContent>
+   698→                  </Select>
+   699→                </div>
+   700→
+   701→                <div className="space-y-2">
+   702→                  <Label htmlFor="bulk-channel">Channel</Label>
+   703→                  <Select
+   704→                    value={bulkForm.channel}
+   705→                    onValueChange={(v) =>
+   706→                      setBulkForm((p) => ({ ...p, channel: v }))
+   707→                    }
+   708→                  >
+   709→                    <SelectTrigger id="bulk-channel">
+   710→                      <SelectValue />
+   711→                    </SelectTrigger>
+   712→                    <SelectContent>
+   713→                      <SelectItem value="SMS">SMS</SelectItem>
+   714→                      <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
+   715→                    </SelectContent>
+   716→                  </Select>
+   717→                </div>
+   718→
+   719→                {bulkForm.templateId && (
+   720→                  <div className="rounded-lg border bg-muted/40 p-3">
+   721→                    <p className="text-xs font-medium text-muted-foreground mb-1">
+   722→                      Template Preview
+   723→                    </p>
+   724→                    <p className="text-sm text-gray-700 line-clamp-3 whitespace-pre-line">
+   725→                      {
+   726→                        templates.find(
+   727→                          (t) => t.id === bulkForm.templateId
+   728→                        )?.body ?? ""
+   729→                      }
+   730→                    </p>
+   731→                  </div>
+   732→                )}
+   733→
+   734→                <Button
+   735→                  variant="outline"
+   736→                  onClick={() => setBulkConfirmOpen(true)}
+   737→                  disabled={!bulkForm.templateId || sendingBulk}
+   738→                  className="w-full gap-2"
+   739→                >
+   740→                  <Megaphone className="h-4 w-4" />
+   741→                  Send to All {bulkForm.status === "UPCOMING" ? "Upcoming" : bulkForm.status === "ACTIVE" ? "Active" : "Completed"} Guests
+   742→                </Button>
+   743→              </CardContent>
+   744→            </Card>
+   745→          </div>
+   746→        </TabsContent>
+   747→
+   748→        {/* ─── Tab 3: Message History ──────────────────────────────────────── */}
+   749→        <TabsContent value="history">
+   750→          <div className="space-y-4">
+   751→            {/* Filters */}
+   752→            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+   753→              <div className="flex items-center gap-2 flex-1">
+   754→                <Label className="text-sm text-muted-foreground whitespace-nowrap">
+   755→                  Status:
+   756→                </Label>
+   757→                <Select
+   758→                  value={filterStatus}
+   759→                  onValueChange={setFilterStatus}
+   760→                >
+   761→                  <SelectTrigger className="w-[150px]">
+   762→                    <SelectValue />
+   763→                  </SelectTrigger>
+   764→                  <SelectContent>
+   765→                    <SelectItem value="ALL">All</SelectItem>
+   766→                    <SelectItem value="SENT">Sent</SelectItem>
+   767→                    <SelectItem value="DELIVERED">Delivered</SelectItem>
+   768→                    <SelectItem value="PENDING">Pending</SelectItem>
+   769→                    <SelectItem value="FAILED">Failed</SelectItem>
+   770→                  </SelectContent>
+   771→                </Select>
+   772→              </div>
+   773→              <div className="flex items-center gap-2">
+   774→                <Label className="text-sm text-muted-foreground whitespace-nowrap">
+   775→                  Channel:
+   776→                </Label>
+   777→                <Select
+   778→                  value={filterChannel}
+   779→                  onValueChange={setFilterChannel}
+   780→                >
+   781→                  <SelectTrigger className="w-[150px]">
+   782→                    <SelectValue />
+   783→                  </SelectTrigger>
+   784→                  <SelectContent>
+   785→                    <SelectItem value="ALL">All</SelectItem>
+   786→                    <SelectItem value="SMS">SMS</SelectItem>
+   787→                    <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
+   788→                  </SelectContent>
+   789→                </Select>
+   790→              </div>
+   791→              <span className="text-sm text-muted-foreground">
+   792→                {logsTotal} message{logsTotal !== 1 ? "s" : ""}
+   793→              </span>
+   794→            </div>
+   795→
+   796→            {logsLoading ? (
+   797→              <div className="space-y-3">
+   798→                {Array.from({ length: 5 }).map((_, i) => (
+   799→                  <Skeleton key={i} className="h-14 rounded-lg" />
+   800→                ))}
+   801→              </div>
+   802→            ) : logs.length === 0 ? (
+   803→              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16">
+   804→                <History className="h-12 w-12 text-gray-300 mb-3" />
+   805→                <p className="text-lg font-medium text-gray-500">
+   806→                  No messages found
+   807→                </p>
+   808→                <p className="mt-1 text-sm text-gray-400">
+   809→                  Messages you send will appear here
+   810→                </p>
+   811→              </div>
+   812→            ) : (
+   813→              <>
+   814→                {/* Desktop Table */}
+   815→                <div className="hidden md:block rounded-xl border">
+   816→                  <Table>
+   817→                    <TableHeader>
+   818→                      <TableRow>
+   819→                        <TableHead>Date</TableHead>
+   820→                        <TableHead>Recipient</TableHead>
+   821→                        <TableHead>Channel</TableHead>
+   822→                        <TableHead>Template</TableHead>
+   823→                        <TableHead>Status</TableHead>
+   824→                        <TableHead className="max-w-[200px]">
+   825→                          Message
+   826→                        </TableHead>
+   827→                      </TableRow>
+   828→                    </TableHeader>
+   829→                    <TableBody>
+   830→                      {logs.map((log) => (
+   831→                        <TableRow key={log.id}>
+   832→                          <TableCell className="text-sm whitespace-nowrap">
+   833→                            {log.sentAt
+   834→                              ? new Date(log.sentAt).toLocaleString()
+   835→                              : new Date(log.createdAt).toLocaleString()}
+   836→                          </TableCell>
+   837→                          <TableCell className="text-sm font-medium">
+   838→                            {log.recipient}
+   839→                          </TableCell>
+   840→                          <TableCell>
+   841→                            <Badge
+   842→                              variant="outline"
+   843→                              className={`text-xs ${
+   844→                                CHANNEL_BADGE[log.channel] ??
+   845→                                CHANNEL_BADGE.SMS
+   846→                              }`}
+   847→                            >
+   848→                              {log.channel}
+   849→                            </Badge>
+   850→                          </TableCell>
+   851→                          <TableCell className="text-sm">
+   852→                            {log.template?.name ?? "—"}
+   853→                          </TableCell>
+   854→                          <TableCell>
+   855→                            <Badge
+   856→                              variant="outline"
+   857→                              className={`text-xs ${
+   858→                                STATUS_BADGE[log.status] ??
+   859→                                "bg-gray-100 text-gray-600 border-gray-200"
+   860→                              }`}
+   861→                            >
+   862→                              {log.status}
+   863→                            </Badge>
+   864→                          </TableCell>
+   865→                          <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
+   866→                            {log.message}
+   867→                          </TableCell>
+   868→                        </TableRow>
+   869→                      ))}
+   870→                    </TableBody>
+   871→                  </Table>
+   872→                </div>
+   873→
+   874→                {/* Mobile Cards */}
+   875→                <div className="md:hidden space-y-3">
+   876→                  {logs.map((log) => (
+   877→                    <Card key={log.id} className="py-0 gap-0">
+   878→                      <CardContent className="p-4 space-y-2">
+   879→                        <div className="flex items-center justify-between">
+   880→                          <span className="text-sm font-medium">
+   881→                            {log.recipient}
+   882→                          </span>
+   883→                          <Badge
+   884→                            variant="outline"
+   885→                            className={`text-xs ${
+   886→                              STATUS_BADGE[log.status] ??
+   887→                              "bg-gray-100 text-gray-600 border-gray-200"
+   888→                            }`}
+   889→                          >
+   890→                            {log.status}
+   891→                          </Badge>
+   892→                        </div>
+   893→                        <p className="text-sm text-muted-foreground line-clamp-2">
+   894→                          {log.message}
+   895→                        </p>
+   896→                        <div className="flex items-center justify-between">
+   897→                          <div className="flex items-center gap-1.5">
+   898→                            <Badge
+   899→                              variant="outline"
+   900→                              className={`text-xs ${
+   901→                                CHANNEL_BADGE[log.channel] ??
+   902→                                CHANNEL_BADGE.SMS
+   903→                              }`}
+   904→                            >
+   905→                              {log.channel}
+   906→                            </Badge>
+   907→                            {log.template?.name && (
+   908→                              <span className="text-xs text-muted-foreground">
+   909→                                {log.template.name}
+   910→                              </span>
+   911→                            )}
+   912→                          </div>
+   913→                          <span className="text-xs text-muted-foreground">
+   914→                            {log.sentAt
+   915→                              ? new Date(log.sentAt).toLocaleDateString()
+   916→                              : new Date(log.createdAt).toLocaleDateString()}
+   917→                          </span>
+   918→                        </div>
+   919→                      </CardContent>
+   920→                    </Card>
+   921→                  ))}
+   922→                </div>
+   923→
+   924→                {/* Pagination */}
+   925→                {logsTotalPages > 1 && (
+   926→                  <div className="flex items-center justify-center gap-2">
+   927→                    <Button
+   928→                      variant="outline"
+   929→                      size="sm"
+   930→                      disabled={logsPage <= 1}
+   931→                      onClick={() => setLogsPage((p) => p - 1)}
+   932→                    >
+   933→                      Previous
+   934→                    </Button>
+   935→                    <span className="text-sm text-muted-foreground">
+   936→                      Page {logsPage} of {logsTotalPages}
+   937→                    </span>
+   938→                    <Button
+   939→                      variant="outline"
+   940→                      size="sm"
+   941→                      disabled={logsPage >= logsTotalPages}
+   942→                      onClick={() => setLogsPage((p) => p + 1)}
+   943→                    >
+   944→                      Next
+   945→                    </Button>
+   946→                  </div>
+   947→                )}
+   948→              </>
+   949→            )}
+   950→          </div>
+   951→        </TabsContent>
+   952→      </Tabs>
+   953→
+   954→      {/* ─── Template Edit / Create Dialog ──────────────────────────────────── */}
+   955→      <Dialog open={tplDialogOpen} onOpenChange={setTplDialogOpen}>
+   956→        <DialogContent className="mx-4 sm:mx-0 w-[calc(100%-2rem)] sm:w-full sm:max-w-lg max-h-[85vh] overflow-y-auto">
+   957→          <DialogHeader>
+   958→            <DialogTitle className="flex items-center gap-2">
+   959→              <MessageSquare className="h-5 w-5 text-primary" />
+   960→              {editingTpl ? "Edit Template" : "New Template"}
+   961→            </DialogTitle>
+   962→            <DialogDescription>
+   963→              {editingTpl
+   964→                ? "Update the message template details."
+   965→                : "Create a new message template for guest communications."}
+   966→            </DialogDescription>
+   967→          </DialogHeader>
+   968→
+   969→          <div className="grid gap-4 py-2">
+   970→            <div className="space-y-2">
+   971→              <Label htmlFor="tpl-name">
+   972→                Name <span className="text-rose-500">*</span>
+   973→              </Label>
+   974→              <Input
+   975→                id="tpl-name"
+   976→                placeholder="e.g. Check-in Reminder"
+   977→                value={tplForm.name}
+   978→                onChange={(e) =>
+   979→                  setTplForm((p) => ({ ...p, name: e.target.value }))
+   980→                }
+   981→                autoFocus
+   982→              />
+   983→            </div>
+   984→
+   985→            <div className="grid grid-cols-2 gap-4">
+   986→              <div className="space-y-2">
+   987→                <Label htmlFor="tpl-type">Type</Label>
+   988→                <Select
+   989→                  value={tplForm.type}
+   990→                  onValueChange={(v) =>
+   991→                    setTplForm((p) => ({ ...p, type: v }))
+   992→                  }
+   993→                >
+   994→                  <SelectTrigger id="tpl-type">
+   995→                    <SelectValue />
+   996→                  </SelectTrigger>
+   997→                  <SelectContent>
+   998→                    <SelectItem value="CHECKIN_REMINDER">
+   999→                      Check-in Reminder
+  1000→                    </SelectItem>
+  1001→                    <SelectItem value="WELCOME">Welcome</SelectItem>
+  1002→                    <SelectItem value="CHECKOUT_REMINDER">
+  1003→                      Checkout Reminder
+  1004→                    </SelectItem>
+  1005→                    <SelectItem value="CONFIRMATION">
+  1006→                      Confirmation
+  1007→                    </SelectItem>
+  1008→                    <SelectItem value="CUSTOM">Custom</SelectItem>
+  1009→                  </SelectContent>
+  1010→                </Select>
+  1011→              </div>
+  1012→
+  1013→              <div className="space-y-2">
+  1014→                <Label htmlFor="tpl-channel">Channel</Label>
+  1015→                <Select
+  1016→                  value={tplForm.channel}
+  1017→                  onValueChange={(v) =>
+  1018→                    setTplForm((p) => ({ ...p, channel: v }))
+  1019→                  }
+  1020→                >
+  1021→                  <SelectTrigger id="tpl-channel">
+  1022→                    <SelectValue />
+  1023→                  </SelectTrigger>
+  1024→                  <SelectContent>
+  1025→                    <SelectItem value="SMS">SMS</SelectItem>
+  1026→                    <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
+  1027→                  </SelectContent>
+  1028→                </Select>
+  1029→              </div>
+  1030→            </div>
+  1031→
+  1032→            <div className="space-y-2">
+  1033→              <Label htmlFor="tpl-body">
+  1034→                Body <span className="text-rose-500">*</span>
+  1035→              </Label>
+  1036→              <Textarea
+  1037→                id="tpl-body"
+  1038→                placeholder="Write your message template..."
+  1039→                rows={6}
+  1040→                value={tplForm.body}
+  1041→                onChange={(e) =>
+  1042→                  setTplForm((p) => ({ ...p, body: e.target.value }))
+  1043→                }
+  1044→              />
+  1045→              <div className="rounded-lg border bg-muted/40 p-3">
+  1046→                <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
+  1047→                  <Info className="h-3.5 w-3.5" />
+  1048→                  Available Placeholders
+  1049→                </p>
+  1050→                <div className="flex flex-wrap gap-1.5">
+  1051→                  {PLACEHOLDERS.map((p) => (
+  1052→                    <span
+  1053→                      key={p}
+  1054→                      className="inline-block rounded bg-background px-1.5 py-0.5 text-xs font-mono text-muted-foreground border"
+  1055→                    >
+  1056→                      {p}
+  1057→                    </span>
+  1058→                  ))}
+  1059→                </div>
+  1060→              </div>
+  1061→            </div>
+  1062→          </div>
+  1063→
+  1064→          <DialogFooter>
+  1065→            <Button
+  1066→              type="button"
+  1067→              variant="outline"
+  1068→              onClick={() => setTplDialogOpen(false)}
+  1069→            >
+  1070→              Cancel
+  1071→            </Button>
+  1072→            <Button onClick={handleSaveTpl} disabled={tplSaving}>
+  1073→              {tplSaving
+  1074→                ? "Saving..."
+  1075→                : editingTpl
+  1076→                  ? "Update Template"
+  1077→                  : "Create Template"}
+  1078→            </Button>
+  1079→          </DialogFooter>
+  1080→        </DialogContent>
+  1081→      </Dialog>
+  1082→
+  1083→      {/* ─── Delete Template Alert ──────────────────────────────────────────── */}
+  1084→      <AlertDialog
+  1085→        open={!!tplDeleteTarget}
+  1086→        onOpenChange={() => setTplDeleteTarget(null)}
+  1087→      >
+  1088→        <AlertDialogContent>
+  1089→          <AlertDialogHeader>
+  1090→            <AlertDialogTitle>
+  1091→              Delete &quot;{tplDeleteTarget?.name}&quot;?
+  1092→            </AlertDialogTitle>
+  1093→            <AlertDialogDescription>
+  1094→              This will permanently delete this template. This action cannot be
+  1095→              undone.
+  1096→            </AlertDialogDescription>
+  1097→          </AlertDialogHeader>
+  1098→          <AlertDialogFooter>
+  1099→            <AlertDialogCancel>Cancel</AlertDialogCancel>
+  1100→            <AlertDialogAction
+  1101→              className="bg-rose-600 hover:bg-rose-700"
+  1102→              onClick={handleDeleteTpl}
+  1103→              disabled={tplDeleting}
+  1104→            >
+  1105→              {tplDeleting ? "Deleting..." : "Delete"}
+  1106→            </AlertDialogAction>
+  1107→          </AlertDialogFooter>
+  1108→        </AlertDialogContent>
+  1109→      </AlertDialog>
+  1110→
+  1111→      {/* ─── Bulk Send Confirmation ─────────────────────────────────────────── */}
+  1112→      <AlertDialog
+  1113→        open={bulkConfirmOpen}
+  1114→        onOpenChange={setBulkConfirmOpen}
+  1115→      >
+  1116→        <AlertDialogContent>
+  1117→          <AlertDialogHeader>
+  1118→            <AlertDialogTitle>Confirm Bulk Send</AlertDialogTitle>
+  1119→            <AlertDialogDescription>
+  1120→              This will send the selected template to all{" "}
+  1121→              {bulkForm.status === "UPCOMING"
+  1122→                ? "upcoming"
+  1123→                : bulkForm.status === "ACTIVE"
+  1124→                  ? "active"
+  1125→                  : "completed"}{" "}
+  1126→              guests via {bulkForm.channel}. Are you sure?
+  1127→            </AlertDialogDescription>
+  1128→          </AlertDialogHeader>
+  1129→          <AlertDialogFooter>
+  1130→            <AlertDialogCancel>Cancel</AlertDialogCancel>
+  1131→            <AlertDialogAction onClick={handleBulkSend} disabled={sendingBulk}>
+  1132→              {sendingBulk ? "Sending..." : "Confirm Send"}
+  1133→            </AlertDialogAction>
+  1134→          </AlertDialogFooter>
+  1135→        </AlertDialogContent>
+  1136→      </AlertDialog>
+  1137→    </div>
+  1138→  );
+  1139→}
+  1140→

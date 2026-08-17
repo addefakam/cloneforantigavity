@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAuthContext, getProviderFilter, checkWritePermission, AuthError } from "@/lib/tenant";
 import { runAnomalyDetection } from "@/lib/anomaly-engine";
+import { logStaffActivity, getLogUserInfo } from "@/lib/staff-log";
 
 export async function POST(
   req: NextRequest,
@@ -45,6 +46,14 @@ export async function POST(
     await db.room.update({
       where: { id: reservation.roomId },
       data: { status: "OCCUPIED" },
+    });
+
+    // Staff log
+    const { userId, userName } = getLogUserInfo(req);
+    logStaffActivity({
+      req, userId, userName, action: "CHECKIN", targetType: "RESERVATION", targetId: id,
+      details: { guestName: updated.guest.name, roomNumber: updated.room.number, checkIn: reservation.checkIn },
+      providerId,
     });
 
     // Background: run anomaly detection on check-in (fire-and-forget)

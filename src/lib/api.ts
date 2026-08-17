@@ -389,3 +389,33 @@ export const apiSuperGetProviders = () =>
 // ── Superuser: create guesthouse (auto-approved) ──
 export const apiSuperCreateProvider = (data: Record<string, unknown>) =>
   req("/api/providers", { method: "POST", body: JSON.stringify(data) });
+
+// ── Group Bookings ──
+export const apiGetGroupBookings = (params?: string) =>
+  req(`/api/group-bookings${params ? `?${params}` : ""}`);
+export const apiCreateGroupBooking = (data: Record<string, unknown>) =>
+  req("/api/group-bookings", { method: "POST", body: JSON.stringify(data) });
+export const apiUpdateGroupBooking = (id: string, data: Record<string, unknown>) =>
+  req(`/api/group-bookings/${id}`, { method: "PUT", body: JSON.stringify(data) });
+export const apiDeleteGroupBooking = (id: string) =>
+  req(`/api/group-bookings/${id}`, { method: "DELETE" });
+
+// ── Staff Logs ──
+export const apiGetStaffLogs = (params?: string) =>
+  req(`/api/staff-logs${params ? `?${params}` : ""}`);
+
+// ── Messages ──
+export const apiGetMessageTemplates = () =>
+  req("/api/messages/templates");
+export const apiCreateMessageTemplate = (data: Record<string, unknown>) =>
+  req("/api/messages/templates", { method: "POST", body: JSON.stringify(data) });
+export const apiUpdateMessageTemplate = (id: string, data: Record<string, unknown>) =>
+  req(`/api/messages/templates/${id}`, { method: "PUT", body: JSON.stringify(data) });
+export const apiDeleteMessageTemplate = (id: string) =>
+  req(`/api/messages/templates/${id}`, { method: "DELETE" });
+export const apiSendMessage = (data: Record<string, unknown>) =>
+  req("/api/messages/send", { method: "POST", body: JSON.stringify(data) });
+export const apiBulkSendMessages = (data: Record<string, unknown>) =>
+  req("/api/messages/bulk-send", { method: "POST", body: JSON.stringify(data) });
+export const apiGetMessageLogs = (params?: string) =>
+  req(`/api/messages/logs${params ? `?${params}` : ""}`);

@@ -18,6 +18,9 @@ DO $$ BEGIN CREATE TYPE "HousekeepingTaskType" AS ENUM ('CLEANING','MAINTENANCE'
 DO $$ BEGIN CREATE TYPE "HousekeepingTaskStatus" AS ENUM ('PENDING','IN_PROGRESS','COMPLETED'); EXCEPTION WHEN duplicate_object THEN null; END $$;
 DO $$ BEGIN CREATE TYPE "SuspectSeverity" AS ENUM ('LOW','MEDIUM','HIGH','CRITICAL'); EXCEPTION WHEN duplicate_object THEN null; END $$;
 DO $$ BEGIN CREATE TYPE "SubscriptionCycle" AS ENUM ('MONTHLY','QUARTERLY','SEMI_ANNUAL','YEARLY'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE TYPE "GroupBookingStatus" AS ENUM ('PENDING','CONFIRMED','IN_PROGRESS','COMPLETED','CANCELLED'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE TYPE "MessageChannel" AS ENUM ('SMS','WHATSAPP'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE TYPE "MessageStatus" AS ENUM ('PENDING','SENT','FAILED','DELIVERED'); EXCEPTION WHEN duplicate_object THEN null; END $$;
 `;
 
 // ─── Table creation ────────────────────────────────────────────────────────
@@ -398,6 +401,12 @@ DO $$ BEGIN ALTER TABLE "SuspectMatch" ADD CONSTRAINT "SuspectMatch_suspectedPer
 DO $$ BEGIN ALTER TABLE "Subscription" ADD CONSTRAINT "Subscription_providerId_fkey" FOREIGN KEY ("providerId") REFERENCES "Provider"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN null; END $$;
 DO $$ BEGIN ALTER TABLE "SubscriptionPayment" ADD CONSTRAINT "SubscriptionPayment_subscriptionId_fkey" FOREIGN KEY ("subscriptionId") REFERENCES "Subscription"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN null; END $$;
 DO $$ BEGIN ALTER TABLE "Subscription" ADD CONSTRAINT "Subscription_planId_fkey" FOREIGN KEY ("planId") REFERENCES "SubscriptionPlan"("id") ON DELETE SET NULL ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN ALTER TABLE "GroupBooking" ADD CONSTRAINT "GroupBooking_providerId_fkey" FOREIGN KEY ("providerId") REFERENCES "Provider"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN ALTER TABLE "StaffLog" ADD CONSTRAINT "StaffLog_providerId_fkey" FOREIGN KEY ("providerId") REFERENCES "Provider"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN ALTER TABLE "MessageTemplate" ADD CONSTRAINT "MessageTemplate_providerId_fkey" FOREIGN KEY ("providerId") REFERENCES "Provider"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN ALTER TABLE "MessageLog" ADD CONSTRAINT "MessageLog_providerId_fkey" FOREIGN KEY ("providerId") REFERENCES "Provider"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN ALTER TABLE "MessageLog" ADD CONSTRAINT "MessageLog_templateId_fkey" FOREIGN KEY ("templateId") REFERENCES "MessageTemplate"("id") ON DELETE SET NULL ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN ALTER TABLE "Reservation" ADD CONSTRAINT "Reservation_groupBookingId_fkey" FOREIGN KEY ("groupBookingId") REFERENCES "GroupBooking"("id") ON DELETE SET NULL ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN null; END $$;
 `;
 
 // ─── Migrations: Add new columns to existing tables ────────────────
@@ -479,6 +488,66 @@ DO $$ BEGIN
   ALTER TABLE "Provider" ADD COLUMN "suspendedBy" TEXT NOT NULL DEFAULT '';
 EXCEPTION WHEN duplicate_column THEN null;
 END $$;
+DO $$ BEGIN
+  ALTER TABLE "Reservation" ADD COLUMN "groupBookingId" TEXT;
+EXCEPTION WHEN duplicate_column THEN null;
+END $$;
+CREATE TABLE IF NOT EXISTS "GroupBooking" (
+  "id" TEXT NOT NULL PRIMARY KEY,
+  "name" TEXT NOT NULL,
+  "contactName" TEXT NOT NULL DEFAULT '',
+  "contactPhone" TEXT NOT NULL DEFAULT '',
+  "contactEmail" TEXT NOT NULL DEFAULT '',
+  "startDate" TEXT NOT NULL,
+  "endDate" TEXT NOT NULL,
+  "notes" TEXT NOT NULL DEFAULT '',
+  "status" "GroupBookingStatus" NOT NULL DEFAULT 'PENDING',
+  "totalRooms" INTEGER NOT NULL DEFAULT 0,
+  "totalGuests" INTEGER NOT NULL DEFAULT 0,
+  "totalCost" DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "providerId" TEXT NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS "StaffLog" (
+  "id" TEXT NOT NULL PRIMARY KEY,
+  "userId" TEXT NOT NULL,
+  "userName" TEXT NOT NULL DEFAULT '',
+  "action" TEXT NOT NULL,
+  "targetType" TEXT NOT NULL DEFAULT '',
+  "targetId" TEXT NOT NULL DEFAULT '',
+  "details" TEXT NOT NULL DEFAULT '',
+  "ipAddress" TEXT NOT NULL DEFAULT '',
+  "providerId" TEXT NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS "MessageTemplate" (
+  "id" TEXT NOT NULL PRIMARY KEY,
+  "name" TEXT NOT NULL,
+  "type" TEXT NOT NULL,
+  "channel" "MessageChannel" NOT NULL DEFAULT 'SMS',
+  "subject" TEXT NOT NULL DEFAULT '',
+  "body" TEXT NOT NULL,
+  "isDefault" BOOLEAN NOT NULL DEFAULT false,
+  "isActive" BOOLEAN NOT NULL DEFAULT true,
+  "providerId" TEXT NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS "MessageLog" (
+  "id" TEXT NOT NULL PRIMARY KEY,
+  "templateId" TEXT,
+  "recipient" TEXT NOT NULL,
+  "channel" "MessageChannel" NOT NULL DEFAULT 'SMS',
+  "message" TEXT NOT NULL,
+  "status" "MessageStatus" NOT NULL DEFAULT 'PENDING',
+  "errorMessage" TEXT NOT NULL DEFAULT '',
+  "reservationId" TEXT,
+  "guestId" TEXT,
+  "providerId" TEXT NOT NULL,
+  "sentAt" TIMESTAMP(3),
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 `;
 
 // ─── Indexes ───────────────────────────────────────────────────────────────
@@ -564,10 +633,28 @@ CREATE INDEX IF NOT EXISTS "SubscriptionPlan_isActive_idx" ON "SubscriptionPlan"
 -- Composite indexes for common query patterns
 CREATE INDEX IF NOT EXISTS "Reservation_providerId_status_idx" ON "Reservation" ("providerId", "status");
 CREATE INDEX IF NOT EXISTS "Reservation_providerId_createdAt_idx" ON "Reservation" ("providerId", "createdAt" DESC);
+CREATE INDEX IF NOT EXISTS "GroupBooking_providerId_status_idx" ON "GroupBooking" ("providerId", "status");
 CREATE INDEX IF NOT EXISTS "Guest_providerId_createdAt_idx" ON "Guest" ("providerId", "createdAt" DESC);
 CREATE INDEX IF NOT EXISTS "AuditLog_createdAt_desc_idx" ON "AuditLog" ("createdAt" DESC);
 CREATE INDEX IF NOT EXISTS "Payment_providerId_createdAt_idx" ON "Payment" ("providerId", "createdAt" DESC);
 CREATE INDEX IF NOT EXISTS "Notification_providerId_isRead_idx" ON "Notification" ("providerId", "isRead");
+CREATE INDEX IF NOT EXISTS "GroupBooking_providerId_idx" ON "GroupBooking" ("providerId");
+CREATE INDEX IF NOT EXISTS "GroupBooking_status_idx" ON "GroupBooking" ("status");
+CREATE INDEX IF NOT EXISTS "GroupBooking_startDate_idx" ON "GroupBooking" ("startDate");
+CREATE INDEX IF NOT EXISTS "StaffLog_providerId_idx" ON "StaffLog" ("providerId");
+CREATE INDEX IF NOT EXISTS "StaffLog_userId_idx" ON "StaffLog" ("userId");
+CREATE INDEX IF NOT EXISTS "StaffLog_action_idx" ON "StaffLog" ("action");
+CREATE INDEX IF NOT EXISTS "StaffLog_targetType_idx" ON "StaffLog" ("targetType");
+CREATE INDEX IF NOT EXISTS "StaffLog_createdAt_idx" ON "StaffLog" ("createdAt");
+CREATE INDEX IF NOT EXISTS "MessageTemplate_providerId_idx" ON "MessageTemplate" ("providerId");
+CREATE INDEX IF NOT EXISTS "MessageTemplate_type_idx" ON "MessageTemplate" ("type");
+CREATE INDEX IF NOT EXISTS "MessageLog_providerId_idx" ON "MessageLog" ("providerId");
+CREATE INDEX IF NOT EXISTS "MessageLog_recipient_idx" ON "MessageLog" ("recipient");
+CREATE INDEX IF NOT EXISTS "MessageLog_status_idx" ON "MessageLog" ("status");
+CREATE INDEX IF NOT EXISTS "MessageLog_createdAt_idx" ON "MessageLog" ("createdAt");
+CREATE INDEX IF NOT EXISTS "Reservation_groupBookingId_idx" ON "Reservation" ("groupBookingId");
+CREATE INDEX IF NOT EXISTS "StaffLog_providerId_createdAt_idx" ON "StaffLog" ("providerId", "createdAt" DESC);
+CREATE INDEX IF NOT EXISTS "MessageLog_providerId_createdAt_idx" ON "MessageLog" ("providerId", "createdAt" DESC);
 `;
 
 let _initDone = false;

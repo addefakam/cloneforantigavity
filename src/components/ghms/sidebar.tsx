@@ -37,6 +37,8 @@ import {
   DoorOpen,
   Wrench,
   Hotel,
+  MessageSquare,
+  ScrollText,
 } from "lucide-react";
 
 import { useAppStore, type CurrentUser } from "@/lib/store";
@@ -80,6 +82,9 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { page: "operations", label: "Operations", icon: Wrench },
   { page: "users", label: "Account Management", icon: UserCog },
   { page: "reports", label: "Reports", icon: BarChart3 },
+  { page: "group-bookings", label: "Group Bookings", icon: Users },
+  { page: "guest-communication", label: "Messages", icon: MessageSquare },
+  { page: "staff-logs", label: "Staff Activity", icon: ScrollText },
   { page: "settings", label: "Settings", icon: Settings },
 ];
 
@@ -185,6 +190,9 @@ const PERMISSION_PAGE_MAP: Record<string, NavItem> = {
   settings: { page: "settings", label: "Settings", icon: Settings },
   reservations: { page: "guests-reservations", label: "Reservations", icon: CalendarCheck },
   guests: { page: "guests-reservations", label: "Guests", icon: UsersRound },
+  staff_logs_view: { page: "staff-logs", label: "Staff Activity", icon: ScrollText },
+  guest_communication_view: { page: "guest-communication", label: "Messages", icon: MessageSquare },
+  group_bookings_view: { page: "group-bookings", label: "Group Bookings", icon: Users },
 };
 
 // ── Helper: get nav items based on role ──

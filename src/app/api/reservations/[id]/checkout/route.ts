@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAuthContext, getProviderFilter, checkWritePermission, AuthError } from "@/lib/tenant";
+import { logStaffActivity, getLogUserInfo } from "@/lib/staff-log";
 
 export async function POST(
   req: NextRequest,
@@ -44,6 +45,14 @@ export async function POST(
     await db.room.update({
       where: { id: reservation.roomId },
       data: { status: "AVAILABLE" },
+    });
+
+    // Staff log
+    const { userId, userName } = getLogUserInfo(req);
+    logStaffActivity({
+      req, userId, userName, action: "CHECKOUT", targetType: "RESERVATION", targetId: id,
+      details: { guestName: updated.guest.name, roomNumber: updated.room.number, totalCost: reservation.totalCost },
+      providerId,
     });
 
     // Update guest stats
