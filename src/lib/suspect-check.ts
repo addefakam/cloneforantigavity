@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { sql } from "@prisma/client/runtime/library";
+import { sql } from "@prisma/client";
 import { dispatchAlertForMatch } from "./alert-dispatcher";
 
 let tablesEnsured = false;

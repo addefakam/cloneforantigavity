@@ -16,7 +16,7 @@
  */
 
 import { db } from "./db";
-import { sql } from "@prisma/client/runtime/library";
+import { sql } from "@prisma/client";
 
 // ── Anomaly Detection Toggle (in-memory cache) ──
 let _cachedEnabled: boolean | null = null;
