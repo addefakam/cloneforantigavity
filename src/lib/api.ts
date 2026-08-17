@@ -406,6 +406,10 @@ export const apiDeleteGroupBooking = (id: string) =>
   req(`/api/group-bookings/${id}`, { method: "DELETE" });
 export const apiAutoAssignGroup = (id: string, guestIds?: string[]) =>
   req(`/api/group-bookings/${id}/auto-assign`, { method: "POST", body: JSON.stringify({ guestIds: guestIds || [] }) });
+export const apiGroupCheckout = (id: string) =>
+  req(`/api/group-bookings/${id}/checkout`, { method: "POST" });
+export const apiGroupPayment = (id: string, data: Record<string, unknown>) =>
+  req(`/api/group-bookings/${id}/payment`, { method: "POST", body: JSON.stringify(data) });
 
 // ── Staff Logs ──
 export const apiGetStaffLogs = (params?: string) =>

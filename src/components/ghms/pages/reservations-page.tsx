@@ -230,7 +230,8 @@ export default function ReservationsPage() {
         name: g.name,
         phone: g.phone,
       })));
-      const rawRooms = Array.isArray(roomData?.rooms) ? roomData.rooms : [];
+      // apiGetRooms already unwraps { rooms: [...] } to a plain array
+      const rawRooms = Array.isArray(roomData) ? roomData : [];
       setAllRooms(
         rawRooms.map((r: RoomOption) => ({
           id: r.id,

@@ -14,6 +14,8 @@ import {
   apiCreateGuest,
   apiUpdateReservation,
   apiCheckin,
+  apiGroupCheckout,
+  apiGroupPayment,
 } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -73,7 +75,13 @@ import {
   UserPlus,
   X,
   LogIn,
+  LogOut,
   Wand2,
+  CreditCard,
+  DollarSign,
+  Eye,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
 
 interface GroupBooking {
@@ -102,7 +110,12 @@ interface Reservation {
   checkOut: string;
   status: string;
   totalCost: number;
-  guest?: { id: string; name: string; phone: string };
+  paidAmount?: number;
+  balance?: number;
+  paymentStatus?: string;
+  nights?: number;
+  roomRate?: number;
+  guest?: { id: string; name: string; phone: string; email: string };
   room?: { id: string; number: string; name: string; type: string; pricePerNight: number };
 }
 
@@ -184,6 +197,19 @@ export default function GroupBookingsPage() {
   // Auto-assign
   const [autoAssigning, setAutoAssigning] = useState<string | null>(null);
 
+  // Group payment dialog
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentGroupId, setPaymentGroupId] = useState<string | null>(null);
+  const [paymentForm, setPaymentForm] = useState({ amount: "", method: "CASH", referenceNo: "", notes: "" });
+  const [paying, setPaying] = useState(false);
+
+  // Group checkout confirmation
+  const [checkoutTarget, setCheckoutTarget] = useState<GroupBooking | null>(null);
+  const [checkingOut, setCheckingOut] = useState(false);
+
+  // Reservation detail dialog
+  const [detailRes, setDetailRes] = useState<Reservation | null>(null);
+
   const [guests, setGuests] = useState<GuestOption[]>([]);
   const [rooms, setRooms] = useState<RoomOption[]>([]);
 
@@ -212,6 +238,7 @@ export default function GroupBookingsPage() {
   const fetchRooms = useCallback(async () => {
     try {
       const data = await apiGetRooms();
+      // apiGetRooms already unwraps { rooms: [...] } to array
       setRooms(Array.isArray(data) ? data : []);
     } catch {
       /* silent */
@@ -424,6 +451,57 @@ export default function GroupBookingsPage() {
     }
   };
 
+  const handleGroupCheckout = async () => {
+    if (!checkoutTarget) return;
+    try {
+      setCheckingOut(true);
+      const result = await apiGroupCheckout(checkoutTarget.id);
+      const r = result as { checkedOut: number; total: number; message: string };
+      toast.success(r.message || `${r.checkedOut} reservation(s) checked out`);
+      setCheckoutTarget(null);
+      fetchGroupBookings();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Group checkout failed";
+      toast.error(msg);
+    } finally {
+      setCheckingOut(false);
+    }
+  };
+
+  const openPaymentDialog = (group: GroupBooking) => {
+    // Calculate total cost and total paid from reservations
+    const totalCost = group.reservations?.reduce((s, r) => (s + (r.totalCost || 0)), 0) || 0;
+    setPaymentGroupId(group.id);
+    setPaymentForm({ amount: String(totalCost), method: "CASH", referenceNo: "", notes: "" });
+    setPaymentOpen(true);
+  };
+
+  const handleGroupPayment = async () => {
+    if (!paymentGroupId || !paymentForm.amount || !paymentForm.method) {
+      toast.error("Amount and payment method are required");
+      return;
+    }
+    try {
+      setPaying(true);
+      const result = await apiGroupPayment(paymentGroupId, {
+        amount: Number(paymentForm.amount),
+        method: paymentForm.method,
+        referenceNo: paymentForm.referenceNo,
+        notes: paymentForm.notes,
+      });
+      const r = result as { message: string };
+      toast.success(r.message || "Payment recorded successfully");
+      setPaymentOpen(false);
+      setPaymentGroupId(null);
+      fetchGroupBookings();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Payment failed";
+      toast.error(msg);
+    } finally {
+      setPaying(false);
+    }
+  };
+
   const openAddReservation = (group: GroupBooking) => {
     setAddReservationGroupId(group.id);
     setResCheckIn(group.startDate);
@@ -556,6 +634,28 @@ export default function GroupBookingsPage() {
                           Check-in All ({upcomingCount})
                         </Button>
                       )}
+                      {group.reservations?.some((r) => r.status === "ACTIVE") && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                          onClick={() => setCheckoutTarget(group)}
+                        >
+                          <LogOut className="h-3.5 w-3.5 mr-1" />
+                          <span className="hidden sm:inline">Check-out All</span>
+                        </Button>
+                      )}
+                      {group.reservations?.some((r) => r.status !== "COMPLETED" && r.status !== "CANCELLED") && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                          onClick={() => openPaymentDialog(group)}
+                        >
+                          <CreditCard className="h-3.5 w-3.5 mr-1" />
+                          <span className="hidden sm:inline">Pay</span>
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -671,7 +771,11 @@ export default function GroupBookingsPage() {
                           </TableHeader>
                           <TableBody>
                             {group.reservations?.map((res) => (
-                              <TableRow key={res.id}>
+                              <TableRow
+                                key={res.id}
+                                className="cursor-pointer hover:bg-muted/50"
+                                onClick={() => setDetailRes(res)}
+                              >
                                 <TableCell className="font-medium">
                                   <div>
                                     <div>{res.guest?.name ?? "Unknown"}</div>
@@ -721,7 +825,7 @@ export default function GroupBookingsPage() {
                                     size="icon"
                                     className="h-7 w-7 text-muted-foreground hover:text-destructive"
                                     disabled={unlinkingId === res.id}
-                                    onClick={() => handleUnlinkReservation(res.id)}
+                                    onClick={(e) => { e.stopPropagation(); handleUnlinkReservation(res.id); }}
                                     title="Remove from group"
                                   >
                                     {unlinkingId === res.id ? (
@@ -1097,6 +1201,232 @@ export default function GroupBookingsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Group Checkout Confirmation Dialog */}
+      <AlertDialog
+        open={!!checkoutTarget}
+        onOpenChange={(open) => { if (!open) setCheckoutTarget(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <LogOut className="h-5 w-5 text-orange-500" />
+              Group Check-out
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Check out <span className="font-semibold">all active reservations</span> for{" "}
+              <span className="font-semibold">{checkoutTarget?.name}</span>?{" "}
+              This will complete {checkoutTarget?.reservations?.filter((r) => r.status === "ACTIVE").length || 0} reservation(s)
+              and free up the rooms.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={checkingOut}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleGroupCheckout}
+              disabled={checkingOut}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              {checkingOut ? (
+                <span className="flex items-center gap-1.5">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Checking out...
+                </span>
+              ) : (
+                "Check-out All"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Group Payment Dialog */}
+      <Dialog open={paymentOpen} onOpenChange={(open) => {
+        if (!open) { setPaymentGroupId(null); setPaymentForm({ amount: "", method: "CASH", referenceNo: "", notes: "" }); }
+        setPaymentOpen(open);
+      }}>
+        <DialogContent className="sm:max-w-[460px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-blue-500" />
+              Group Payment
+            </DialogTitle>
+            <DialogDescription>
+              Record a payment for the entire group. It will be distributed proportionally across reservations.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-2">
+              <Label>Amount (ETB) <span className="text-destructive">*</span></Label>
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="number"
+                  min="1"
+                  value={paymentForm.amount}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                  className="pl-9"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>Payment Method <span className="text-destructive">*</span></Label>
+              <Select value={paymentForm.method} onValueChange={(v) => setPaymentForm({ ...paymentForm, method: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CASH">Cash</SelectItem>
+                  <SelectItem value="TRANSFER">Bank Transfer</SelectItem>
+                  <SelectItem value="CARD">Card</SelectItem>
+                  <SelectItem value="MOBILE">Mobile Money</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Reference No</Label>
+              <Input
+                value={paymentForm.referenceNo}
+                onChange={(e) => setPaymentForm({ ...paymentForm, referenceNo: e.target.value })}
+                placeholder="Transaction reference (optional)"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Notes</Label>
+              <Input
+                value={paymentForm.notes}
+                onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
+                placeholder="Payment notes (optional)"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setPaymentOpen(false); setPaymentGroupId(null); }}
+              disabled={paying}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleGroupPayment}
+              disabled={paying || !paymentForm.amount || Number(paymentForm.amount) <= 0}
+            >
+              {paying ? (
+                <span className="flex items-center gap-1.5">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Processing...
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5">
+                  <CreditCard className="h-4 w-4" /> Record Payment
+                </span>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reservation Detail Dialog */}
+      <Dialog open={!!detailRes} onOpenChange={(open) => { if (!open) setDetailRes(null); }}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              Reservation Detail
+            </DialogTitle>
+          </DialogHeader>
+          {detailRes && (
+            <div className="space-y-4">
+              {/* Guest info */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Guest</p>
+                  <p className="text-sm font-medium">{detailRes.guest?.name ?? "Unknown"}</p>
+                  {detailRes.guest?.phone && <p className="text-xs text-muted-foreground">{detailRes.guest.phone}</p>}
+                  {detailRes.guest?.email && <p className="text-xs text-muted-foreground">{detailRes.guest.email}</p>}
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Room</p>
+                  <p className="text-sm font-medium">
+                    {detailRes.room ? `${detailRes.room.number}${detailRes.room.name ? ` - ${detailRes.room.name}` : ""}` : "Not assigned"}
+                  </p>
+                  {detailRes.room?.type && (
+                    <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 text-xs">
+                      {detailRes.room.type}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+
+              {/* Dates */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Check-in</p>
+                  <p className="text-sm font-medium">{formatDate(detailRes.checkIn)}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Check-out</p>
+                  <p className="text-sm font-medium">{formatDate(detailRes.checkOut)}</p>
+                </div>
+              </div>
+
+              {/* Cost and payment */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 rounded-lg border p-3 bg-muted/30">
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Total Cost</p>
+                  <p className="text-sm font-bold">{detailRes.totalCost?.toLocaleString() ?? 0} ETB</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Paid</p>
+                  <p className="text-sm font-medium text-emerald-600">{detailRes.paidAmount?.toLocaleString() ?? 0} ETB</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Balance</p>
+                  <p className={`text-sm font-bold ${(detailRes.balance ?? detailRes.totalCost ?? 0) > 0 ? "text-rose-600" : "text-emerald-600"}`}>
+                    {Math.max(0, detailRes.balance ?? detailRes.totalCost ?? 0).toLocaleString()} ETB
+                  </p>
+                </div>
+              </div>
+
+              {/* Status row */}
+              <div className="flex items-center gap-3">
+                <div className="space-y-0.5">
+                  <p className="text-xs text-muted-foreground">Status</p>
+                  <Badge
+                    variant="outline"
+                    className={RESERVATION_STATUS_BADGE[detailRes.status] ?? "bg-gray-100 text-gray-700 border-gray-200"}
+                  >
+                    {detailRes.status}
+                  </Badge>
+                </div>
+                {detailRes.paymentStatus && (
+                  <div className="space-y-0.5">
+                    <p className="text-xs text-muted-foreground">Payment</p>
+                    <Badge
+                      variant="outline"
+                      className={
+                        detailRes.paymentStatus === "PAID"
+                          ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                          : detailRes.paymentStatus === "PARTIAL"
+                          ? "bg-amber-100 text-amber-800 border-amber-200"
+                          : "bg-gray-100 text-gray-600 border-gray-200"
+                      }
+                    >
+                      {detailRes.paymentStatus}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+
+              {detailRes.room?.pricePerNight && detailRes.nights && (
+                <div className="text-xs text-muted-foreground border-l-2 border-muted pl-3">
+                  {detailRes.nights} night(s) × {detailRes.room.pricePerNight.toLocaleString()} ETB/night = {detailRes.totalCost?.toLocaleString()} ETB
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

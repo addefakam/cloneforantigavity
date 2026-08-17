@@ -61,6 +61,7 @@ import {
   X,
   RotateCcw,
 } from "lucide-react";
+import InfoCard from "@/components/shared/info-card";
 
 interface Provider {
   id: string;
