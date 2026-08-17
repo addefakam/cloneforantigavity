@@ -62,7 +62,7 @@ export async function checkSuspectMatch(params: {
     const normalizedId = idNumber.trim();
 
     // --- Step 1: Find all suspect IDs that match the guest's ID number ---
-    // Search the new SuspectId table (exact match on idNumber)
+    // Search the new SuspectId table (case-insensitive exact match on idNumber)
     const matchingIds = await db.$queryRaw<{ suspectedPersonId: string }[]>(
       sql`SELECT DISTINCT "suspectedPersonId" FROM "SuspectId" WHERE LOWER("idNumber") = LOWER(${normalizedId})`
     );
@@ -86,7 +86,12 @@ export async function checkSuspectMatch(params: {
       }
     }
 
-    if (suspectPersonIds.length === 0) return;
+    if (suspectPersonIds.length === 0) {
+      console.log(`[suspect-check] No match for ID: ${normalizedId}`);
+      return;
+    }
+
+    console.log(`[suspect-check] MATCH FOUND for ID: ${normalizedId} -> ${suspectPersonIds.length} suspect(s)`);
 
     // --- Step 2: Fetch full suspect records ---
     const suspects = await db.suspectedPerson.findMany({

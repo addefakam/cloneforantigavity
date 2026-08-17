@@ -1,0 +1,1175 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect, useCallback, useMemo, useRef, type FormEvent } from "react";
+     4→import { useAppStore } from "@/lib/store";
+     5→import {
+     6→  apiGetSuspectedPersons,
+     7→  apiCreateSuspectedPerson,
+     8→  apiUpdateSuspectedPerson,
+     9→  apiDeleteSuspectedPerson,
+    10→  apiPoliceMovement,
+    11→} from "@/lib/api";
+    12→import { toast } from "sonner";
+    13→import { Badge } from "@/components/ui/badge";
+    14→import { Button } from "@/components/ui/button";
+    15→import { Input } from "@/components/ui/input";
+    16→import { Label } from "@/components/ui/label";
+    17→import { Textarea } from "@/components/ui/textarea";
+    18→import { Skeleton } from "@/components/ui/skeleton";
+    19→import { Separator } from "@/components/ui/separator";
+    20→import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+    21→import {
+    22→  Table,
+    23→  TableBody,
+    24→  TableCell,
+    25→  TableHead,
+    26→  TableHeader,
+    27→  TableRow,
+    28→} from "@/components/ui/table";
+    29→import {
+    30→  Dialog,
+    31→  DialogContent,
+    32→  DialogHeader,
+    33→  DialogTitle,
+    34→  DialogDescription,
+    35→  DialogFooter,
+    36→} from "@/components/ui/dialog";
+    37→import {
+    38→  Select,
+    39→  SelectContent,
+    40→  SelectItem,
+    41→  SelectTrigger,
+    42→  SelectValue,
+    43→} from "@/components/ui/select";
+    44→import { usePagination } from "@/hooks/use-pagination";
+    45→import { PaginationControls } from "@/components/shared/pagination-controls";
+    46→import {
+    47→  Search,
+    48→  Plus,
+    49→  UserX,
+    50→  Pencil,
+    51→  Trash2,
+    52→  Eye,
+    53→  Phone,
+    54→  Globe,
+    55→  MapPin,
+    56→  FileWarning,
+    57→  ShieldAlert,
+    58→  AlertTriangle,
+    59→  ScanLine,
+    60→  User,
+    61→  Calendar,
+    62→  Building2,
+    63→  CreditCard,
+    64→  ChevronLeft,
+    65→  ChevronRight,
+    66→  X,
+    67→} from "lucide-react";
+    68→
+    69→interface Identifier {
+    70→  idType: string;
+    71→  idNumber: string;
+    72→  id?: string;
+    73→}
+    74→
+    75→interface SuspectedPerson {
+    76→  id: string;
+    77→  name: string;
+    78→  phone: string;
+    79→  idNumber: string;
+    80→  idType: string;
+    81→  nationality: string;
+    82→  address: string;
+    83→  description: string;
+    84→  severity: string;
+    85→  is_active: boolean;
+    86→  registeredBy: string;
+    87→  createdAt: string;
+    88→  updatedAt: string;
+    89→  _count: { matches: number };
+    90→  identifiers?: Identifier[];
+    91→}
+    92→
+    93→interface PersonWithHistory extends SuspectedPerson {
+    94→  matches?: MatchRecord[];
+    95→  identifiers?: Identifier[];
+    96→}
+    97→
+    98→interface MatchRecord {
+    99→  id: string;
+   100→  matchType: string;
+   101→  guestName: string;
+   102→  guestPhone: string;
+   103→  providerName: string;
+   104→  createdAt: string;
+   105→  details: string;
+   106→}
+   107→
+   108→const SEVERITY_STYLES: Record<string, string> = {
+   109→  LOW: "bg-slate-100 text-slate-700 border-slate-200",
+   110→  MEDIUM: "bg-yellow-100 text-yellow-800 border-yellow-200",
+   111→  HIGH: "bg-orange-100 text-orange-800 border-orange-200",
+   112→  CRITICAL: "bg-red-100 text-red-800 border-red-200",
+   113→};
+   114→
+   115→const MATCH_TYPE_LABELS: Record<string, string> = {
+   116→  RESERVATION: "Reservation",
+   117→  DAYTIME_BOOKING: "Daytime",
+   118→  GUEST_CHECKIN: "Check-in",
+   119→};
+   120→
+   121→const STATUS_COLORS: Record<string, string> = {
+   122→  ACTIVE: "bg-emerald-100 text-emerald-800",
+   123→  UPCOMING: "bg-blue-100 text-blue-800",
+   124→  COMPLETED: "bg-slate-100 text-slate-800",
+   125→  CANCELLED: "bg-red-100 text-red-800",
+   126→};
+   127→
+   128→interface ScannerGuest {
+   129→  id: string;
+   130→  name: string;
+   131→  phone: string;
+   132→  idNumber: string;
+   133→  nationality: string;
+   134→  provider: { id: string; name: string } | null;
+   135→  reservations: { id: string; checkIn: string; checkOut: string; status: string; room: { number: string } }[];
+   136→}
+   137→interface ScannerMatch {
+   138→  id: string;
+   139→  guestName: string;
+   140→  providerName: string;
+   141→  matchType: string;
+   142→  createdAt: string;
+   143→  suspectedPerson: { name: string; severity: string };
+   144→}
+   145→
+   146→function formatDate(dateStr: string) {
+   147→  return new Date(dateStr).toLocaleDateString("en-US", {
+   148→    month: "short",
+   149→    day: "numeric",
+   150→    year: "numeric",
+   151→  });
+   152→}
+   153→
+   154→function formatDateTime(dateStr: string) {
+   155→  return new Date(dateStr).toLocaleString("en-US", {
+   156→    month: "short",
+   157→    day: "numeric",
+   158→    hour: "2-digit",
+   159→    minute: "2-digit",
+   160→  });
+   161→}
+   162→
+   163→const ID_TYPE_OPTIONS = [
+   164→  { value: "National_ID", label: "National ID" },
+   165→  { value: "Passport", label: "Passport" },
+   166→  { value: "Driver_License", label: "Driver License" },
+   167→  { value: "Military_ID", label: "Military ID" },
+   168→  { value: "Refugee_ID", label: "Refugee ID" },
+   169→  { value: "Voter_ID", label: "Voter ID" },
+   170→  { value: "Other", label: "Other" },
+   171→];
+   172→
+   173→const emptyForm = {
+   174→  name: "",
+   175→  phone: "",
+   176→  idNumber: "",
+   177→  idType: "National_ID",
+   178→  nationality: "",
+   179→  address: "",
+   180→  description: "",
+   181→  severity: "MEDIUM",
+   182→  identifiers: [{ idType: "National_ID", idNumber: "" }],
+   183→};
+   184→
+   185→export default function SuspectedPersonsPage() {
+   186→  const { refreshKey } = useAppStore();
+   187→  const [activeTab, setActiveTab] = useState<"watchlist" | "scanner">("watchlist");
+   188→  const [persons, setPersons] = useState<SuspectedPerson[]>([]);
+   189→  const [total, setTotal] = useState(0);
+   190→  const [totalPages, setTotalPages] = useState(1);
+   191→  const [search, setSearch] = useState("");
+   192→  const [debouncedSearch, setDebouncedSearch] = useState("");
+   193→  const [page, setPage] = useState(1);
+   194→  const [pageSize, setPageSize] = useState(5);
+   195→
+   196→  // Client-side pagination for the watchlist table
+   197→  const pagination = usePagination({
+   198→    totalItems: persons.length,
+   199→    initialPageSize: 5,
+   200→    pageSizeOptions: [5, 10, 20, 50],
+   201→  });
+   202→  const paginatedPersons = pagination.paginate(persons);
+   203→  const [loading, setLoading] = useState(true);
+   204→
+   205→  // Scanner state
+   206→  const [scannerMode, setScannerMode] = useState<"scan" | "manual">("manual");
+   207→  const [scanQuery, setScanQuery] = useState("");
+   208→  const [scanLoading, setScanLoading] = useState(false);
+   209→  const [scanGuests, setScanGuests] = useState<ScannerGuest[]>([]);
+   210→  const [scanMatches, setScanMatches] = useState<ScannerMatch[]>([]);
+   211→  const [hasSearched, setHasSearched] = useState(false);
+   212→  const matchPag = usePagination({ totalItems: 0, initialPageSize: 5, pageSizeOptions: [5, 10, 20, 50] });
+   213→  const guestPag = usePagination({ totalItems: 0, initialPageSize: 5, pageSizeOptions: [5, 10, 20, 50] });
+   214→
+   215→  useEffect(() => { matchPag.setTotalItems?.(scanMatches.length); }, [scanMatches.length]);
+   216→  useEffect(() => { guestPag.setTotalItems?.(scanGuests.length); }, [scanGuests.length]);
+   217→
+   218→  const pagMatches = matchPag.paginate(scanMatches);
+   219→  const pagGuests = guestPag.paginate(scanGuests);
+   220→
+   221→  // Dialogs
+   222→  const [formOpen, setFormOpen] = useState(false);
+   223→  const [editingId, setEditingId] = useState<string | null>(null);
+   224→  const [form, setForm] = useState(emptyForm);
+   225→  const [formLoading, setFormLoading] = useState(false);
+   226→
+   227→  const [detailOpen, setDetailOpen] = useState(false);
+   228→  const [detailPerson, setDetailPerson] = useState<PersonWithHistory | null>(null);
+   229→  const [detailLoading, setDetailLoading] = useState(false);
+   230→
+   231→  const [deleteOpen, setDeleteOpen] = useState(false);
+   232→  const [deleteId, setDeleteId] = useState<string | null>(null);
+   233→  const [deleteLoading, setDeleteLoading] = useState(false);
+   234→
+   235→  // Debounce search (300ms) and reset to page 1 on new search
+   236→  useEffect(() => {
+   237→    const t = setTimeout(() => {
+   238→      setDebouncedSearch(search.trim());
+   239→      setPage(1);
+   240→    }, 300);
+   241→    return () => clearTimeout(t);
+   242→  }, [search]);
+   243→
+   244→  const fetchPersons = useCallback(async () => {
+   245→    try {
+   246→      setLoading(true);
+   247→      const data: any = await apiGetSuspectedPersons({
+   248→        q: debouncedSearch || undefined,
+   249→        page,
+   250→        pageSize,
+   251→      });
+   252→      setPersons(Array.isArray(data.persons) ? data.persons : []);
+   253→      setTotal(data.total || 0);
+   254→      setTotalPages(data.totalPages || 1);
+   255→    } catch (err: unknown) {
+   256→      const message = err instanceof Error ? err.message : "Failed to load suspected persons";
+   257→      toast.error(message);
+   258→    } finally {
+   259→      setLoading(false);
+   260→    }
+   261→  }, [debouncedSearch, page, pageSize]);
+   262→
+   263→  useEffect(() => { fetchPersons(); }, [fetchPersons, refreshKey]);
+   264→
+   265→  const goToPage = (p: number) => {
+   266→    setPage(Math.max(1, Math.min(p, totalPages)));
+   267→  };
+   268→
+   269→  const changePageSize = (size: number) => {
+   270→    setPageSize(size);
+   271→    setPage(1);
+   272→  };
+   273→
+   274→  const rangeFrom = total === 0 ? 0 : (page - 1) * pageSize + 1;
+   275→  const rangeTo = Math.min(page * pageSize, total);
+   276→
+   277→  const openAdd = () => {
+   278→    setEditingId(null);
+   279→    setForm(emptyForm);
+   280→    setFormOpen(true);
+   281→  };
+   282→
+   283→  const openEdit = (person: SuspectedPerson) => {
+   284→    setEditingId(person.id);
+   285→    const ids = person.identifiers && person.identifiers.length > 0
+   286→      ? person.identifiers
+   287→      : [{ idType: person.idType || "National_ID", idNumber: person.idNumber }];
+   288→    setForm({
+   289→      name: person.name,
+   290→      phone: person.phone,
+   291→      idNumber: person.idNumber,
+   292→      idType: person.idType,
+   293→      nationality: person.nationality,
+   294→      address: person.address,
+   295→      description: person.description,
+   296→      severity: person.severity,
+   297→      identifiers: ids,
+   298→    });
+   299→    setFormOpen(true);
+   300→  };
+   301→
+   302→  const handleSubmit = async (e: FormEvent) => {
+   303→    e.preventDefault();
+   304→    if (!form.name.trim()) {
+   305→      toast.error("Name is required");
+   306→      return;
+   307→    }
+   308→    // Validate at least one ID number is provided
+   309→    const validIds = (form.identifiers || []).filter((i: Identifier) => i.idNumber.trim());
+   310→    if (validIds.length === 0) {
+   311→      toast.error("At least one ID number is required");
+   312→      return;
+   313→    }
+   314→    setFormLoading(true);
+   315→    try {
+   316→      const payload = {
+   317→        ...form,
+   318→        identifiers: validIds,
+   319→        // Also set legacy fields from first ID
+   320→        idNumber: validIds[0].idNumber,
+   321→        idType: validIds[0].idType,
+   322→      };
+   323→      if (editingId) {
+   324→        const updated = await apiUpdateSuspectedPerson(editingId, payload);
+   325→        setPersons((prev) =>
+   326→          prev.map((p) => (p.id === editingId ? { ...p, ...updated } : p))
+   327→        );
+   328→        toast.success("Suspected person updated");
+   329→      } else {
+   330→        const created = await apiCreateSuspectedPerson(payload);
+   331→        setPersons((prev) => [created, ...prev]);
+   332→        toast.success("Suspected person added");
+   333→      }
+   334→      setFormOpen(false);
+   335→    } catch (err: unknown) {
+   336→      const message = err instanceof Error ? err.message : "Operation failed";
+   337→      toast.error(message);
+   338→    } finally {
+   339→      setFormLoading(false);
+   340→    }
+   341→  };
+   342→
+   343→  const openDetail = async (person: SuspectedPerson) => {
+   344→    setDetailPerson(person);
+   345→    setDetailOpen(true);
+   346→    setDetailLoading(true);
+   347→    try {
+   348→      // Fetch full person with match history
+   349→      const res = await fetch(`/api/suspected-persons/${person.id}`, {
+   350→        headers: { "Content-Type": "application/json" },
+   351→      });
+   352→      if (res.ok) {
+   353→        const data = await res.json();
+   354→        setDetailPerson(data);
+   355→      }
+   356→    } catch {
+   357→      // Keep the basic person data
+   358→    } finally {
+   359→      setDetailLoading(false);
+   360→    }
+   361→  };
+   362→
+   363→  const confirmDelete = (id: string) => {
+   364→    setDeleteId(id);
+   365→    setDeleteOpen(true);
+   366→  };
+   367→
+   368→  const handleDelete = async () => {
+   369→    if (!deleteId) return;
+   370→    setDeleteLoading(true);
+   371→    try {
+   372→      await apiDeleteSuspectedPerson(deleteId);
+   373→      setPersons((prev) => prev.filter((p) => p.id !== deleteId));
+   374→      toast.success("Suspected person deleted");
+   375→      setDeleteOpen(false);
+   376→    } catch (err: unknown) {
+   377→      toast.error("Failed to delete");
+   378→    } finally {
+   379→      setDeleteLoading(false);
+   380→    }
+   381→  };
+   382→
+   383→  const toggleActive = async (person: SuspectedPerson) => {
+   384→    try {
+   385→      const updated = await apiUpdateSuspectedPerson(person.id, { is_active: !person.is_active });
+   386→      setPersons((prev) =>
+   387→        prev.map((p) => (p.id === person.id ? { ...p, is_active: updated.is_active } : p))
+   388→      );
+   389→      toast.success(updated.is_active ? "Reactivated" : "Deactivated");
+   390→    } catch {
+   391→      toast.error("Failed to update status");
+   392→    }
+   393→  };
+   394→
+   395→  // ── Scanner functions ──
+   396→  const runScan = async (value: string) => {
+   397→    if (!value.trim()) return;
+   398→    try {
+   399→      setScanLoading(true);
+   400→      setHasSearched(true);
+   401→      const isPhone = /^\d+$/.test(value.replace(/\s/g, ""));
+   402→      const q = isPhone ? `phone=${value.replace(/\s/g, "")}` : `name=${value}`;
+   403→      const d: { guests?: ScannerGuest[]; suspectMatches?: ScannerMatch[] } = await apiPoliceMovement(q);
+   404→      setScanGuests(d.guests || []);
+   405→      setScanMatches(d.suspectMatches || []);
+   406→    } catch {
+   407→      toast.error("Search failed");
+   408→    } finally {
+   409→      setScanLoading(false);
+   410→    }
+   411→  };
+   412→
+   413→  const simulateScan = () => {
+   414→    const demoIds = ["John Doe", "0911234567", "AA1234567"];
+   415→    const random = demoIds[Math.floor(Math.random() * demoIds.length)];
+   416→    setScanQuery(random);
+   417→    runScan(random);
+   418→  };
+   419→
+   420→  return (
+   421→    <div className="space-y-4 p-3 sm:p-4 md:p-6">
+   422→      {/* Tab Switcher */}
+   423→      <div className="flex gap-1 rounded-lg border bg-muted/50 p-0.5 w-fit">
+   424→        <button
+   425→          onClick={() => setActiveTab("watchlist")}
+   426→          className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
+   427→            activeTab === "watchlist" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+   428→          }`}
+   429→        >
+   430→          <UserX className="h-3.5 w-3.5" /> Watchlist
+   431→        </button>
+   432→        <button
+   433→          onClick={() => setActiveTab("scanner")}
+   434→          className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
+   435→            activeTab === "scanner" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+   436→          }`}
+   437→        >
+   438→          <ScanLine className="h-3.5 w-3.5" /> Scanner
+   439→        </button>
+   440→      </div>
+   441→
+   442→      {/* ─── Scanner Tab ─── */}
+   443→      {activeTab === "scanner" && (
+   444→        <div className="space-y-4">
+   445→          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+   446→            <div>
+   447→              <h2 className="text-base sm:text-lg font-semibold">Watchlist Scanner</h2>
+   448→              <p className="text-xs sm:text-sm text-muted-foreground">Scan guest ID or phone against suspected persons watchlist</p>
+   449→            </div>
+   450→            <div className="flex gap-1 rounded-lg border bg-muted/50 p-0.5">
+   451→              <button
+   452→                onClick={() => setScannerMode("manual")}
+   453→                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${scannerMode === "manual" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground"}`}
+   454→              >
+   455→                <Search className="h-3.5 w-3.5 mr-1 inline" /> Manual
+   456→              </button>
+   457→              <button
+   458→                onClick={() => setScannerMode("scan")}
+   459→                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${scannerMode === "scan" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground"}`}
+   460→              >
+   461→                <ScanLine className="h-3.5 w-3.5 mr-1 inline" /> Scan
+   462→              </button>
+   463→            </div>
+   464→          </div>
+   465→
+   466→          {/* Scanner Interface */}
+   467→          <Card>
+   468→            <CardContent className="py-6">
+   469→              {scannerMode === "scan" ? (
+   470→                <div className="flex flex-col items-center gap-4">
+   471→                  <div className="relative h-48 w-48 rounded-2xl border-2 border-dashed border-slate-300 flex items-center justify-center bg-slate-50">
+   472→                    <div className="text-center">
+   473→                      <ScanLine className="mx-auto h-10 w-10 text-slate-400 mb-2" />
+   474→                      <p className="text-xs text-slate-500">Camera Scanner</p>
+   475→                      <p className="text-[10px] text-slate-400 mt-1">Point at guest ID card</p>
+   476→                    </div>
+   477→                  </div>
+   478→                  <p className="text-[10px] text-muted-foreground">Camera access requires HTTPS. Use manual entry as fallback.</p>
+   479→                  <Button variant="outline" size="sm" onClick={simulateScan}>
+   480→                    <ScanLine className="mr-1 h-3.5 w-3.5" /> Demo Scan
+   481→                  </Button>
+   482→                </div>
+   483→              ) : (
+   484→                <div className="max-w-md mx-auto space-y-3">
+   485→                  <Input
+   486→                    placeholder="Enter guest name, phone number, or ID..."
+   487→                    value={scanQuery}
+   488→                    onChange={(e) => setScanQuery(e.target.value)}
+   489→                    onKeyDown={(e) => e.key === "Enter" && runScan(scanQuery)}
+   490→                    className="text-center text-lg h-12"
+   491→                    autoFocus
+   492→                  />
+   493→                  <Button className="w-full" onClick={() => runScan(scanQuery)} disabled={scanLoading || !scanQuery.trim()}>
+   494→                    <Search className="mr-1 h-3.5 w-3.5" /> {scanLoading ? "Scanning Watchlist..." : "Check Watchlist"}
+   495→                  </Button>
+   496→                </div>
+   497→              )}
+   498→            </CardContent>
+   499→          </Card>
+   500→
+   501→          {/* Results */}
+   502→          {scanLoading && <Skeleton className="h-32 w-full rounded-xl" />}
+   503→
+   504→          {hasSearched && !scanLoading && (
+   505→            <>
+   506→              {/* Alert if suspect found */}
+   507→              {scanMatches.length > 0 && (
+   508→                <Card className="border-red-200 bg-red-50">
+   509→                  <CardHeader className="pb-2">
+   510→                    <CardTitle className="flex items-center gap-2 text-sm text-red-700">
+   511→                      <ShieldAlert className="h-5 w-5" /> WATCHLIST MATCH FOUND — {scanMatches.length} alert{scanMatches.length !== 1 ? "s" : ""}
+   512→                    </CardTitle>
+   513→                  </CardHeader>
+   514→                  <CardContent>
+   515→                    <div className="space-y-2">
+   516→                      {pagMatches.map((m) => (
+   517→                        <div key={m.id} className="rounded-lg border-2 border-red-200 bg-white p-3">
+   518→                          <div className="flex items-center justify-between">
+   519→                            <p className="font-bold text-red-800">{m.suspectedPerson.name}</p>
+   520→                            <Badge className="bg-red-100 text-red-800 border-red-200 text-[9px]">{m.suspectedPerson.severity}</Badge>
+   521→                          </div>
+   522→                          <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+   523→                            <span>Provider: {m.providerName}</span>
+   524→                            <span>Type: {m.matchType}</span>
+   525→                            <span>{new Date(m.createdAt).toLocaleDateString()}</span>
+   526→                          </div>
+   527→                        </div>
+   528→                      ))}
+   529→                    </div>
+   530→                    {scanMatches.length > matchPag.pageSize && (
+   531→                      <PaginationControls
+   532→                        currentPage={matchPag.currentPage}
+   533→                        totalPages={matchPag.totalPages}
+   534→                        pageSize={matchPag.pageSize}
+   535→                        pageSizeOptions={matchPag.pageSizeOptions}
+   536→                        totalItems={scanMatches.length}
+   537→                        rangeInfo={matchPag.rangeInfo}
+   538→                        goToPage={matchPag.goToPage}
+   539→                        setPageSize={matchPag.setPageSize}
+   540→                      />
+   541→                    )}
+   542→                  </CardContent>
+   543→                </Card>
+   544→              )}
+   545→
+   546→              {/* Guest Info */}
+   547→              {scanGuests.length > 0 && (
+   548→                <Card>
+   549→                  <CardHeader>
+   550→                    <CardTitle className="flex items-center gap-2 text-sm">
+   551→                      <User className="h-4 w-4" /> Guest Information
+   552→                    </CardTitle>
+   553→                  </CardHeader>
+   554→                  <CardContent className="space-y-3">
+   555→                    {pagGuests.map((g) => (
+   556→                      <div key={g.id} className="space-y-2">
+   557→                        <div className="flex items-center gap-3">
+   558→                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100">
+   559→                            <User className="h-5 w-5 text-slate-600" />
+   560→                          </div>
+   561→                          <div>
+   562→                            <p className="text-sm font-medium">{g.name}</p>
+   563→                            <div className="flex gap-2 text-xs text-muted-foreground">
+   564→                              {g.phone && <span className="flex items-center gap-0.5"><Phone className="h-3 w-3" />{g.phone}</span>}
+   565→                              {g.nationality && <span className="flex items-center gap-0.5"><MapPin className="h-3 w-3" />{g.nationality}</span>}
+   566→                              {g.idNumber && <span className="flex items-center gap-0.5"><CreditCard className="h-3 w-3" />{g.idNumber}</span>}
+   567→                            </div>
+   568→                          </div>
+   569→                        </div>
+   570→                        <div className="ml-13">
+   571→                          <p className="text-[10px] font-medium text-muted-foreground mb-1">Provider: <span className="text-foreground">{g.provider?.name || "Unknown"}</span></p>
+   572→                          {g.reservations.length > 0 && (
+   573→                            <div className="space-y-1">
+   574→                              <p className="text-[10px] font-medium text-muted-foreground">Recent Stays:</p>
+   575→                              {g.reservations.slice(0, 3).map((r) => (
+   576→                                <div key={r.id} className="flex items-center gap-2 text-[10px] text-muted-foreground ml-2">
+   577→                                  <Building2 className="h-2.5 w-2.5" />
+   578→                                  <span>{r.room?.number}</span>
+   579→                                  <Calendar className="h-2.5 w-2.5" />
+   580→                                  <span>{r.checkIn} → {r.checkOut}</span>
+   581→                                  <Badge className={`text-[8px] ${STATUS_COLORS[r.status] || ""}`}>{r.status}</Badge>
+   582→                                </div>
+   583→                              ))}
+   584→                            </div>
+   585→                          )}
+   586→                        </div>
+   587→                      </div>
+   588→                    ))}
+   589→                    {scanGuests.length > guestPag.pageSize && (
+   590→                      <PaginationControls
+   591→                        currentPage={guestPag.currentPage}
+   592→                        totalPages={guestPag.totalPages}
+   593→                        pageSize={guestPag.pageSize}
+   594→                        pageSizeOptions={guestPag.pageSizeOptions}
+   595→                        totalItems={scanGuests.length}
+   596→                        rangeInfo={guestPag.rangeInfo}
+   597→                        goToPage={guestPag.goToPage}
+   598→                        setPageSize={guestPag.setPageSize}
+   599→                      />
+   600→                    )}
+   601→                  </CardContent>
+   602→                </Card>
+   603→              )}
+   604→
+   605→              {scanGuests.length === 0 && scanMatches.length === 0 && (
+   606→                <Card>
+   607→                  <CardContent className="py-8 text-center">
+   608→                    <p className="text-sm text-emerald-600 font-medium">No watchlist match found</p>
+   609→                    <p className="text-xs text-muted-foreground mt-1">This guest is not on the suspected persons list</p>
+   610→                  </CardContent>
+   611→                </Card>
+   612→              )}
+   613→            </>
+   614→          )}
+   615→
+   616→          {/* Offline Mode Info */}
+   617→          <Card className="bg-muted/30">
+   618→            <CardContent className="flex items-center gap-3 py-3">
+   619→              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100">
+   620→                <ScanLine className="h-4 w-4 text-amber-600" />
+   621→              </div>
+   622→              <div>
+   623→                <p className="text-xs font-medium">Offline Capable</p>
+   624→                <p className="text-[10px] text-muted-foreground">Suspected persons data is cached locally for offline scanning. Manual entry works without internet connection.</p>
+   625→              </div>
+   626→            </CardContent>
+   627→          </Card>
+   628→        </div>
+   629→      )}
+   630→
+   631→      {/* ─── Watchlist Tab (default) ─── */}
+   632→      {activeTab === "watchlist" && (
+   633→        <>
+   634→          {/* Header */}
+   635→          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+   636→            <div>
+   637→              <h2 className="text-base sm:text-lg font-semibold">Suspected Persons</h2>
+   638→              <p className="text-xs sm:text-sm text-muted-foreground">
+   639→                Register and manage persons of interest
+   640→              </p>
+   641→            </div>
+   642→            <div className="flex items-center gap-2">
+   643→              <div className="relative flex-1 sm:w-64">
+   644→                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   645→                <Input
+   646→                  placeholder="Search name, phone, ID..."
+   647→                  value={search}
+   648→                  onChange={(e) => setSearch(e.target.value)}
+   649→                  className="pl-9 h-9 sm:h-10"
+   650→                />
+   651→              </div>
+   652→              <Button onClick={openAdd} className="h-9 sm:h-10 shrink-0">
+   653→                <Plus className="mr-1 h-4 w-4" />
+   654→                <span className="hidden sm:inline">Add</span>
+   655→              </Button>
+   656→            </div>
+   657→          </div>
+   658→
+   659→          {/* Count */}
+   660→          {!loading && persons.length > 0 && (
+   661→            <p className="text-xs text-muted-foreground px-1">
+   662→              {persons.length} person{persons.length !== 1 ? "s" : ""} registered
+   663→            </p>
+   664→          )}
+   665→
+   666→          {/* List */}
+   667→          <div className="rounded-xl border bg-card shadow-sm">
+   668→            {loading ? (
+   669→              <div className="space-y-3 p-4 sm:p-6">
+   670→                {Array.from({ length: 4 }).map((_, i) => (
+   671→                  <Skeleton key={i} className="h-20 w-full sm:h-12" />
+   672→                ))}
+   673→              </div>
+   674→            ) : persons.length === 0 ? (
+   675→              <div className="flex flex-col items-center justify-center py-12 sm:py-16 text-center">
+   676→                <UserX className="mb-3 h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground/40" />
+   677→                <p className="text-xs sm:text-sm text-muted-foreground">
+   678→                  {search ? "No matches found" : "No suspected persons registered yet"}
+   679→                </p>
+   680→                <p className="mt-1 text-[10px] sm:text-xs text-muted-foreground/70">
+   681→                  Add persons to monitor — system will alert when they make reservations
+   682→                </p>
+   683→              </div>
+   684→            ) : (
+   685→              <>
+   686→                {/* Mobile: Card layout */}
+   687→                <div className="divide-y md:hidden">
+   688→                  {paginatedPersons.map((person) => (
+   689→                    <div key={person.id} className="p-3 space-y-2">
+   690→                      <div className="flex items-start gap-3">
+   691→                        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+   692→                          !person.is_active ? "bg-slate-100" : person.severity === "CRITICAL" ? "bg-red-100" : person.severity === "HIGH" ? "bg-orange-100" : "bg-yellow-100"
+   693→                        }`}>
+   694→                          <UserX className={`h-4 w-4 ${
+   695→                            !person.is_active ? "text-slate-400" : person.severity === "CRITICAL" ? "text-red-600" : person.severity === "HIGH" ? "text-orange-600" : "text-yellow-600"
+   696→                          }`} />
+   697→                        </div>
+   698→                        <div className="min-w-0 flex-1">
+   699→                          <div className="flex items-center gap-1.5">
+   700→                            <p className={`truncate text-sm font-medium ${!person.is_active ? "text-muted-foreground line-through" : ""}`}>
+   701→                              {person.name}
+   702→                            </p>
+   703→                            <Badge variant="outline" className={`shrink-0 text-[9px] ${SEVERITY_STYLES[person.severity] || ""}`}>
+   704→                              {person.severity}
+   705→                            </Badge>
+   706→                            {!person.is_active && (
+   707→                              <Badge variant="outline" className="shrink-0 text-[9px] bg-slate-50 text-slate-400 border-slate-200">
+   708→                                Inactive
+   709→                              </Badge>
+   710→                            )}
+   711→                          </div>
+   712→                          {person.phone && (
+   713→                            <p className="text-xs text-muted-foreground font-mono">{person.phone}</p>
+   714→                          )}
+   715→                          <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+   716→                            {person.identifiers && person.identifiers.length > 0
+   717→                              ? person.identifiers.slice(0, 2).map((id, i) => (
+   718→                                  <span key={i} className="text-[10px] text-muted-foreground">
+   719→                                    {id.idType.replace(/_/g, ' ')}: {id.idNumber}
+   720→                                  </span>
+   721→                                ))
+   722→                              : person.idNumber && (
+   723→                                  <span className="text-[10px] text-muted-foreground">ID: {person.idNumber}</span>
+   724→                                )
+   725→                            }
+   726→                            <span className="flex items-center gap-1 text-[10px] text-red-600 font-medium">
+   727→                              <ShieldAlert className="h-2.5 w-2.5" />
+   728→                              {person._count.matches} match{person._count.matches !== 1 ? "es" : ""}
+   729→                            </span>
+   730→                          </div>
+   731→                        </div>
+   732→                      </div>
+   733→                      <div className="flex justify-end gap-1.5 pl-12">
+   734→                        <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={() => openDetail(person)}>
+   735→                          <Eye className="h-3.5 w-3.5" />
+   736→                        </Button>
+   737→                        <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={() => openEdit(person)}>
+   738→                          <Pencil className="h-3.5 w-3.5" />
+   739→                        </Button>
+   740→                        <Button
+   741→                          variant="ghost"
+   742→                          size="sm"
+   743→                          className="h-7 text-xs px-2"
+   744→                          onClick={() => toggleActive(person)}
+   745→                        >
+   746→                          {person.is_active ? "Deactivate" : "Activate"}
+   747→                        </Button>
+   748→                        <Button
+   749→                          variant="ghost"
+   750→                          size="sm"
+   751→                          className="h-7 text-xs px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+   752→                          onClick={() => confirmDelete(person.id)}
+   753→                        >
+   754→                          <Trash2 className="h-3.5 w-3.5" />
+   755→                        </Button>
+   756→                      </div>
+   757→                    </div>
+   758→                  ))}
+   759→                </div>
+   760→
+   761→                {/* Desktop: Table layout */}
+   762→                <div className="hidden md:block overflow-x-auto">
+   763→                  <Table>
+   764→                    <TableHeader>
+   765→                      <TableRow>
+   766→                        <TableHead>Name</TableHead>
+   767→                        <TableHead>Phone</TableHead>
+   768→                        <TableHead>Identification</TableHead>
+   769→                        <TableHead>Nationality</TableHead>
+   770→                        <TableHead>Severity</TableHead>
+   771→                        <TableHead className="text-center">Matches</TableHead>
+   772→                        <TableHead>Status</TableHead>
+   773→                        <TableHead>Registered</TableHead>
+   774→                        <TableHead className="text-right">Actions</TableHead>
+   775→                      </TableRow>
+   776→                    </TableHeader>
+   777→                    <TableBody>
+   778→                      {paginatedPersons.map((person) => (
+   779→                        <TableRow key={person.id} className={!person.is_active ? "opacity-60" : ""}>
+   780→                          <TableCell className="font-medium">{person.name}</TableCell>
+   781→                          <TableCell className="font-mono text-sm">{person.phone || "—"}</TableCell>
+   782→                          <TableCell>
+   783→                            <div className="space-y-0.5">
+   784→                              {person.identifiers && person.identifiers.length > 0
+   785→                                ? person.identifiers.slice(0, 2).map((id, i) => (
+   786→                                    <p key={i} className="text-xs font-mono">
+   787→                                      <span className="text-muted-foreground">{id.idType.replace(/_/g, ' ')}:</span> {id.idNumber}
+   788→                                    </p>
+   789→                                  ))
+   790→                                : <p className="font-mono text-sm">{person.idNumber || "—"}</p>
+   791→                              }
+   792→                              {person.identifiers && person.identifiers.length > 2 && (
+   793→                                <p className="text-[10px] text-muted-foreground">+{person.identifiers.length - 2} more</p>
+   794→                              )}
+   795→                            </div>
+   796→                          </TableCell>
+   797→                          <TableCell>{person.nationality || "—"}</TableCell>
+   798→                          <TableCell>
+   799→                            <Badge variant="outline" className={SEVERITY_STYLES[person.severity] || ""}>
+   800→                              {person.severity}
+   801→                            </Badge>
+   802→                          </TableCell>
+   803→                          <TableCell className="text-center">
+   804→                            {person._count.matches > 0 ? (
+   805→                              <Badge className="bg-red-100 text-red-800 hover:bg-red-100 border-red-200 text-xs">
+   806→                                {person._count.matches}
+   807→                              </Badge>
+   808→                            ) : (
+   809→                              <span className="text-muted-foreground">0</span>
+   810→                            )}
+   811→                          </TableCell>
+   812→                          <TableCell>
+   813→                            <Badge variant={person.is_active ? "outline" : "secondary"} className={person.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : ""}>
+   814→                              {person.is_active ? "Active" : "Inactive"}
+   815→                            </Badge>
+   816→                          </TableCell>
+   817→                          <TableCell className="text-sm text-muted-foreground">{formatDate(person.createdAt)}</TableCell>
+   818→                          <TableCell>
+   819→                            <div className="flex justify-end gap-1">
+   820→                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openDetail(person)} title="View">
+   821→                                <Eye className="h-3.5 w-3.5" />
+   822→                              </Button>
+   823→                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(person)} title="Edit">
+   824→                                <Pencil className="h-3.5 w-3.5" />
+   825→                              </Button>
+   826→                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => toggleActive(person)} title={person.is_active ? "Deactivate" : "Activate"}>
+   827→                                <AlertTriangle className="h-3.5 w-3.5" />
+   828→                              </Button>
+   829→                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => confirmDelete(person.id)} title="Delete">
+   830→                                <Trash2 className="h-3.5 w-3.5" />
+   831→                              </Button>
+   832→                            </div>
+   833→                          </TableCell>
+   834→                        </TableRow>
+   835→                      ))}
+   836→                    </TableBody>
+   837→                  </Table>
+   838→                </div>
+   839→              </>
+   840→            )}
+   841→          </div>
+   842→
+   843→          {/* Pagination Controls */}
+   844→          {!loading && persons.length > 0 && (
+   845→            <PaginationControls
+   846→              currentPage={pagination.currentPage}
+   847→              totalPages={pagination.totalPages}
+   848→              pageSize={pagination.pageSize}
+   849→              pageSizeOptions={pagination.pageSizeOptions}
+   850→              totalItems={persons.length}
+   851→              rangeInfo={pagination.rangeInfo}
+   852→              goToPage={pagination.goToPage}
+   853→              setPageSize={pagination.setPageSize}
+   854→            />
+   855→          )}
+   856→        </>
+   857→      )}
+   858→
+   859→      {/* Add/Edit Dialog */}
+   860→      <Dialog open={formOpen} onOpenChange={setFormOpen}>
+   861→        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto mx-4 sm:mx-0 w-[calc(100%-2rem)] sm:w-full">
+   862→          <DialogHeader>
+   863→            <DialogTitle>{editingId ? "Edit Suspected Person" : "Register Suspected Person"}</DialogTitle>
+   864→            <DialogDescription>
+   865→              {editingId ? "Update suspect details" : "Add a new person to monitor across all service providers"}
+   866→            </DialogDescription>
+   867→          </DialogHeader>
+   868→          <form onSubmit={handleSubmit} className="space-y-4">
+   869→            <div className="grid gap-2">
+   870→              <Label htmlFor="sp-name">Full Name *</Label>
+   871→              <Input
+   872→                id="sp-name"
+   873→                placeholder="Full name of the suspected person"
+   874→                value={form.name}
+   875→                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+   876→                autoFocus
+   877→              />
+   878→            </div>
+   879→
+   880→            <div className="grid grid-cols-2 gap-3">
+   881→              <div className="grid gap-2">
+   882→                <Label htmlFor="sp-phone">Phone</Label>
+   883→                <Input
+   884→                  id="sp-phone"
+   885→                  placeholder="Phone number"
+   886→                  value={form.phone}
+   887→                  onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+   888→                />
+   889→              </div>
+   890→              <div className="grid gap-2">
+   891→                <Label htmlFor="sp-severity">Severity</Label>
+   892→                <Select value={form.severity} onValueChange={(v) => setForm((f) => ({ ...f, severity: v }))}>
+   893→                  <SelectTrigger id="sp-severity">
+   894→                    <SelectValue />
+   895→                  </SelectTrigger>
+   896→                  <SelectContent>
+   897→                    <SelectItem value="LOW">Low</SelectItem>
+   898→                    <SelectItem value="MEDIUM">Medium</SelectItem>
+   899→                    <SelectItem value="HIGH">High</SelectItem>
+   900→                    <SelectItem value="CRITICAL">Critical</SelectItem>
+   901→                  </SelectContent>
+   902→                </Select>
+   903→              </div>
+   904→            </div>
+   905→
+   906→            <div className="grid gap-2">
+   907→              <div className="flex items-center justify-between">
+   908→                <Label>Identification Documents</Label>
+   909→                <Button
+   910→                  type="button"
+   911→                  variant="outline"
+   912→                  size="sm"
+   913→                  className="h-7 text-[10px]"
+   914→                  onClick={() => setForm((f) => ({
+   915→                    ...f,
+   916→                    identifiers: [...(f.identifiers || []), { idType: "National_ID", idNumber: "" }],
+   917→                  }))}
+   918→                >
+   919→                  <Plus className="mr-1 h-3 w-3" /> Add ID
+   920→                </Button>
+   921→              </div>
+   922→              <div className="space-y-2">
+   923→                {(form.identifiers || []).map((ident: Identifier, idx: number) => (
+   924→                  <div key={idx} className="flex items-center gap-2">
+   925→                    <Select
+   926→                      value={ident.idType}
+   927→                      onValueChange={(v) => {
+   928→                        const updated = [...(form.identifiers || [])];
+   929→                        updated[idx] = { ...updated[idx], idType: v };
+   930→                        setForm((f) => ({ ...f, identifiers: updated }));
+   931→                      }}
+   932→                    >
+   933→                      <SelectTrigger className="h-9 w-[140px] shrink-0 text-xs">
+   934→                        <SelectValue />
+   935→                      </SelectTrigger>
+   936→                      <SelectContent>
+   937→                        {ID_TYPE_OPTIONS.map((opt) => (
+   938→                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+   939→                        ))}
+   940→                      </SelectContent>
+   941→                    </Select>
+   942→                    <Input
+   943→                      placeholder="ID number"
+   944→                      value={ident.idNumber}
+   945→                      onChange={(e) => {
+   946→                        const updated = [...(form.identifiers || [])];
+   947→                        updated[idx] = { ...updated[idx], idNumber: e.target.value };
+   948→                        setForm((f) => ({ ...f, identifiers: updated }));
+   949→                      }}
+   950→                      className="h-9 text-sm"
+   951→                    />
+   952→                    {(form.identifiers || []).length > 1 && (
+   953→                      <Button
+   954→                        type="button"
+   955→                        variant="ghost"
+   956→                        size="sm"
+   957→                        className="h-9 w-9 shrink-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+   958→                        onClick={() => {
+   959→                          const updated = (form.identifiers || []).filter((_: Identifier, i: number) => i !== idx);
+   960→                          setForm((f) => ({ ...f, identifiers: updated }));
+   961→                        }}
+   962→                      >
+   963→                        <X className="h-4 w-4" />
+   964→                      </Button>
+   965→                    )}
+   966→                  </div>
+   967→                ))}
+   968→              </div>
+   969→              <p className="text-[10px] text-muted-foreground">Add all known IDs (national ID, passport, driver license, etc.) for better matching.</p>
+   970→            </div>
+   971→
+   972→            <div className="grid grid-cols-2 gap-3">
+   973→              <div className="grid gap-2">
+   974→                <Label htmlFor="sp-nationality">Nationality</Label>
+   975→                <Input
+   976→                  id="sp-nationality"
+   977→                  placeholder="e.g. Ethiopian"
+   978→                  value={form.nationality}
+   979→                  onChange={(e) => setForm((f) => ({ ...f, nationality: e.target.value }))}
+   980→                />
+   981→              </div>
+   982→              <div className="grid gap-2">
+   983→                <Label htmlFor="sp-address">Address</Label>
+   984→                <Input
+   985→                  id="sp-address"
+   986→                  placeholder="Last known address"
+   987→                  value={form.address}
+   988→                  onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+   989→                />
+   990→              </div>
+   991→            </div>
+   992→
+   993→            <div className="grid gap-2">
+   994→              <Label htmlFor="sp-description">Description / Reason</Label>
+   995→              <Textarea
+   996→                id="sp-description"
+   997→                placeholder="Why is this person suspected? Include any relevant details for officers..."
+   998→                value={form.description}
+   999→                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+  1000→                rows={3}
+  1001→              />
+  1002→            </div>
+  1003→
+  1004→            <div className="flex justify-end gap-2 pt-2">
+  1005→              <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
+  1006→                Cancel
+  1007→              </Button>
+  1008→              <Button type="submit" disabled={formLoading} className="bg-red-600 hover:bg-red-700 text-white">
+  1009→                {formLoading ? "Saving..." : editingId ? "Update" : "Register Suspect"}
+  1010→              </Button>
+  1011→            </div>
+  1012→          </form>
+  1013→        </DialogContent>
+  1014→      </Dialog>
+  1015→
+  1016→      {/* Detail / History Dialog */}
+  1017→      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+  1018→        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto mx-4 sm:mx-0 w-[calc(100%-2rem)] sm:w-full">
+  1019→          <DialogHeader>
+  1020→            <DialogTitle className="flex items-center gap-2">
+  1021→              <UserX className="h-5 w-5 text-red-600" />
+  1022→              {detailPerson?.name}
+  1023→            </DialogTitle>
+  1024→            <DialogDescription className="flex items-center gap-2">
+  1025→              <Badge variant="outline" className={SEVERITY_STYLES[detailPerson?.severity || ""] || ""}>
+  1026→                {detailPerson?.severity}
+  1027→              </Badge>
+  1028→              {!detailPerson?.is_active && (
+  1029→                <Badge variant="secondary">Inactive</Badge>
+  1030→              )}
+  1031→            </DialogDescription>
+  1032→          </DialogHeader>
+  1033→          {detailPerson && (
+  1034→            <div className="space-y-4">
+  1035→              <div className="space-y-3 text-sm">
+  1036→                {detailPerson.phone && (
+  1037→                  <div className="flex items-center gap-2.5">
+  1038→                    <Phone className="h-4 w-4 shrink-0 text-muted-foreground" />
+  1039→                    <div>
+  1040→                      <p className="text-[10px] text-muted-foreground">Phone</p>
+  1041→                      <p className="font-mono font-medium">{detailPerson.phone}</p>
+  1042→                    </div>
+  1043→                  </div>
+  1044→                )}
+  1045→                {/* Identification Documents */}
+  1046→                {(detailPerson.identifiers && detailPerson.identifiers.length > 0) || detailPerson.idNumber ? (
+  1047→                  <div className="rounded-lg border bg-muted/30 p-3">
+  1048→                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Identification Documents</p>
+  1049→                    <div className="space-y-1.5">
+  1050→                      {(detailPerson.identifiers && detailPerson.identifiers.length > 0
+  1051→                        ? detailPerson.identifiers
+  1052→                        : [{ idType: detailPerson.idType || 'National_ID', idNumber: detailPerson.idNumber }]
+  1053→                      ).map((id: Identifier, i: number) => (
+  1054→                        <div key={i} className="flex items-center gap-2">
+  1055→                          <CreditCard className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+  1056→                          <span className="text-[10px] text-muted-foreground min-w-[80px]">{id.idType.replace(/_/g, ' ')}</span>
+  1057→                          <span className="text-xs font-mono font-medium">{id.idNumber}</span>
+  1058→                        </div>
+  1059→                      ))}
+  1060→                    </div>
+  1061→                  </div>
+  1062→                ) : null}
+  1063→                {detailPerson.nationality && (
+  1064→                  <div className="flex items-center gap-2.5">
+  1065→                    <Globe className="h-4 w-4 shrink-0 text-muted-foreground" />
+  1066→                    <p className="font-medium">{detailPerson.nationality}</p>
+  1067→                  </div>
+  1068→                )}
+  1069→                {detailPerson.address && (
+  1070→                  <div className="flex items-center gap-2.5">
+  1071→                    <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
+  1072→                    <p className="font-medium">{detailPerson.address}</p>
+  1073→                  </div>
+  1074→                )}
+  1075→                {detailPerson.description && (
+  1076→                  <div className="rounded-lg bg-muted/50 p-3 text-xs">{detailPerson.description}</div>
+  1077→                )}
+  1078→              </div>
+  1079→
+  1080→              <Separator />
+  1081→
+  1082→              {/* Match History */}
+  1083→              <div>
+  1084→                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+  1085→                  Match History ({detailPerson._count?.matches || 0})
+  1086→                </p>
+  1087→                {detailLoading ? (
+  1088→                  <div className="space-y-2">
+  1089→                    {Array.from({ length: 3 }).map((_, i) => (
+  1090→                      <Skeleton key={i} className="h-12 w-full" />
+  1091→                    ))}
+  1092→                  </div>
+  1093→                ) : !detailPerson.matches || detailPerson.matches.length === 0 ? (
+  1094→                  <p className="text-xs text-muted-foreground text-center py-4">No matches yet</p>
+  1095→                ) : (
+  1096→                  <div className="space-y-2 max-h-60 overflow-y-auto">
+  1097→                    {detailPerson.matches.map((match) => (
+  1098→                      <div key={match.id} className="rounded-lg border p-2.5 space-y-1.5">
+  1099→                        <div className="flex items-center justify-between">
+  1100→                          <p className="text-sm font-medium">{match.guestName}</p>
+  1101→                          <Badge variant="outline" className="text-[9px]">
+  1102→                            {MATCH_TYPE_LABELS[match.matchType] || match.matchType}
+  1103→                          </Badge>
+  1104→                        </div>
+  1105→                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
+  1106→                          <span className="flex items-center gap-1">
+  1107→                            <Globe className="h-2.5 w-2.5" /> {match.providerName}
+  1108→                          </span>
+  1109→                          {match.guestPhone && <span>{match.guestPhone}</span>}
+  1110→                          <span>{formatDateTime(match.createdAt)}</span>
+  1111→                        </div>
+  1112→                      </div>
+  1113→                    ))}
+  1114→                  </div>
+  1115→                )}
+  1116→              </div>
+  1117→            </div>
+  1118→          )}
+  1119→        </DialogContent>
+  1120→      </Dialog>
+  1121→
+  1122→      {/* Delete Confirmation */}
+  1123→      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+  1124→        <DialogContent className="max-w-sm mx-4 sm:mx-0 w-[calc(100%-2rem)] sm:w-full">
+  1125→          <DialogHeader>
+  1126→            <DialogTitle className="flex items-center gap-2 text-red-700">
+  1127→              <Trash2 className="h-5 w-5" />
+  1128→              Delete Suspected Person
+  1129→            </DialogTitle>
+  1130→            <DialogDescription>
+  1131→              This will permanently remove this person and all their match history. This action cannot be undone.
+  1132→            </DialogDescription>
+  1133→          </DialogHeader>
+  1134→          <DialogFooter className="gap-2">
+  1135→            <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancel</Button>
+  1136→            <Button
+  1137→              variant="destructive"
+  1138→              onClick={handleDelete}
+  1139→              disabled={deleteLoading}
+  1140→            >
+  1141→              {deleteLoading ? "Deleting..." : "Delete Permanently"}
+  1142→            </Button>
+  1143→          </DialogFooter>
+  1144→        </DialogContent>
+  1145→      </Dialog>
+  1146→
+  1147→      {/* Pagination Controls — server-side */}
+  1148→      {!loading && total > 0 && (
+  1149→        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-2">
+  1150→          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+  1151→            <span>Showing {rangeFrom}–{rangeTo} of {total}</span>
+  1152→            <Select value={String(pageSize)} onValueChange={(v) => changePageSize(Number(v))}>
+  1153→              <SelectTrigger className="h-7 w-[90px] text-xs"><SelectValue /></SelectTrigger>
+  1154→              <SelectContent>
+  1155→                <SelectItem value="10">10 / page</SelectItem>
+  1156→                <SelectItem value="20">20 / page</SelectItem>
+  1157→                <SelectItem value="50">50 / page</SelectItem>
+  1158→                <SelectItem value="100">100 / page</SelectItem>
+  1159→              </SelectContent>
+  1160→            </Select>
+  1161→          </div>
+  1162→          <div className="flex items-center gap-1">
+  1163→            <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={page <= 1} onClick={() => goToPage(page - 1)}>
+  1164→              <ChevronLeft className="h-3.5 w-3.5" />
+  1165→            </Button>
+  1166→            <span className="text-xs px-2">Page {page} of {totalPages}</span>
+  1167→            <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={page >= totalPages} onClick={() => goToPage(page + 1)}>
+  1168→              <ChevronRight className="h-3.5 w-3.5" />
+  1169→            </Button>
+  1170→          </div>
+  1171→        </div>
+  1172→      )}
+  1173→    </div>
+  1174→  );
+  1175→}
