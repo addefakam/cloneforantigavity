@@ -106,8 +106,9 @@ export default function NotificationsPage() {
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiGetNotifications();
-      setNotifications(Array.isArray(data) ? data : []);
+      const res = await apiGetNotifications();
+      const list = Array.isArray(res) ? res : (res as Record<string, unknown>).notifications;
+      setNotifications(Array.isArray(list) ? list : []);
     } catch {
       toast.error("Failed to load notifications");
     } finally {

@@ -14,9 +14,10 @@ export default function Home() {
 
   const fetchUnreadCount = useCallback(async () => {
     try {
-      const data = await apiGetNotifications();
-      const count = (data as { isRead: boolean }[]).filter((n) => !n.isRead).length;
-      setUnreadCount(count);
+      const res = await apiGetNotifications();
+      const list = Array.isArray(res) ? res : (res as Record<string, unknown>).notifications;
+      const arr = Array.isArray(list) ? list : [];
+      setUnreadCount(arr.filter((n: { isRead: boolean }) => !n.isRead).length);
     } catch {
       // silent - non-critical
     }
