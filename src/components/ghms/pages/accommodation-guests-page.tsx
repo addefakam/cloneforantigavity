@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAppStore } from "@/lib/store";
 import {
   apiGetGuests,
-  apiCreateGuest,
   apiGetReservations,
   apiCheckin,
   apiCheckout,
@@ -17,7 +16,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -32,8 +30,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Search, Plus, LogIn, LogOut, UserPlus, Users, BedDouble, CalendarDays,
-  Phone, CreditCard, XCircle, Eye, ChevronDown, ChevronUp,
+  Search, LogIn, LogOut, Users, BedDouble, CalendarDays,
 } from "lucide-react";
 import { usePagination } from "@/hooks/use-pagination";
 import { PaginationControls } from "@/components/shared/pagination-controls";
@@ -68,11 +65,6 @@ const RES_STATUS: Record<string, { color: string; label: string }> = {
   ACTIVE: { color: "bg-emerald-100 text-emerald-800", label: "Checked In" },
   COMPLETED: { color: "bg-slate-100 text-slate-700", label: "Completed" },
   CANCELLED: { color: "bg-red-100 text-red-800", label: "Cancelled" },
-};
-
-const emptyNewGuest = {
-  name: "", phone: "", email: "", idNumber: "", idType: "National ID",
-  nationality: "", notes: "",
 };
 
 const emptyResForm = {
@@ -113,11 +105,6 @@ export default function AccommodationGuestsPage() {
 
   // Expanded row
   const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  // Register guest dialog
-  const [registerOpen, setRegisterOpen] = useState(false);
-  const [newGuest, setNewGuest] = useState(emptyNewGuest);
-  const [registering, setRegistering] = useState(false);
 
   // New reservation dialog
   const [resDialogOpen, setResDialogOpen] = useState(false);
@@ -230,22 +217,6 @@ export default function AccommodationGuestsPage() {
   }, [resForm.roomId, rooms]);
 
   // ── Handlers ──
-  const handleRegister = async () => {
-    if (!newGuest.name.trim() || !newGuest.phone.trim()) {
-      toast.error("Name and phone are required"); return;
-    }
-    try {
-      setRegistering(true);
-      await apiCreateGuest(newGuest);
-      toast.success("Guest registered successfully");
-      setRegisterOpen(false);
-      setNewGuest(emptyNewGuest);
-      triggerRefresh();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Registration failed");
-    } finally { setRegistering(false); }
-  };
-
   const handleCreateRes = async () => {
     if (!resForm.guestId || !resForm.roomId || !resForm.checkIn || !resForm.checkOut) {
       toast.error("Please fill all required fields"); return;
@@ -313,14 +284,11 @@ export default function AccommodationGuestsPage() {
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-base sm:text-lg font-semibold">Manage Guests</h2>
-          <p className="text-xs sm:text-sm text-muted-foreground">Register guests, manage check-in & check-out</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">Manage guest check-in & check-out and reservations</p>
         </div>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={() => setResDialogOpen(true)} className="h-8 text-xs gap-1.5">
             <CalendarDays className="h-3.5 w-3.5" /> New Reservation
-          </Button>
-          <Button size="sm" onClick={() => setRegisterOpen(true)} className="h-8 text-xs gap-1.5">
-            <UserPlus className="h-3.5 w-3.5" /> Register Guest
           </Button>
         </div>
       </div>
@@ -507,46 +475,6 @@ export default function AccommodationGuestsPage() {
           goToPage={pagination.goToPage} setPageSize={pagination.setPageSize}
         />
       )}
-
-      {/* ── Register Guest Dialog ── */}
-      <Dialog open={registerOpen} onOpenChange={setRegisterOpen}>
-        <DialogContent className="max-w-md mx-4 w-[calc(100%-2rem)]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><UserPlus className="h-5 w-5" /> Register Guest</DialogTitle>
-            <DialogDescription>Register a new guest in the system</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div><Label className="text-xs">Name *</Label><Input value={newGuest.name} onChange={(e) => setNewGuest({ ...newGuest, name: e.target.value })} placeholder="Full name" className="h-9 text-sm" /></div>
-            <div><Label className="text-xs">Phone *</Label><Input value={newGuest.phone} onChange={(e) => setNewGuest({ ...newGuest, phone: e.target.value })} placeholder="Phone number" className="h-9 text-sm" /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label className="text-xs">ID Type</Label>
-                <Select value={newGuest.idType} onValueChange={(v) => setNewGuest({ ...newGuest, idType: v })}>
-                  <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="National ID">National ID</SelectItem>
-                    <SelectItem value="Passport">Passport</SelectItem>
-                    <SelectItem value="Driver License">Driver License</SelectItem>
-                    <SelectItem value="Military ID">Military ID</SelectItem>
-                    <SelectItem value="Refugee ID">Refugee ID</SelectItem>
-                    <SelectItem value="Voter ID">Voter ID</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div><Label className="text-xs">ID Number</Label><Input value={newGuest.idNumber} onChange={(e) => setNewGuest({ ...newGuest, idNumber: e.target.value })} placeholder="ID number" className="h-9 text-sm" /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label className="text-xs">Email</Label><Input value={newGuest.email} onChange={(e) => setNewGuest({ ...newGuest, email: e.target.value })} placeholder="Email" className="h-9 text-sm" /></div>
-              <div><Label className="text-xs">Nationality</Label><Input value={newGuest.nationality} onChange={(e) => setNewGuest({ ...newGuest, nationality: e.target.value })} placeholder="Nationality" className="h-9 text-sm" /></div>
-            </div>
-            <div><Label className="text-xs">Notes</Label><Input value={newGuest.notes} onChange={(e) => setNewGuest({ ...newGuest, notes: e.target.value })} placeholder="Optional notes" className="h-9 text-sm" /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setRegisterOpen(false)}>Cancel</Button>
-            <Button size="sm" onClick={handleRegister} disabled={registering}>{registering ? "Saving..." : "Register Guest"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* ── New Reservation Dialog ── */}
       <Dialog open={resDialogOpen} onOpenChange={(open) => { if (!open) { setResDialogOpen(false); setResForm(emptyResForm); setResGuestSearch(""); } }}>
