@@ -23,8 +23,8 @@ export async function GET(req: NextRequest) {
       select: {
         id: true, matchType: true, guestName: true, guestPhone: true, guestIdNumber: true,
         providerName: true, providerId: true, reservationId: true, daytimeBookingId: true,
+        details: true,
         isRead: true, createdAt: true,
-        // Exclude heavy 'details' field from list — load on demand
         suspectedPerson: {
           select: { id: true, name: true, phone: true, idNumber: true, severity: true },
         },
