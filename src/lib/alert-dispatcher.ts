@@ -249,15 +249,56 @@ export async function dispatchAlertForMatch(
 
     const title = `[${severity}] Suspect Match Alert${breachedGeofences.length > 0 ? " — GEOFENCE BREACH" : ""}`;
 
-    const message =
-      `Suspect "${suspect.name}" (${severity}) matched at provider "${matchData.providerName}".\n` +
-      `Guest: ${matchData.guestName} | Phone: ${matchData.guestPhone || "N/A"} | ID: ${matchData.guestIdNumber || "N/A"}\n` +
-      `Match type: ${matchData.matchType} | Match ID: ${matchData.matchId}\n` +
-      `Provider: ${matchData.providerName} (ID: ${matchData.providerId})\n` +
-      (breachedGeofences.length > 0
-        ? `⚠ GEOFENCE BREACH DETECTED: ${breachedGeofences.join("; ")}\n`
-        : "") +
-      `Details: ${matchData.details}`;
+    // Parse details for structured information
+    const parsedDetails = safeJsonParse<Record<string, unknown>>(matchData.details, {});
+
+    // Build match reason label
+    const matchReasons = safeJsonParse<Record<string, string>>(String(parsedDetails.matchReasons || "{}"), {});
+    const reasonEntries = Object.values(matchReasons);
+    const reasonLabels: Record<string, string> = { ID_NUMBER: "ID Number", PHONE: "Phone Number", NAME: "Name" };
+    const reasonStr = reasonEntries.length > 0 ? reasonEntries.map((r) => reasonLabels[r] || r).join(", ") : "Unknown";
+
+    // Build booking summary based on match type
+    let bookingSummary = "";
+    if (matchData.matchType === "RESERVATION") {
+      const checkIn = parsedDetails.checkIn ? new Date(String(parsedDetails.checkIn)).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "";
+      const checkOut = parsedDetails.checkOut ? new Date(String(parsedDetails.checkOut)).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "";
+      const room = parsedDetails.roomNumber ? `Room ${parsedDetails.roomNumber}` : "";
+      const nights = parsedDetails.nights ? `${parsedDetails.nights} night(s)` : "";
+      const cost = parsedDetails.totalCost ? `ETB ${Number(parsedDetails.totalCost).toLocaleString()}` : "";
+      bookingSummary = [checkIn && checkOut ? `${checkIn} → ${checkOut}` : "", room, nights, cost].filter(Boolean).join(" | ");
+    } else if (matchData.matchType === "DAYTIME_BOOKING") {
+      const date = parsedDetails.date ? new Date(String(parsedDetails.date)).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "";
+      const time = parsedDetails.time ? String(parsedDetails.time) : "";
+      const service = parsedDetails.serviceName ? String(parsedDetails.serviceName) : "";
+      const cost = parsedDetails.totalCost ? `ETB ${Number(parsedDetails.totalCost).toLocaleString()}` : "";
+      bookingSummary = [date, time, service, cost].filter(Boolean).join(" | ");
+    }
+
+    // Format guest ID info
+    const guestIdType = String(parsedDetails.guestIdType || "");
+    const guestIdNum = matchData.guestIdNumber || "";
+    const guestIdStr = guestIdNum ? `${guestIdType ? guestIdType + ": " : "ID: "}${guestIdNum}` : "";
+
+    // Build clean message lines
+    const lines: string[] = [];
+    lines.push(`Suspect "${suspect.name}" (${severity}) was detected at ${matchData.providerName || "unknown provider"}.`);
+    lines.push("");
+    lines.push(`Matched Guest: ${matchData.guestName}${matchData.guestPhone ? " | " + matchData.guestPhone : ""}${guestIdStr ? " | " + guestIdStr : ""}`);
+    lines.push(`Matched By: ${reasonStr}`);
+    if (bookingSummary) {
+      lines.push(`Booking: ${bookingSummary}`);
+    }
+    lines.push(`Match Type: ${matchData.matchType}`);
+    if (breachedGeofences.length > 0) {
+      lines.push("");
+      lines.push(`GEOFENCE BREACH: ${breachedGeofences.join("; ")}`);
+    }
+    lines.push("");
+    lines.push(`Match ID: ${matchData.matchId}`);
+    lines.push(`Detected: ${new Date().toISOString()}`);
+
+    const message = lines.join("\n");
 
     // ── 4. Severity-based dispatch logic ────────────────────────────────────
 
