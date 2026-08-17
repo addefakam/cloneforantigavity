@@ -1,0 +1,40 @@
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { getAuthContext, AuthError } from "@/lib/tenant";
+
+export async function GET(req: NextRequest) {
+  try {
+    const auth = await getAuthContext(req);
+    if (auth.role !== "POLICE" && auth.role !== "SUPERUSER") {
+      throw new AuthError("Police or superuser access required", 403);
+    }
+    const { searchParams } = new URL(req.url);
+    const action = searchParams.get("action") || "";
+    const page = parseInt(searchParams.get("page") || "1");
+    const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get("pageSize") || "50")));
+    const skip = (page - 1) * pageSize;
+
+    const where = action ? { action } : {};
+    const [logs, total] = await Promise.all([
+      db.auditLog.findMany({
+        where,
+        select: {
+          id: true, officerName: true, action: true, targetId: true, targetType: true,
+          ipAddress: true, createdAt: true,
+          // Exclude heavy fields: message, details (load on-demand via detail panel)
+        },
+        orderBy: { createdAt: "desc" }, skip, take: pageSize,
+      }),
+      db.auditLog.count({ where }),
+    ]);
+
+    return NextResponse.json({ logs, total, page, pageSize, totalPages: Math.ceil(total / pageSize) });
+  } catch (error: unknown) {
+        if (error instanceof AuthError) {
+          return NextResponse.json({ error: error.message }, { status: error.statusCode });
+        }
+    const message = error instanceof Error ? error.message : "Failed to fetch audit logs";
+    const status = message.includes("Police") ? 403 : 500;
+    return NextResponse.json({ error: message }, { status });
+  }
+}
