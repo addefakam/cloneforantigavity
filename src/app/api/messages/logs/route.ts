@@ -2,8 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAuthContext, getProviderFilter, AuthError } from "@/lib/tenant";
 
+async function ensureTables() {
+  try { await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/setup`, { method: "POST" }); } catch {}
+}
+
 export async function GET(req: NextRequest) {
   try {
+    await ensureTables();
     const auth = await getAuthContext(req);
     const filter = getProviderFilter(auth);
 
