@@ -487,6 +487,54 @@ export default function RoomsPage() {
   const formatPrice = (price: number) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency: "ETB", maximumFractionDigits: 0 }).format(price);
 
+  const formatDate = (str: string): string => {
+    try {
+      const date = new Date(str);
+      return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    } catch {
+      return str;
+    }
+  };
+
+  const calculateNightsStayed = (checkIn: string): number => {
+    try {
+      const checkInDate = new Date(checkIn);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      checkInDate.setHours(0, 0, 0, 0);
+      const diff = today.getTime() - checkInDate.getTime();
+      return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
+    } catch {
+      return 0;
+    }
+  };
+
+  const calculateNightsRemaining = (checkOut: string): number => {
+    try {
+      const checkOutDate = new Date(checkOut);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      checkOutDate.setHours(0, 0, 0, 0);
+      const diff = checkOutDate.getTime() - today.getTime();
+      return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
+    } catch {
+      return 0;
+    }
+  };
+
+  const daysUntil = (date: string): number => {
+    try {
+      const targetDate = new Date(date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      targetDate.setHours(0, 0, 0, 0);
+      const diff = targetDate.getTime() - today.getTime();
+      return Math.floor(diff / (1000 * 60 * 60 * 24));
+    } catch {
+      return 0;
+    }
+  };
+
   if (loading && rooms.length === 0) {
     return (
       <div className="space-y-6 p-4 md:p-6">
@@ -647,7 +695,7 @@ export default function RoomsPage() {
           {filteredRooms.map((room) => {
             const amenities = parseAmenities(room.amenities);
             return (
-              <Card key={room.id} className="gap-0 overflow-hidden py-0 transition-shadow hover:shadow-md">
+              <Card key={room.id} className="gap-0 overflow-hidden py-0 transition-shadow hover:shadow-md cursor-pointer" onClick={() => setInfoRoom(room)}>
                 {/* Status Bar */}
                 <div className={`h-1.5 w-full ${STATUS_DOT[room.status]}`} />
 
@@ -667,7 +715,7 @@ export default function RoomsPage() {
                     </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()}>
                           <MoreVertical className="h-4 w-4" />
                           <span className="sr-only">Actions</span>
                         </Button>
@@ -772,7 +820,7 @@ export default function RoomsPage() {
 
                   {/* Action Buttons */}
                   <Separator className="my-3" />
-                  <div className="flex gap-2">
+                  <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                     <Button
                       variant="outline"
                       size="sm"
@@ -1068,29 +1116,32 @@ export default function RoomsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Room Info Detail Modal */}
-      <Dialog open={!!infoRoom} onOpenChange={(open) => { if (!open) setInfoRoom(null); }}>
+      {/* Room Handover Detail Dialog */}
+      <Dialog open={!!infoRoom} onOpenChange={(open) => { if (!open) { setInfoRoom(null); setRoomReservations([]); } }}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           {infoRoom && (() => {
             const amenities = parseAmenities(infoRoom.amenities);
             const activeRes = roomReservations.find((r) => r.status === "ACTIVE" || r.status === "CHECKED_IN");
             const upcomingRes = roomReservations.filter((r) => r.status === "UPCOMING");
-            const pastRes = roomReservations.filter((r) => r.status === "COMPLETED" || r.status === "CANCELLED" || r.status === "CHECKED_OUT");
 
             return (
               <>
+                {/* Header */}
                 <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
+                  <DialogTitle className="flex items-center gap-2 flex-wrap">
                     <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${ROOM_TYPE_COLORS[infoRoom.type]}`}>
                       {ROOM_TYPE_ICONS[infoRoom.type]}
                     </div>
-                    Room {infoRoom.number}
-                    <Badge variant="outline" className={STATUS_STYLES[infoRoom.status]}>
-                      <span className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${STATUS_DOT[infoRoom.status]}`} />
-                      {infoRoom.status}
-                    </Badge>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span>Room {infoRoom.number}</span>
+                      {infoRoom.name && <span className="text-gray-400 font-normal">· {infoRoom.name}</span>}
+                      <Badge variant="outline" className={STATUS_STYLES[infoRoom.status]}>
+                        <span className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${STATUS_DOT[infoRoom.status]}`} />
+                        {infoRoom.status}
+                      </Badge>
+                    </div>
                   </DialogTitle>
-                  <DialogDescription>{infoRoom.name}</DialogDescription>
+                  <DialogDescription>Room handover and status details</DialogDescription>
                 </DialogHeader>
 
                 {/* Room Image */}
@@ -1111,25 +1162,25 @@ export default function RoomsPage() {
                   <p className="text-sm text-gray-600 leading-relaxed">{infoRoom.description}</p>
                 )}
 
-                {/* Details Grid */}
+                {/* Room Info Section */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-lg border p-3">
+                  <div className="rounded-lg border p-3 bg-muted/50">
                     <p className="text-xs text-gray-500 mb-1">Room Type</p>
                     <p className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
                       {ROOM_TYPE_ICONS[infoRoom.type]} {infoRoom.type}
                     </p>
                   </div>
-                  <div className="rounded-lg border p-3">
+                  <div className="rounded-lg border p-3 bg-muted/50">
                     <p className="text-xs text-gray-500 mb-1">Price per Night</p>
                     <p className="text-sm font-semibold text-gray-900">{formatPrice(infoRoom.pricePerNight)}</p>
                   </div>
-                  <div className="rounded-lg border p-3">
+                  <div className="rounded-lg border p-3 bg-muted/50">
                     <p className="text-xs text-gray-500 mb-1">Capacity</p>
                     <p className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
                       <Users className="h-4 w-4 text-gray-400" /> {infoRoom.capacity} guest{infoRoom.capacity !== 1 ? "s" : ""}
                     </p>
                   </div>
-                  <div className="rounded-lg border p-3">
+                  <div className="rounded-lg border p-3 bg-muted/50">
                     <p className="text-xs text-gray-500 mb-1">Floor</p>
                     <p className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
                       <Building2 className="h-4 w-4 text-gray-400" /> Floor {infoRoom.floor}
@@ -1155,105 +1206,234 @@ export default function RoomsPage() {
                   </div>
                 )}
 
-                {/* Guest & Reservation Info */}
                 <Separator />
+
+                {/* Current Status Section — Handover Info */}
                 <div>
                   <p className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1.5">
-                    <CalendarDays className="h-3.5 w-3.5" /> Reservations & Guest
+                    <ClipboardList className="h-3.5 w-3.5" /> Current Status
                   </p>
 
                   {roomResLoading ? (
-                    <div className="flex items-center gap-2 text-sm text-gray-400 py-2">
+                    <div className="flex items-center gap-2 text-sm text-gray-400 py-4">
                       <Clock className="h-4 w-4 animate-spin" /> Loading reservations...
+                    </div>
+                  ) : infoRoom.status === "OCCUPIED" ? (
+                    activeRes ? (
+                      <div className="rounded-lg border-2 border-emerald-200 bg-emerald-50 p-3 sm:p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="relative flex h-2.5 w-2.5">
+                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                            </span>
+                            <Badge className="bg-emerald-600 text-white text-xs">Current Guest</Badge>
+                          </div>
+                          <span className="text-xs text-emerald-600 font-medium">Occupied</span>
+                        </div>
+
+                        {activeRes.guest && (
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100">
+                              <User className="h-5 w-5 text-emerald-700" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-gray-900">{activeRes.guest.name}</p>
+                              <p className="text-xs text-gray-500 flex items-center gap-1">
+                                <Clock className="h-3 w-3" /> {activeRes.guest.phone}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="space-y-2 text-xs sm:text-sm">
+                          <div className="flex items-center gap-2 text-gray-600">
+                            <CalendarDays className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                            <span>Check-in: <strong>{formatDate(activeRes.checkIn)}</strong></span>
+                            <span className="text-gray-300">→</span>
+                            <span>Check-out: <strong>{formatDate(activeRes.checkOut)}</strong></span>
+                          </div>
+
+                          {(() => {
+                            const stayed = calculateNightsStayed(activeRes.checkIn);
+                            const remaining = calculateNightsRemaining(activeRes.checkOut);
+                            return (
+                              <div className="flex items-center gap-1.5 text-gray-600">
+                                <BedDouble className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                                {remaining === 0 ? (
+                                  <span className="font-medium text-amber-700">
+                                    Stayed {stayed} night{stayed !== 1 ? "s" : ""} — <span className="text-amber-600">Check-out today</span>
+                                  </span>
+                                ) : (
+                                  <span>
+                                    Stayed <strong className="text-emerald-700">{stayed}</strong> night{stayed !== 1 ? "s" : ""}, <strong className="text-amber-700">{remaining}</strong> night{remaining !== 1 ? "s" : ""} remaining
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
+
+                          <Separator className="my-2" />
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="flex items-center gap-1.5 text-gray-600">
+                              <CreditCard className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                              <span>Total: <strong className="text-gray-900">{formatPrice(activeRes.totalCost)}</strong></span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              {activeRes.paymentStatus === "PAID" ? (
+                                <Badge variant="outline" className="border-emerald-300 text-emerald-700 text-xs">
+                                  <CheckCircle2 className="h-3 w-3 mr-1" /> {activeRes.paymentStatus}
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="border-amber-300 text-amber-700 text-xs">
+                                  <AlertCircle className="h-3 w-3 mr-1" /> {activeRes.paymentStatus}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-dashed border-rose-200 bg-rose-50 p-4 text-center">
+                        <AlertCircle className="h-8 w-8 text-rose-400 mx-auto mb-2" />
+                        <p className="text-sm text-rose-700 font-medium">Marked as occupied</p>
+                        <p className="text-xs text-rose-500 mt-1">No active reservation found for this room</p>
+                      </div>
+                    )
+                  ) : infoRoom.status === "RESERVED" ? (
+                    upcomingRes.length > 0 ? (
+                      <div className="rounded-lg border-2 border-sky-200 bg-sky-50 p-3 sm:p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <CalendarClock className="h-4 w-4 text-sky-600" />
+                            <Badge className="bg-sky-600 text-white text-xs">Upcoming Guest</Badge>
+                          </div>
+                          <span className="text-xs text-sky-600 font-medium">Reserved</span>
+                        </div>
+
+                        {upcomingRes[0].guest && (
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100">
+                              <User className="h-5 w-5 text-sky-700" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-gray-900">{upcomingRes[0].guest.name}</p>
+                              <p className="text-xs text-gray-500 flex items-center gap-1">
+                                <Clock className="h-3 w-3" /> {upcomingRes[0].guest.phone}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="space-y-2 text-xs sm:text-sm">
+                          <div className="flex items-center gap-2 text-gray-600">
+                            <CalendarDays className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                            <span>Check-in: <strong>{formatDate(upcomingRes[0].checkIn)}</strong></span>
+                            <span className="text-gray-300">→</span>
+                            <span>Check-out: <strong>{formatDate(upcomingRes[0].checkOut)}</strong></span>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-gray-600">
+                            <BedDouble className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                            <span>{upcomingRes[0].nights} night{upcomingRes[0].nights !== 1 ? "s" : ""} reserved</span>
+                          </div>
+
+                          {(() => {
+                            const days = daysUntil(upcomingRes[0].checkIn);
+                            return (
+                              <div className="flex items-center gap-1.5">
+                                <Clock className="h-3.5 w-3.5 text-sky-500 shrink-0" />
+                                {days <= 0 ? (
+                                  <span className="font-medium text-sky-700">Check-in today!</span>
+                                ) : (
+                                  <span className="font-medium text-sky-700">Check-in in {days} day{days !== 1 ? "s" : ""}</span>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-dashed border-sky-200 bg-sky-50 p-4 text-center">
+                        <CalendarClock className="h-8 w-8 text-sky-400 mx-auto mb-2" />
+                        <p className="text-sm text-sky-700 font-medium">Marked as reserved</p>
+                        <p className="text-xs text-sky-500 mt-1">No upcoming reservation found for this room</p>
+                      </div>
+                    )
+                  ) : infoRoom.status === "AVAILABLE" ? (
+                    <div className="rounded-lg border-2 border-emerald-200 bg-emerald-50 p-3 sm:p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                        <span className="text-sm font-semibold text-emerald-700">Room is available and ready for check-in</span>
+                      </div>
+                      {upcomingRes.length > 0 && (
+                        <div className="mt-2 space-y-1.5">
+                          <p className="text-xs text-emerald-600 font-medium">Upcoming reservations:</p>
+                          {upcomingRes.slice(0, 3).map((res) => (
+                            <div key={res.id} className="flex items-center justify-between rounded-md bg-emerald-100 px-2.5 py-1.5 text-xs">
+                              <span className="text-gray-700">
+                                {res.guest?.name || "Guest"} · {formatDate(res.checkIn)} → {formatDate(res.checkOut)}
+                              </span>
+                              <span className="text-emerald-600 font-medium">in {Math.max(0, daysUntil(res.checkIn))}d</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : infoRoom.status === "MAINTENANCE" ? (
+                    <div className="rounded-lg border-2 border-amber-200 bg-amber-50 p-3 sm:p-4">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="h-5 w-5 text-amber-600" />
+                        <span className="text-sm font-semibold text-amber-700">Room is under maintenance</span>
+                      </div>
+                      <p className="text-xs text-amber-600 mt-1">This room is not available for booking until maintenance is complete.</p>
+                    </div>
+                  ) : null}
+                </div>
+
+                <Separator />
+
+                {/* Reservations History Section */}
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1.5">
+                    <ClipboardList className="h-3.5 w-3.5" /> Reservations History
+                  </p>
+                  {roomResLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-gray-400 py-2">
+                      <Clock className="h-4 w-4 animate-spin" /> Loading...
                     </div>
                   ) : roomReservations.length === 0 ? (
                     <div className="rounded-lg border border-dashed border-gray-200 p-4 text-center">
                       <p className="text-sm text-gray-400">No reservations found for this room</p>
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      {/* Current / Active Reservation */}
-                      {activeRes && (
-                        <div className="rounded-lg border-2 border-emerald-200 bg-emerald-50 p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <Badge className="bg-emerald-600 text-white text-xs">Current Guest</Badge>
-                            <span className="text-xs text-emerald-600 font-medium">Active</span>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {roomReservations.map((res) => (
+                        <div key={res.id} className="flex items-center justify-between rounded-lg border p-2.5 text-xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 shrink-0">
+                              <User className="h-3.5 w-3.5 text-gray-500" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-medium text-gray-900 truncate">{res.guest?.name || "—"}</p>
+                              <p className="text-gray-500">{formatDate(res.checkIn)} → {formatDate(res.checkOut)}</p>
+                            </div>
                           </div>
-                          {activeRes.guest && (
-                            <div className="flex items-center gap-2 mb-2">
-                              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100">
-                                <User className="h-4 w-4 text-emerald-700" />
-                              </div>
-                              <div>
-                                <p className="text-sm font-semibold text-gray-900">{activeRes.guest.name}</p>
-                                <p className="text-xs text-gray-500">{activeRes.guest.phone}</p>
-                              </div>
-                            </div>
-                          )}
-                          <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
-                            <div className="flex items-center gap-1">
-                              <CalendarDays className="h-3 w-3 text-gray-400" />
-                              {activeRes.checkIn} → {activeRes.checkOut}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Clock className="h-3 w-3 text-gray-400" />
-                              {activeRes.nights} night{activeRes.nights !== 1 ? "s" : ""}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <CreditCard className="h-3 w-3 text-gray-400" />
-                              {activeRes.paymentStatus}
-                            </div>
-                            <div className="flex items-center gap-1 font-medium text-gray-900">
-                              {formatPrice(activeRes.totalCost)}
-                            </div>
+                          <div className="text-right shrink-0 ml-2">
+                            <Badge variant="outline" className={`text-[10px] ${STATUS_STYLES[res.status] || ""}`}>
+                              {res.status}
+                            </Badge>
+                            <p className="font-medium text-gray-900 mt-0.5">{formatPrice(res.totalCost)}</p>
                           </div>
                         </div>
-                      )}
-
-                      {/* Upcoming Reservations */}
-                      {upcomingRes.length > 0 && (
-                        <div>
-                          <p className="text-xs font-medium text-sky-700 mb-1.5">Upcoming</p>
-                          <div className="space-y-2">
-                            {upcomingRes.slice(0, 3).map((res) => (
-                              <div key={res.id} className="rounded-lg border border-sky-200 bg-sky-50 p-2.5">
-                                <div className="flex items-center justify-between mb-1">
-                                  {res.guest && (
-                                    <div className="flex items-center gap-1.5">
-                                      <User className="h-3.5 w-3.5 text-sky-600" />
-                                      <span className="text-sm font-medium text-gray-900">{res.guest.name}</span>
-                                    </div>
-                                  )}
-                                  <Badge variant="outline" className="text-xs border-sky-300 text-sky-700">{res.paymentStatus}</Badge>
-                                </div>
-                                <div className="flex items-center gap-3 text-xs text-gray-500">
-                                  <span className="flex items-center gap-1">
-                                    <CalendarDays className="h-3 w-3" /> {res.checkIn} → {res.checkOut}
-                                  </span>
-                                  <span>{res.nights} night{res.nights !== 1 ? "s" : ""}</span>
-                                  <span className="font-medium text-gray-700">{formatPrice(res.totalCost)}</span>
-                                </div>
-                              </div>
-                            ))}
-                            {upcomingRes.length > 3 && (
-                              <p className="text-xs text-gray-400 text-center">+{upcomingRes.length - 3} more upcoming</p>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Past Reservations count */}
-                      {pastRes.length > 0 && (
-                        <p className="text-xs text-gray-400 text-center">
-                          {pastRes.length} past reservation{pastRes.length !== 1 ? "s" : ""} for this room
-                        </p>
-                      )}
+                      ))}
                     </div>
                   )}
                 </div>
 
                 <DialogFooter className="gap-2">
-                  <Button variant="outline" onClick={() => setInfoRoom(null)}>
+                  <Button variant="outline" onClick={() => { setInfoRoom(null); setRoomReservations([]); }}>
                     Close
                   </Button>
                   {infoRoom.status === "AVAILABLE" ? (
@@ -1267,7 +1447,7 @@ export default function RoomsPage() {
                   ) : infoRoom.status === "RESERVED" ? (
                     <Button
                       className="gap-2 bg-sky-600 hover:bg-sky-700"
-                      onClick={() => { setPreselectedRoom({ id: infoRoom.id, number: infoRoom.number, name: infoRoom.name, type: infoRoom.type, pricePerNight: infoRoom.pricePerNight }); setInfoRoom(null); setCurrentPage("reservations"); }}
+                      onClick={() => { setPreselectedRoom({ id: infoRoom.id, number: infoRoom.number, name: infoRoom.name, type: infoRoom.type, pricePerNight: infoRoom.pricePerNight }); setInfoRoom(null); setRoomReservations([]); setCurrentPage("reservations"); }}
                     >
                       <ClipboardList className="h-4 w-4" />
                       Manage Reservations
@@ -1276,17 +1456,17 @@ export default function RoomsPage() {
                     <div className="flex gap-2">
                       <Button
                         className="gap-2 bg-amber-600 hover:bg-amber-700"
-                        onClick={() => { setPreselectedRoom({ id: infoRoom.id, number: infoRoom.number, name: infoRoom.name, type: infoRoom.type, pricePerNight: infoRoom.pricePerNight }); setInfoRoom(null); setCurrentPage("reservations"); }}
+                        onClick={() => { setPreselectedRoom({ id: infoRoom.id, number: infoRoom.number, name: infoRoom.name, type: infoRoom.type, pricePerNight: infoRoom.pricePerNight }); setInfoRoom(null); setRoomReservations([]); setCurrentPage("reservations"); }}
                       >
                         <CalendarClock className="h-4 w-4" />
                         Extend / Early Out
                       </Button>
                       <Button
                         className="gap-2 bg-violet-600 hover:bg-violet-700"
-                        onClick={() => { setPreselectedRoom({ id: infoRoom.id, number: infoRoom.number, name: infoRoom.name, type: infoRoom.type, pricePerNight: infoRoom.pricePerNight }); setInfoRoom(null); setCurrentPage("reservations"); }}
+                        onClick={() => { setPreselectedRoom({ id: infoRoom.id, number: infoRoom.number, name: infoRoom.name, type: infoRoom.type, pricePerNight: infoRoom.pricePerNight }); setInfoRoom(null); setRoomReservations([]); setCurrentPage("reservations"); }}
                       >
                         <ArrowRightLeft className="h-4 w-4" />
-                        Room Shift
+                        Shift
                       </Button>
                     </div>
                   ) : null}
