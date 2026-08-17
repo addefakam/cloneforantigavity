@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
         providerId,
       },
       include: {
-        guest: { select: { id: true, name: true, phone: true } },
+        guest: { select: { id: true, name: true, phone: true, idNumber: true, idType: true } },
         room: { select: { id: true, number: true, name: true, type: true } },
       },
     });
@@ -153,6 +153,8 @@ export async function POST(req: NextRequest) {
     checkSuspectMatch({
       name: reservation.guest.name,
       phone: reservation.guest.phone,
+      idNumber: reservation.guest.idNumber,
+      idType: reservation.guest.idType,
       matchType: "RESERVATION",
       providerId,
       reservationId: reservation.id,

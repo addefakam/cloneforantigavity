@@ -5,17 +5,18 @@ import { dispatchAlertForMatch } from "./alert-dispatcher";
 let tablesEnsured = false;
 
 /**
- * Ensure the SuspectMatch and SuspectedPerson tables exist.
+ * Ensure the SuspectMatch, SuspectedPerson, and SuspectId tables exist.
  * Runs once per cold start. Uses raw SQL for PostgreSQL compatibility.
  */
 async function ensureTables() {
   if (tablesEnsured) return;
   try {
     await db.suspectedPerson.count();
+    // Also check SuspectId table exists
+    await db.$executeRaw(sql`SELECT 1 FROM "SuspectId" LIMIT 1`);
     tablesEnsured = true;
   } catch {
-    // Table doesn't exist — create them
-    console.log("[suspect-check] Creating SuspectedPerson and SuspectMatch tables...");
+    console.log("[suspect-check] Creating suspect tables...");
     await db.$executeRaw(sql`
       CREATE TABLE IF NOT EXISTS "SuspectedPerson" (
         "id" TEXT NOT NULL PRIMARY KEY,
@@ -34,6 +35,22 @@ async function ensureTables() {
       );
     `);
     await db.$executeRaw(sql`
+      CREATE TABLE IF NOT EXISTS "SuspectId" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "suspectedPersonId" TEXT NOT NULL,
+        "idType" TEXT NOT NULL DEFAULT 'National_ID',
+        "idNumber" TEXT NOT NULL,
+        "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY ("suspectedPersonId") REFERENCES "SuspectedPerson"("id") ON DELETE CASCADE ON UPDATE CASCADE
+      );
+    `);
+    await db.$executeRaw(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS "SuspectId_idNumber_idType_idx" ON "SuspectId"("idNumber", "idType");
+    `);
+    await db.$executeRaw(sql`
+      CREATE INDEX IF NOT EXISTS "SuspectId_suspectedPersonId_idx" ON "SuspectId"("suspectedPersonId");
+    `);
+    await db.$executeRaw(sql`
       CREATE TABLE IF NOT EXISTS "SuspectMatch" (
         "id" TEXT NOT NULL PRIMARY KEY,
         "suspectedPersonId" TEXT NOT NULL,
@@ -41,6 +58,7 @@ async function ensureTables() {
         "guestName" TEXT NOT NULL,
         "guestPhone" TEXT NOT NULL DEFAULT '',
         "guestIdNumber" TEXT NOT NULL DEFAULT '',
+        "guestIdType" TEXT NOT NULL DEFAULT '',
         "providerName" TEXT NOT NULL DEFAULT '',
         "providerId" TEXT NOT NULL DEFAULT '',
         "reservationId" TEXT,
@@ -63,15 +81,16 @@ async function ensureTables() {
 }
 
 /**
- * Check if a person (by name, phone, or ID number) matches any suspected person.
- * If matches are found, creates SuspectMatch records silently (no error thrown).
- * This is called in the background after reservation/booking creation.
+ * Check if a person matches any suspected person BY ID NUMBER ONLY.
+ * Searches both the legacy single idNumber field and the new SuspectId table.
+ * A suspect might have multiple IDs (national ID, passport, driver license, etc.).
  */
 export async function checkSuspectMatch(params: {
   name: string;
   phone?: string;
   idNumber?: string;
-  matchType: string; // "RESERVATION", "DAYTIME_BOOKING", "GUEST_CHECKIN"
+  idType?: string;
+  matchType: string;
   providerId: string;
   providerName?: string;
   reservationId?: string;
@@ -81,34 +100,43 @@ export async function checkSuspectMatch(params: {
   try {
     await ensureTables();
 
-    const { name, phone, idNumber, matchType, providerId, providerName, reservationId, daytimeBookingId, extraDetails } = params;
+    const { name, phone, idNumber, idType, matchType, providerId, providerName, reservationId, daytimeBookingId, extraDetails } = params;
 
-    // Build search conditions: match on name, phone, or ID number
-    const orConditions: Record<string, unknown>[] = [];
+    if (!idNumber || idNumber.trim().length < 2) return;
 
-    if (name) {
-      // Split name into parts and search by first/last name
-      const nameParts = name.trim().toLowerCase().split(/\s+/);
-      if (nameParts.length >= 2) {
-        // Try matching last name (most identifying)
-        orConditions.push({ name: { contains: nameParts[nameParts.length - 1] } });
-      }
-      orConditions.push({ name: { contains: name } });
-    }
-    if (phone && phone.length >= 4) {
-      orConditions.push({ phone: { contains: phone } });
-    }
-    if (idNumber && idNumber.length >= 2) {
-      orConditions.push({ idNumber: { contains: idNumber } });
-    }
+    const normalizedId = idNumber.trim();
 
-    if (orConditions.length === 0) return;
+    // --- Step 1: Find all suspect IDs that match the guest's ID number ---
+    // Search the new SuspectId table (exact match on idNumber)
+    const matchingIds = await db.$queryRawUnsafe(
+      `SELECT DISTINCT "suspectedPersonId" FROM "SuspectId" WHERE LOWER("idNumber") = LOWER(?)`,
+      normalizedId
+    ) as { suspectedPersonId: string }[];
 
-    const suspects = await db.suspectedPerson.findMany({
+    const suspectPersonIds = matchingIds.map((r) => r.suspectedPersonId);
+
+    // Also search the legacy single idNumber field for backwards compatibility
+    const legacyMatches = await db.suspectedPerson.findMany({
       where: {
         is_active: true,
-        OR: orConditions,
+        idNumber: { not: "" },
       },
+      select: { id: true },
+    });
+
+    for (const lm of legacyMatches) {
+      if (lm.idNumber.trim().toLowerCase() === normalizedId.toLowerCase()) {
+        if (!suspectPersonIds.includes(lm.id)) {
+          suspectPersonIds.push(lm.id);
+        }
+      }
+    }
+
+    if (suspectPersonIds.length === 0) return;
+
+    // --- Step 2: Fetch full suspect records ---
+    const suspects = await db.suspectedPerson.findMany({
+      where: { id: { in: suspectPersonIds }, is_active: true },
     });
 
     if (suspects.length === 0) return;
@@ -125,7 +153,8 @@ export async function checkSuspectMatch(params: {
       matchType,
       guestName: name,
       guestPhone: phone || "",
-      guestIdNumber: idNumber || "",
+      guestIdNumber: normalizedId,
+      guestIdType: idType || "",
       providerName: provName,
       providerId,
       reservationId: reservationId || null,
@@ -142,7 +171,8 @@ export async function checkSuspectMatch(params: {
           matchType,
           guestName: name,
           guestPhone: phone || "",
-          guestIdNumber: idNumber || "",
+          guestIdNumber: normalizedId,
+          guestIdType: idType || "",
           providerName: provName,
           providerId,
           reservationId: reservationId || null,
@@ -153,12 +183,7 @@ export async function checkSuspectMatch(params: {
 
       // Fire-and-forget alert dispatch — never blocks or breaks normal flow
       dispatchAlertForMatch(
-        {
-          id: suspect.id,
-          name: suspect.name,
-          severity: suspect.severity,
-          is_active: suspect.is_active,
-        },
+        { id: suspect.id, name: suspect.name, severity: suspect.severity, is_active: suspect.is_active },
         {
           matchId: match.id,
           providerId: match.providerId,

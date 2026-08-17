@@ -97,6 +97,7 @@ export async function POST(req: NextRequest) {
       name,
       phone,
       idNumber: idNumber || "",
+      idType: idType || "",
       matchType: "GUEST_CHECKIN",
       providerId,
       extraDetails: {

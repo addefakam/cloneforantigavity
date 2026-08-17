@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getAuthContext, requirePolice, AuthError } from "@/lib/tenant";
 import { requirePoliceMinRank } from "@/lib/police-permissions";
 import { ensureSuspectTables } from "@/lib/suspect-check";
+import { sql } from "@prisma/client/runtime/library";
 
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE_SIZE = 5;
@@ -26,12 +27,23 @@ export async function GET(req: NextRequest) {
 
     const where: Record<string, unknown> = {};
     if (q) {
-      where.OR = [
+      // Search in IDs table too
+      const matchingIdPersons = await db.$queryRawUnsafe(
+        `SELECT DISTINCT "suspectedPersonId" FROM "SuspectId" WHERE LOWER("idNumber") LIKE LOWER(?)`,
+        `%${q}%`
+      ) as { suspectedPersonId: string }[];
+      const idsFromIdTable = matchingIdPersons.map(r => r.suspectedPersonId);
+
+      const orConditions: Record<string, unknown>[] = [
         { name: { contains: q } },
         { phone: { contains: q } },
         { idNumber: { contains: q } },
         { description: { contains: q } },
       ];
+      if (idsFromIdTable.length > 0) {
+        orConditions.push({ id: { in: idsFromIdTable } });
+      }
+      where.OR = orConditions;
     }
     if (severity) {
       where.severity = severity;
@@ -53,6 +65,27 @@ export async function GET(req: NextRequest) {
       db.suspectedPerson.count({ where }),
     ]);
 
+    // Fetch all IDs for the returned persons
+    if (persons.length > 0) {
+      const personIds = persons.map(p => p.id);
+      const allIds = await db.$queryRawUnsafe(
+        `SELECT * FROM "SuspectId" WHERE "suspectedPersonId" IN (${personIds.map(() => '?').join(',')}) ORDER BY "createdAt" ASC`,
+        ...personIds
+      ) as { id: string; suspectedPersonId: string; idType: string; idNumber: string; createdAt: string }[];
+
+      // Group IDs by person
+      const idsByPerson: Record<string, { idType: string; idNumber: string }[]> = {};
+      for (const sid of allIds) {
+        if (!idsByPerson[sid.suspectedPersonId]) idsByPerson[sid.suspectedPersonId] = [];
+        idsByPerson[sid.suspectedPersonId].push({ idType: sid.idType, idNumber: sid.idNumber });
+      }
+
+      // Attach IDs to each person
+      for (const p of persons) {
+        (p as Record<string, unknown>).identifiers = idsByPerson[p.id] || [];
+      }
+    }
+
     return NextResponse.json({
       persons,
       total,
@@ -61,9 +94,9 @@ export async function GET(req: NextRequest) {
       totalPages: Math.ceil(total / pageSize),
     });
   } catch (error: unknown) {
-        if (error instanceof AuthError) {
-          return NextResponse.json({ error: error.message }, { status: error.statusCode });
-        }
+      if (error instanceof AuthError) {
+        return NextResponse.json({ error: error.message }, { status: error.statusCode });
+      }
     const message = error instanceof Error ? error.message : "Failed to fetch suspected persons";
     const status = message.includes("Police") ? 403 : 500;
     return NextResponse.json({ error: message }, { status });
@@ -78,18 +111,22 @@ export async function POST(req: NextRequest) {
     await ensureSuspectTables();
 
     const body = await req.json();
-    const { name, phone, idNumber, idType, nationality, address, description, severity } = body;
+    const { name, phone, idNumber, idType, nationality, address, description, severity, identifiers } = body;
 
     if (!name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
 
+    // Keep the legacy single idNumber/idType for backwards compat
+    const primaryId = idNumber || "";
+    const primaryIdType = idType || "";
+
     const person = await db.suspectedPerson.create({
       data: {
         name: name.trim(),
         phone: phone || "",
-        idNumber: idNumber || "",
-        idType: idType || "",
+        idNumber: primaryId,
+        idType: primaryIdType,
         nationality: nationality || "",
         address: address || "",
         description: description || "",
@@ -101,11 +138,46 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json(person, { status: 201 });
-  } catch (error: unknown) {
-        if (error instanceof AuthError) {
-          return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    // Create SuspectId records for all provided identifiers
+    const idsToCreate: { idType: string; idNumber: string }[] = [];
+    if (Array.isArray(identifiers) && identifiers.length > 0) {
+      for (const ident of identifiers) {
+        if (ident.idNumber && ident.idNumber.trim()) {
+          idsToCreate.push({ idType: ident.idType || "Other", idNumber: ident.idNumber.trim() });
         }
+      }
+    }
+    // Also create from legacy fields if not already in the list
+    if (primaryId && !idsToCreate.some(i => i.idNumber.toLowerCase() === primaryId.toLowerCase())) {
+      idsToCreate.unshift({ idType: primaryIdType || "National_ID", idNumber: primaryId });
+    }
+
+    for (const sid of idsToCreate) {
+      try {
+        await db.$executeRaw(sql`
+          INSERT INTO "SuspectId" ("id", "suspectedPersonId", "idType", "idNumber", "createdAt")
+          VALUES (gen_random_uuid()::text, ${person.id}, ${sid.idType}, ${sid.idNumber}, CURRENT_TIMESTAMP)
+          ON CONFLICT ("idNumber", "idType") DO NOTHING
+        `);
+      } catch {
+        // Skip duplicate IDs silently
+      }
+    }
+
+    // Fetch the created IDs to return
+    const createdIds = await db.$queryRawUnsafe(
+      `SELECT "idType", "idNumber" FROM "SuspectId" WHERE "suspectedPersonId" = ? ORDER BY "createdAt" ASC`,
+      person.id
+    ) as { idType: string; idNumber: string }[];
+
+    return NextResponse.json({
+      ...person,
+      identifiers: createdIds,
+    }, { status: 201 });
+  } catch (error: unknown) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     const message = error instanceof Error ? error.message : "Failed to create suspected person";
     const status = message.includes("Police") ? 403 : message.includes("required") ? 400 : 500;
     return NextResponse.json({ error: message }, { status });

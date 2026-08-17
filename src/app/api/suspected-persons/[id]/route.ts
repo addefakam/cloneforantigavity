@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getAuthContext, requirePolice, AuthError } from "@/lib/tenant";
 import { requirePoliceMinRank } from "@/lib/police-permissions";
 import { ensureSuspectTables } from "@/lib/suspect-check";
+import { sql } from "@prisma/client/runtime/library";
 
 export async function GET(
   req: NextRequest,
@@ -29,11 +30,17 @@ export async function GET(
       return NextResponse.json({ error: "Suspected person not found" }, { status: 404 });
     }
 
-    return NextResponse.json(person);
+    // Fetch all identifiers
+    const identifiers = await db.$queryRawUnsafe(
+      `SELECT "idType", "idNumber", "id" FROM "SuspectId" WHERE "suspectedPersonId" = ? ORDER BY "createdAt" ASC`,
+      id
+    ) as { id: string; idType: string; idNumber: string }[];
+
+    return NextResponse.json({ ...person, identifiers });
   } catch (error: unknown) {
-        if (error instanceof AuthError) {
-          return NextResponse.json({ error: error.message }, { status: error.statusCode });
-        }
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     const message = error instanceof Error ? error.message : "Failed to fetch suspected person";
     const status = message.includes("Police") ? 403 : 500;
     return NextResponse.json({ error: message }, { status });
@@ -48,10 +55,11 @@ export async function PUT(
     const auth = await getAuthContext(req);
     requirePolice(auth);
     requirePoliceMinRank(auth, "DETECTIVE");
+    await ensureSuspectTables();
 
     const { id } = await params;
     const body = await req.json();
-    const { name, phone, idNumber, idType, nationality, address, description, severity, is_active } = body;
+    const { name, phone, idNumber, idType, nationality, address, description, severity, is_active, identifiers } = body;
 
     const person = await db.suspectedPerson.update({
       where: { id },
@@ -71,11 +79,46 @@ export async function PUT(
       },
     });
 
-    return NextResponse.json(person);
-  } catch (error: unknown) {
-        if (error instanceof AuthError) {
-          return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    // If identifiers array is provided, replace all IDs
+    if (Array.isArray(identifiers)) {
+      // Delete existing IDs
+      await db.$executeRaw(sql`DELETE FROM "SuspectId" WHERE "suspectedPersonId" = ${id}`);
+
+      // Also update legacy field with first ID if provided
+      if (identifiers.length > 0 && identifiers[0].idNumber) {
+        await db.suspectedPerson.update({
+          where: { id },
+          data: { idNumber: identifiers[0].idNumber, idType: identifiers[0].idType || "National_ID" },
+        });
+      }
+
+      // Create new IDs
+      for (const ident of identifiers) {
+        if (ident.idNumber && ident.idNumber.trim()) {
+          try {
+            await db.$executeRaw(sql`
+              INSERT INTO "SuspectId" ("id", "suspectedPersonId", "idType", "idNumber", "createdAt")
+              VALUES (gen_random_uuid()::text, ${id}, ${ident.idType || "Other"}, ${ident.idNumber.trim()}, CURRENT_TIMESTAMP)
+              ON CONFLICT ("idNumber", "idType") DO NOTHING
+            `);
+          } catch {
+            // Skip duplicates
+          }
         }
+      }
+    }
+
+    // Fetch updated identifiers
+    const updatedIds = await db.$queryRawUnsafe(
+      `SELECT "idType", "idNumber", "id" FROM "SuspectId" WHERE "suspectedPersonId" = ? ORDER BY "createdAt" ASC`,
+      id
+    ) as { id: string; idType: string; idNumber: string }[];
+
+    return NextResponse.json({ ...person, identifiers: updatedIds });
+  } catch (error: unknown) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     const message = error instanceof Error ? error.message : "Failed to update suspected person";
     const status = message.includes("Police") ? 403 : message.includes("not found") ? 404 : 500;
     return NextResponse.json({ error: message }, { status });
@@ -90,17 +133,19 @@ export async function DELETE(
     const auth = await getAuthContext(req);
     requirePolice(auth);
     requirePoliceMinRank(auth, "DETECTIVE");
+    await ensureSuspectTables();
 
     const { id } = await params;
-    // Delete matches first, then the person
+    // Delete IDs first, then matches, then the person (cascade should handle this but be safe)
+    await db.$executeRaw(sql`DELETE FROM "SuspectId" WHERE "suspectedPersonId" = ${id}`);
     await db.suspectMatch.deleteMany({ where: { suspectedPersonId: id } });
     await db.suspectedPerson.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
-        if (error instanceof AuthError) {
-          return NextResponse.json({ error: error.message }, { status: error.statusCode });
-        }
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     const message = error instanceof Error ? error.message : "Failed to delete suspected person";
     const status = message.includes("Police") ? 403 : message.includes("not found") ? 404 : 500;
     return NextResponse.json({ error: message }, { status });

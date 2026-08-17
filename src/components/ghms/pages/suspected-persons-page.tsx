@@ -63,7 +63,14 @@ import {
   CreditCard,
   ChevronLeft,
   ChevronRight,
+  X,
 } from "lucide-react";
+
+interface Identifier {
+  idType: string;
+  idNumber: string;
+  id?: string;
+}
 
 interface SuspectedPerson {
   id: string;
@@ -80,10 +87,12 @@ interface SuspectedPerson {
   createdAt: string;
   updatedAt: string;
   _count: { matches: number };
+  identifiers?: Identifier[];
 }
 
 interface PersonWithHistory extends SuspectedPerson {
   matches?: MatchRecord[];
+  identifiers?: Identifier[];
 }
 
 interface MatchRecord {
@@ -151,15 +160,26 @@ function formatDateTime(dateStr: string) {
   });
 }
 
+const ID_TYPE_OPTIONS = [
+  { value: "National_ID", label: "National ID" },
+  { value: "Passport", label: "Passport" },
+  { value: "Driver_License", label: "Driver License" },
+  { value: "Military_ID", label: "Military ID" },
+  { value: "Refugee_ID", label: "Refugee ID" },
+  { value: "Voter_ID", label: "Voter ID" },
+  { value: "Other", label: "Other" },
+];
+
 const emptyForm = {
   name: "",
   phone: "",
   idNumber: "",
-  idType: "",
+  idType: "National_ID",
   nationality: "",
   address: "",
   description: "",
   severity: "MEDIUM",
+  identifiers: [{ idType: "National_ID", idNumber: "" }],
 };
 
 export default function SuspectedPersonsPage() {
@@ -262,6 +282,9 @@ export default function SuspectedPersonsPage() {
 
   const openEdit = (person: SuspectedPerson) => {
     setEditingId(person.id);
+    const ids = person.identifiers && person.identifiers.length > 0
+      ? person.identifiers
+      : [{ idType: person.idType || "National_ID", idNumber: person.idNumber }];
     setForm({
       name: person.name,
       phone: person.phone,
@@ -271,6 +294,7 @@ export default function SuspectedPersonsPage() {
       address: person.address,
       description: person.description,
       severity: person.severity,
+      identifiers: ids,
     });
     setFormOpen(true);
   };
@@ -281,16 +305,29 @@ export default function SuspectedPersonsPage() {
       toast.error("Name is required");
       return;
     }
+    // Validate at least one ID number is provided
+    const validIds = (form.identifiers || []).filter((i: Identifier) => i.idNumber.trim());
+    if (validIds.length === 0) {
+      toast.error("At least one ID number is required");
+      return;
+    }
     setFormLoading(true);
     try {
+      const payload = {
+        ...form,
+        identifiers: validIds,
+        // Also set legacy fields from first ID
+        idNumber: validIds[0].idNumber,
+        idType: validIds[0].idType,
+      };
       if (editingId) {
-        const updated = await apiUpdateSuspectedPerson(editingId, form);
+        const updated = await apiUpdateSuspectedPerson(editingId, payload);
         setPersons((prev) =>
           prev.map((p) => (p.id === editingId ? { ...p, ...updated } : p))
         );
         toast.success("Suspected person updated");
       } else {
-        const created = await apiCreateSuspectedPerson(form);
+        const created = await apiCreateSuspectedPerson(payload);
         setPersons((prev) => [created, ...prev]);
         toast.success("Suspected person added");
       }
@@ -676,9 +713,16 @@ export default function SuspectedPersonsPage() {
                             <p className="text-xs text-muted-foreground font-mono">{person.phone}</p>
                           )}
                           <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                            {person.idNumber && (
-                              <span className="text-[10px] text-muted-foreground">ID: {person.idNumber}</span>
-                            )}
+                            {person.identifiers && person.identifiers.length > 0
+                              ? person.identifiers.slice(0, 2).map((id, i) => (
+                                  <span key={i} className="text-[10px] text-muted-foreground">
+                                    {id.idType.replace(/_/g, ' ')}: {id.idNumber}
+                                  </span>
+                                ))
+                              : person.idNumber && (
+                                  <span className="text-[10px] text-muted-foreground">ID: {person.idNumber}</span>
+                                )
+                            }
                             <span className="flex items-center gap-1 text-[10px] text-red-600 font-medium">
                               <ShieldAlert className="h-2.5 w-2.5" />
                               {person._count.matches} match{person._count.matches !== 1 ? "es" : ""}
@@ -721,7 +765,7 @@ export default function SuspectedPersonsPage() {
                       <TableRow>
                         <TableHead>Name</TableHead>
                         <TableHead>Phone</TableHead>
-                        <TableHead>ID Number</TableHead>
+                        <TableHead>Identification</TableHead>
                         <TableHead>Nationality</TableHead>
                         <TableHead>Severity</TableHead>
                         <TableHead className="text-center">Matches</TableHead>
@@ -735,7 +779,21 @@ export default function SuspectedPersonsPage() {
                         <TableRow key={person.id} className={!person.is_active ? "opacity-60" : ""}>
                           <TableCell className="font-medium">{person.name}</TableCell>
                           <TableCell className="font-mono text-sm">{person.phone || "—"}</TableCell>
-                          <TableCell className="font-mono text-sm">{person.idNumber || "—"}</TableCell>
+                          <TableCell>
+                            <div className="space-y-0.5">
+                              {person.identifiers && person.identifiers.length > 0
+                                ? person.identifiers.slice(0, 2).map((id, i) => (
+                                    <p key={i} className="text-xs font-mono">
+                                      <span className="text-muted-foreground">{id.idType.replace(/_/g, ' ')}:</span> {id.idNumber}
+                                    </p>
+                                  ))
+                                : <p className="font-mono text-sm">{person.idNumber || "—"}</p>
+                              }
+                              {person.identifiers && person.identifiers.length > 2 && (
+                                <p className="text-[10px] text-muted-foreground">+{person.identifiers.length - 2} more</p>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell>{person.nationality || "—"}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className={SEVERITY_STYLES[person.severity] || ""}>
@@ -845,31 +903,70 @@ export default function SuspectedPersonsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-2">
-                <Label htmlFor="sp-idtype">ID Type</Label>
-                <Select value={form.idType} onValueChange={(v) => setForm((f) => ({ ...f, idType: v }))}>
-                  <SelectTrigger id="sp-idtype">
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="National_ID">National ID</SelectItem>
-                    <SelectItem value="Passport">Passport</SelectItem>
-                    <SelectItem value="Driver_License">Driver License</SelectItem>
-                    <SelectItem value="Military_ID">Military ID</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <Label>Identification Documents</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-[10px]"
+                  onClick={() => setForm((f) => ({
+                    ...f,
+                    identifiers: [...(f.identifiers || []), { idType: "National_ID", idNumber: "" }],
+                  }))}
+                >
+                  <Plus className="mr-1 h-3 w-3" /> Add ID
+                </Button>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="sp-idnumber">ID Number</Label>
-                <Input
-                  id="sp-idnumber"
-                  placeholder="ID number"
-                  value={form.idNumber}
-                  onChange={(e) => setForm((f) => ({ ...f, idNumber: e.target.value }))}
-                />
+              <div className="space-y-2">
+                {(form.identifiers || []).map((ident: Identifier, idx: number) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <Select
+                      value={ident.idType}
+                      onValueChange={(v) => {
+                        const updated = [...(form.identifiers || [])];
+                        updated[idx] = { ...updated[idx], idType: v };
+                        setForm((f) => ({ ...f, identifiers: updated }));
+                      }}
+                    >
+                      <SelectTrigger className="h-9 w-[140px] shrink-0 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ID_TYPE_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      placeholder="ID number"
+                      value={ident.idNumber}
+                      onChange={(e) => {
+                        const updated = [...(form.identifiers || [])];
+                        updated[idx] = { ...updated[idx], idNumber: e.target.value };
+                        setForm((f) => ({ ...f, identifiers: updated }));
+                      }}
+                      className="h-9 text-sm"
+                    />
+                    {(form.identifiers || []).length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-9 w-9 shrink-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => {
+                          const updated = (form.identifiers || []).filter((_: Identifier, i: number) => i !== idx);
+                          setForm((f) => ({ ...f, identifiers: updated }));
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
               </div>
+              <p className="text-[10px] text-muted-foreground">Add all known IDs (national ID, passport, driver license, etc.) for better matching.</p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -945,15 +1042,24 @@ export default function SuspectedPersonsPage() {
                     </div>
                   </div>
                 )}
-                {detailPerson.idNumber && (
-                  <div className="flex items-center gap-2.5">
-                    <FileWarning className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <div>
-                      <p className="text-[10px] text-muted-foreground">{detailPerson.idType || "ID Number"}</p>
-                      <p className="font-mono font-medium">{detailPerson.idNumber}</p>
+                {/* Identification Documents */}
+                {(detailPerson.identifiers && detailPerson.identifiers.length > 0) || detailPerson.idNumber ? (
+                  <div className="rounded-lg border bg-muted/30 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Identification Documents</p>
+                    <div className="space-y-1.5">
+                      {(detailPerson.identifiers && detailPerson.identifiers.length > 0
+                        ? detailPerson.identifiers
+                        : [{ idType: detailPerson.idType || 'National_ID', idNumber: detailPerson.idNumber }]
+                      ).map((id: Identifier, i: number) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <CreditCard className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          <span className="text-[10px] text-muted-foreground min-w-[80px]">{id.idType.replace(/_/g, ' ')}</span>
+                          <span className="text-xs font-mono font-medium">{id.idNumber}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                )}
+                ) : null}
                 {detailPerson.nationality && (
                   <div className="flex items-center gap-2.5">
                     <Globe className="h-4 w-4 shrink-0 text-muted-foreground" />
