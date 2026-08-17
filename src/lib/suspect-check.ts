@@ -11,29 +11,7 @@ let tablesEnsured = false;
 async function ensureTables() {
   if (tablesEnsured) return;
   try {
-    await db.suspectedPerson.count();
-    // Also check SuspectId table exists
-    await db.$executeRaw(sql`SELECT 1 FROM "SuspectId" LIMIT 1`);
-    tablesEnsured = true;
-  } catch {
-    console.log("[suspect-check] Creating suspect tables...");
-    await db.$executeRaw(sql`
-      CREATE TABLE IF NOT EXISTS "SuspectedPerson" (
-        "id" TEXT NOT NULL PRIMARY KEY,
-        "name" TEXT NOT NULL,
-        "phone" TEXT NOT NULL DEFAULT '',
-        "idNumber" TEXT NOT NULL DEFAULT '',
-        "idType" TEXT NOT NULL DEFAULT '',
-        "nationality" TEXT NOT NULL DEFAULT '',
-        "address" TEXT NOT NULL DEFAULT '',
-        "description" TEXT NOT NULL DEFAULT '',
-        "severity" TEXT NOT NULL DEFAULT 'MEDIUM',
-        "is_active" BOOLEAN NOT NULL DEFAULT true,
-        "registeredBy" TEXT NOT NULL DEFAULT '',
-        "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP NOT NULL
-      );
-    `);
+    // Always ensure SuspectId table exists (not in Prisma schema, so not created by migrations)
     await db.$executeRaw(sql`
       CREATE TABLE IF NOT EXISTS "SuspectId" (
         "id" TEXT NOT NULL PRIMARY KEY,
@@ -50,33 +28,10 @@ async function ensureTables() {
     await db.$executeRaw(sql`
       CREATE INDEX IF NOT EXISTS "SuspectId_suspectedPersonId_idx" ON "SuspectId"("suspectedPersonId");
     `);
-    await db.$executeRaw(sql`
-      CREATE TABLE IF NOT EXISTS "SuspectMatch" (
-        "id" TEXT NOT NULL PRIMARY KEY,
-        "suspectedPersonId" TEXT NOT NULL,
-        "matchType" TEXT NOT NULL,
-        "guestName" TEXT NOT NULL,
-        "guestPhone" TEXT NOT NULL DEFAULT '',
-        "guestIdNumber" TEXT NOT NULL DEFAULT '',
-        "guestIdType" TEXT NOT NULL DEFAULT '',
-        "providerName" TEXT NOT NULL DEFAULT '',
-        "providerId" TEXT NOT NULL DEFAULT '',
-        "reservationId" TEXT,
-        "daytimeBookingId" TEXT,
-        "details" TEXT NOT NULL DEFAULT '',
-        "isRead" BOOLEAN NOT NULL DEFAULT false,
-        "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY ("suspectedPersonId") REFERENCES "SuspectedPerson"("id") ON DELETE CASCADE ON UPDATE CASCADE
-      );
-    `);
-    await db.$executeRaw(sql`
-      CREATE INDEX IF NOT EXISTS "SuspectMatch_suspectedPersonId_idx" ON "SuspectMatch"("suspectedPersonId");
-    `);
-    await db.$executeRaw(sql`
-      CREATE INDEX IF NOT EXISTS "SuspectMatch_isRead_idx" ON "SuspectMatch"("isRead");
-    `);
     tablesEnsured = true;
-    console.log("[suspect-check] Tables created successfully");
+    console.log("[suspect-check] SuspectId table ensured");
+  } catch (error) {
+    console.error("[suspect-check] Failed to ensure SuspectId table:", error);
   }
 }
 
@@ -171,7 +126,6 @@ export async function checkSuspectMatch(params: {
           guestName: name,
           guestPhone: phone || "",
           guestIdNumber: normalizedId,
-          guestIdType: idType || "",
           providerName: provName,
           providerId,
           reservationId: reservationId || null,
