@@ -25,7 +25,10 @@ export async function GET(req: NextRequest) {
       ]);
     } else {
       const { providerId } = getProviderFilter(auth);
-      const where = { providerId };
+      const where = {
+        providerId,
+        title: { not: { contains: "Suspect Match Alert" } },
+      };
       [notifications, total] = await Promise.all([
         db.notification.findMany({
           where,
