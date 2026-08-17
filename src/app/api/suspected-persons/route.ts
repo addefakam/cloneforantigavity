@@ -28,10 +28,9 @@ export async function GET(req: NextRequest) {
     const where: Record<string, unknown> = {};
     if (q) {
       // Search in IDs table too
-      const matchingIdPersons = await db.$queryRawUnsafe(
-        `SELECT DISTINCT "suspectedPersonId" FROM "SuspectId" WHERE LOWER("idNumber") LIKE LOWER(?)`,
-        `%${q}%`
-      ) as { suspectedPersonId: string }[];
+      const matchingIdPersons = await db.$queryRaw<{ suspectedPersonId: string }[]>(
+        sql`SELECT DISTINCT "suspectedPersonId" FROM "SuspectId" WHERE LOWER("idNumber") LIKE LOWER(${`%${q}%`})`
+      );
       const idsFromIdTable = matchingIdPersons.map(r => r.suspectedPersonId);
 
       const orConditions: Record<string, unknown>[] = [
@@ -68,10 +67,11 @@ export async function GET(req: NextRequest) {
     // Fetch all IDs for the returned persons
     if (persons.length > 0) {
       const personIds = persons.map(p => p.id);
-      const allIds = await db.$queryRawUnsafe(
-        `SELECT * FROM "SuspectId" WHERE "suspectedPersonId" IN (${personIds.map(() => '?').join(',')}) ORDER BY "createdAt" ASC`,
-        ...personIds
-      ) as { id: string; suspectedPersonId: string; idType: string; idNumber: string; createdAt: string }[];
+      const allIds = await db.$queryRaw<
+        { id: string; suspectedPersonId: string; idType: string; idNumber: string; createdAt: string }[]
+      >(
+        sql`SELECT * FROM "SuspectId" WHERE "suspectedPersonId" IN (${sql.join(personIds.map(id => sql`${id}`), sql`, `)}) ORDER BY "createdAt" ASC`
+      );
 
       // Group IDs by person
       const idsByPerson: Record<string, { idType: string; idNumber: string }[]> = {};
@@ -165,10 +165,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Fetch the created IDs to return
-    const createdIds = await db.$queryRawUnsafe(
-      `SELECT "idType", "idNumber" FROM "SuspectId" WHERE "suspectedPersonId" = ? ORDER BY "createdAt" ASC`,
-      person.id
-    ) as { idType: string; idNumber: string }[];
+    const createdIds = await db.$queryRaw<{ idType: string; idNumber: string }[]>(
+      sql`SELECT "idType", "idNumber" FROM "SuspectId" WHERE "suspectedPersonId" = ${person.id} ORDER BY "createdAt" ASC`
+    );
 
     return NextResponse.json({
       ...person,

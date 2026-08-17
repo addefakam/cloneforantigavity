@@ -108,10 +108,9 @@ export async function checkSuspectMatch(params: {
 
     // --- Step 1: Find all suspect IDs that match the guest's ID number ---
     // Search the new SuspectId table (exact match on idNumber)
-    const matchingIds = await db.$queryRawUnsafe(
-      `SELECT DISTINCT "suspectedPersonId" FROM "SuspectId" WHERE LOWER("idNumber") = LOWER(?)`,
-      normalizedId
-    ) as { suspectedPersonId: string }[];
+    const matchingIds = await db.$queryRaw<{ suspectedPersonId: string }[]>(
+      sql`SELECT DISTINCT "suspectedPersonId" FROM "SuspectId" WHERE LOWER("idNumber") = LOWER(${normalizedId})`
+    );
 
     const suspectPersonIds = matchingIds.map((r) => r.suspectedPersonId);
 

@@ -31,10 +31,11 @@ export async function GET(
     }
 
     // Fetch all identifiers
-    const identifiers = await db.$queryRawUnsafe(
-      `SELECT "idType", "idNumber", "id" FROM "SuspectId" WHERE "suspectedPersonId" = ? ORDER BY "createdAt" ASC`,
-      id
-    ) as { id: string; idType: string; idNumber: string }[];
+    const identifiers = await db.$queryRaw<
+      { id: string; idType: string; idNumber: string }[]
+    >(
+      sql`SELECT "idType", "idNumber", "id" FROM "SuspectId" WHERE "suspectedPersonId" = ${id} ORDER BY "createdAt" ASC`
+    );
 
     return NextResponse.json({ ...person, identifiers });
   } catch (error: unknown) {
@@ -109,10 +110,11 @@ export async function PUT(
     }
 
     // Fetch updated identifiers
-    const updatedIds = await db.$queryRawUnsafe(
-      `SELECT "idType", "idNumber", "id" FROM "SuspectId" WHERE "suspectedPersonId" = ? ORDER BY "createdAt" ASC`,
-      id
-    ) as { id: string; idType: string; idNumber: string }[];
+    const updatedIds = await db.$queryRaw<
+      { id: string; idType: string; idNumber: string }[]
+    >(
+      sql`SELECT "idType", "idNumber", "id" FROM "SuspectId" WHERE "suspectedPersonId" = ${id} ORDER BY "createdAt" ASC`
+    );
 
     return NextResponse.json({ ...person, identifiers: updatedIds });
   } catch (error: unknown) {
