@@ -11,6 +11,8 @@ import {
   apiUpdateRoomStatus,
   apiImportRooms,
   apiGetReservations,
+  apiUpdateReservation,
+  apiCheckout,
 } from "@/lib/api";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -121,6 +123,8 @@ interface RoomReservation {
   nights: number;
   roomRate: number;
   totalCost: number;
+  paidAmount: number;
+  balance: number;
   paymentStatus: string;
   guest: { id: string; name: string; phone: string } | null;
 }
@@ -265,6 +269,20 @@ export default function RoomsPage() {
   const [infoRoom, setInfoRoom] = useState<Room | null>(null);
   const [roomReservations, setRoomReservations] = useState<RoomReservation[]>([]);
   const [roomResLoading, setRoomResLoading] = useState(false);
+
+  // extend stay dialog
+  const [extendDialog, setExtendDialog] = useState<RoomReservation | null>(null);
+  const [extendDate, setExtendDate] = useState("");
+  const [extending, setExtending] = useState(false);
+
+  // early checkout dialog
+  const [earlyCheckoutDialog, setEarlyCheckoutDialog] = useState<RoomReservation | null>(null);
+  const [earlyCheckingOut, setEarlyCheckingOut] = useState(false);
+
+  // room shift dialog
+  const [shiftDialog, setShiftDialog] = useState<RoomReservation | null>(null);
+  const [shiftTargetRoomId, setShiftTargetRoomId] = useState("");
+  const [shifting, setShifting] = useState(false);
 
   // excel import
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -415,6 +433,106 @@ export default function RoomsPage() {
     });
     setCurrentPage("reservations");
   };
+
+  // ── Extend Stay ──
+  const openExtendDialog = (res: RoomReservation) => {
+    setExtendDialog(res);
+    // Default to 1 day after current check-out
+    const nextDay = new Date(res.checkOut);
+    nextDay.setDate(nextDay.getDate() + 1);
+    setExtendDate(nextDay.toISOString().split("T")[0]);
+  };
+
+  const handleExtendStay = async () => {
+    if (!extendDialog || !extendDate) return;
+    if (extendDate <= extendDialog.checkOut) {
+      toast.error("New check-out must be after the current check-out date");
+      return;
+    }
+    try {
+      setExtending(true);
+      await apiUpdateReservation(extendDialog.id, { checkOut: extendDate });
+      toast.success("Stay extended successfully");
+      setExtendDialog(null);
+      setExtendDate("");
+      triggerRefresh();
+      // Re-fetch room reservations
+      if (infoRoom) {
+        const data = await apiGetReservations(`roomId=${infoRoom.id}`);
+        setRoomReservations(Array.isArray(data) ? data : []);
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to extend stay");
+    } finally {
+      setExtending(false);
+    }
+  };
+
+  // ── Early Checkout ──
+  const handleEarlyCheckout = async () => {
+    if (!earlyCheckoutDialog) return;
+    try {
+      setEarlyCheckingOut(true);
+      await apiCheckout(earlyCheckoutDialog.id);
+      toast.success("Guest checked out successfully");
+      setEarlyCheckoutDialog(null);
+      setInfoRoom(null);
+      setRoomReservations([]);
+      triggerRefresh();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to check out");
+    } finally {
+      setEarlyCheckingOut(false);
+    }
+  };
+
+  // ── Room Shift ──
+  const openShiftDialog = (res: RoomReservation) => {
+    setShiftDialog(res);
+    setShiftTargetRoomId("");
+  };
+
+  const handleRoomShift = async () => {
+    if (!shiftDialog || !shiftTargetRoomId || !infoRoom) return;
+    if (shiftTargetRoomId === infoRoom.id) {
+      toast.error("Cannot shift to the same room");
+      return;
+    }
+    try {
+      setShifting(true);
+      // Update reservation to the new room
+      await apiUpdateReservation(shiftDialog.id, { roomId: shiftTargetRoomId });
+      // Free the old room
+      await apiUpdateRoomStatus(infoRoom.id, "AVAILABLE");
+      // Occupy the new room
+      await apiUpdateRoomStatus(shiftTargetRoomId, "OCCUPIED");
+      toast.success("Guest shifted to new room successfully");
+      setShiftDialog(null);
+      setShiftTargetRoomId("");
+      setInfoRoom(null);
+      setRoomReservations([]);
+      triggerRefresh();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to shift room");
+    } finally {
+      setShifting(false);
+    }
+  };
+
+  // Available rooms for shift (exclude current room)
+  const shiftAvailableRooms = useMemo(() => {
+    if (!shiftDialog || !infoRoom) return [];
+    return rooms.filter((r) => r.status === "AVAILABLE" && r.id !== infoRoom.id);
+  }, [shiftDialog, infoRoom, rooms]);
+
+  // Extend cost calculation
+  const extendNights = useMemo(() => {
+    if (!extendDialog || !extendDate) return 0;
+    const diff = new Date(extendDate).getTime() - new Date(extendDialog.checkOut).getTime();
+    return Math.max(1, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  }, [extendDialog, extendDate]);
+
+  const extendExtraCost = extendNights * (extendDialog?.roomRate || 0);
 
   // ── Excel import ────────────────────────────────────────────────────────────
   const handleImportFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1456,14 +1574,31 @@ export default function RoomsPage() {
                     <div className="flex gap-2">
                       <Button
                         className="gap-2 bg-amber-600 hover:bg-amber-700"
-                        onClick={() => { setPreselectedRoom({ id: infoRoom.id, number: infoRoom.number, name: infoRoom.name, type: infoRoom.type, pricePerNight: infoRoom.pricePerNight }); setInfoRoom(null); setRoomReservations([]); setCurrentPage("reservations"); }}
+                        onClick={() => {
+                          const active = roomReservations.find((r) => r.status === "ACTIVE");
+                          if (active) openExtendDialog(active);
+                        }}
                       >
                         <CalendarClock className="h-4 w-4" />
-                        Extend / Early Out
+                        Extend Stay
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="gap-2 border-rose-300 text-rose-700 hover:bg-rose-50"
+                        onClick={() => {
+                          const active = roomReservations.find((r) => r.status === "ACTIVE");
+                          if (active) setEarlyCheckoutDialog(active);
+                        }}
+                      >
+                        <LogOut className="h-4 w-4" />
+                        Early Out
                       </Button>
                       <Button
                         className="gap-2 bg-violet-600 hover:bg-violet-700"
-                        onClick={() => { setPreselectedRoom({ id: infoRoom.id, number: infoRoom.number, name: infoRoom.name, type: infoRoom.type, pricePerNight: infoRoom.pricePerNight }); setInfoRoom(null); setRoomReservations([]); setCurrentPage("reservations"); }}
+                        onClick={() => {
+                          const active = roomReservations.find((r) => r.status === "ACTIVE");
+                          if (active) openShiftDialog(active);
+                        }}
                       >
                         <ArrowRightLeft className="h-4 w-4" />
                         Shift
@@ -1474,6 +1609,132 @@ export default function RoomsPage() {
               </>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Extend Stay Dialog ── */}
+      <Dialog open={!!extendDialog} onOpenChange={(open) => { if (!open) { setExtendDialog(null); setExtendDate(""); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarClock className="h-5 w-5 text-amber-600" /> Extend Stay
+            </DialogTitle>
+            <DialogDescription>Extend the guest's stay in this room</DialogDescription>
+          </DialogHeader>
+          {extendDialog && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-muted/50 p-3 space-y-1.5">
+                <p className="text-sm font-medium">{extendDialog.guest?.name || "Guest"}</p>
+                <p className="text-xs text-muted-foreground">
+                  Current check-out: <strong>{formatDate(extendDialog.checkOut)}</strong>
+                  <span className="mx-1">·</span>
+                  {extendDialog.roomRate > 0 && <span>{formatPrice(extendDialog.roomRate)}/night</span>}
+                </p>
+              </div>
+              <div>
+                <Label className="text-xs">New Check-out Date *</Label>
+                <Input
+                  type="date"
+                  value={extendDate}
+                  min={extendDialog.checkOut}
+                  onChange={(e) => setExtendDate(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              {extendNights > 0 && (
+                <div className="rounded-lg border-2 border-amber-200 bg-amber-50 p-3">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-amber-700">Extra {extendNights} night{extendNights !== 1 ? "s" : ""}</span>
+                    <span className="font-bold text-amber-800">+{formatPrice(extendExtraCost)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => { setExtendDialog(null); setExtendDate(""); }}>Cancel</Button>
+            <Button size="sm" className="bg-amber-600 hover:bg-amber-700" onClick={handleExtendStay} disabled={extending || !extendDate || extendDate <= (extendDialog?.checkOut || "")}>
+              {extending ? "Extending..." : "Extend Stay"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Early Checkout Dialog ── */}
+      <AlertDialog open={!!earlyCheckoutDialog} onOpenChange={(open) => { if (!open) setEarlyCheckoutDialog(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <LogOut className="h-5 w-5 text-rose-600" /> Early Checkout
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {earlyCheckoutDialog && (
+                <span>
+                  Check out <strong>{earlyCheckoutDialog.guest?.name || "this guest"}</strong> now?
+                  {earlyCheckoutDialog.paymentStatus !== "PAID" && (
+                    <span className="block mt-2 text-amber-600 font-medium">
+                      Note: This guest has an outstanding balance of {formatPrice(earlyCheckoutDialog.balance)}.
+                    </span>
+                  )}
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={earlyCheckingOut}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-rose-600 hover:bg-rose-700"
+              onClick={handleEarlyCheckout}
+              disabled={earlyCheckingOut}
+            >
+              {earlyCheckingOut ? "Checking out..." : "Confirm Checkout"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Room Shift Dialog ── */}
+      <Dialog open={!!shiftDialog} onOpenChange={(open) => { if (!open) { setShiftDialog(null); setShiftTargetRoomId(""); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowRightLeft className="h-5 w-5 text-violet-600" /> Room Shift
+            </DialogTitle>
+            <DialogDescription>Move the guest to a different available room</DialogDescription>
+          </DialogHeader>
+          {shiftDialog && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-muted/50 p-3 space-y-1.5">
+                <p className="text-sm font-medium">{shiftDialog.guest?.name || "Guest"}</p>
+                <p className="text-xs text-muted-foreground">
+                  Current: Room {infoRoom?.number} → Shifting to a new room
+                </p>
+              </div>
+              <div>
+                <Label className="text-xs">Target Room *</Label>
+                {shiftAvailableRooms.length > 0 ? (
+                  <Select value={shiftTargetRoomId} onValueChange={setShiftTargetRoomId}>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Select available room" /></SelectTrigger>
+                    <SelectContent>
+                      {shiftAvailableRooms.map((r) => (
+                        <SelectItem key={r.id} value={r.id}>
+                          Room {r.number}{r.name ? ` (${r.name})` : ""} — {r.type} — {formatPrice(r.pricePerNight)}/night
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p className="mt-1 text-sm text-amber-600">No available rooms to shift to</p>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => { setShiftDialog(null); setShiftTargetRoomId(""); }}>Cancel</Button>
+            <Button size="sm" className="bg-violet-600 hover:bg-violet-700" onClick={handleRoomShift} disabled={shifting || !shiftTargetRoomId}>
+              {shifting ? "Shifting..." : "Confirm Shift"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
