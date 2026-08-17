@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getAuthContext, requirePolice, AuthError } from "@/lib/tenant";
 import { requirePoliceMinRank } from "@/lib/police-permissions";
 import { ensureSuspectTables } from "@/lib/suspect-check";
+import { Prisma } from "@prisma/client";
 import { sql } from "@prisma/client";
 
 const MAX_PAGE_SIZE = 100;
@@ -70,7 +71,7 @@ export async function GET(req: NextRequest) {
       const allIds = await db.$queryRaw<
         { id: string; suspectedPersonId: string; idType: string; idNumber: string; createdAt: string }[]
       >(
-        sql`SELECT * FROM "SuspectId" WHERE "suspectedPersonId" IN (${sql.join(personIds.map(id => sql`${id}`), sql`, `)}) ORDER BY "createdAt" ASC`
+        sql`SELECT * FROM "SuspectId" WHERE "suspectedPersonId" IN (${Prisma.join(personIds)}) ORDER BY "createdAt" ASC`
       );
 
       // Group IDs by person
