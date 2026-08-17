@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAuthContext, getProviderFilter, AuthError } from "@/lib/tenant";
-
-async function ensureTables() {
-  try { await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/setup`, { method: "POST" }); } catch {}
-}
+import { ensureNewTables } from "@/lib/ensure-tables";
 
 export async function GET(req: NextRequest) {
   try {
-    await ensureTables();
+    await ensureNewTables();
     const auth = await getAuthContext(req);
     const filter = getProviderFilter(auth);
 
@@ -56,9 +53,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }
     console.error("[staff-logs GET]", error);
-    // If table doesn't exist yet, return empty data
     const msg = error instanceof Error ? error.message : String(error);
-    if (msg.includes("does not exist") || msg.includes("Unknown table") || msg.includes("relation\"public.StaffLog\"")) {
+    if (msg.includes("does not exist") || msg.includes("Unknown table") || msg.includes("relation")) {
       return NextResponse.json({ data: [], total: 0, page: 1, limit: 50, totalPages: 0 });
     }
     return NextResponse.json({ error: "Failed to fetch staff logs" }, { status: 500 });

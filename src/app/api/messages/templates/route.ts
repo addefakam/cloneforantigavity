@@ -2,10 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAuthContext, getProviderFilter, AuthError } from "@/lib/tenant";
 import { logStaffActivity, getLogUserInfo } from "@/lib/staff-log";
-
-async function ensureTables() {
-  try { await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/setup`, { method: "POST" }); } catch {}
-}
+import { ensureNewTables } from "@/lib/ensure-tables";
 
 // Default templates to seed on first access
 const DEFAULT_TEMPLATES = [
@@ -41,7 +38,7 @@ const DEFAULT_TEMPLATES = [
 
 export async function GET(req: NextRequest) {
   try {
-    await ensureTables();
+    await ensureNewTables();
     const auth = await getAuthContext(req);
     const filter = getProviderFilter(auth);
     const providerId = filter.providerId;
@@ -81,7 +78,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    await ensureTables();
+    await ensureNewTables();
     const auth = await getAuthContext(req);
     const { providerId } = getProviderFilter(auth);
     if (!providerId) return NextResponse.json({ error: "Provider required" }, { status: 403 });

@@ -2,14 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAuthContext, getProviderFilter, AuthError } from "@/lib/tenant";
 import { logStaffActivity, getLogUserInfo } from "@/lib/staff-log";
-
-async function ensureTables() {
-  try { await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/setup`, { method: "POST" }); } catch {}
-}
+import { ensureNewTables } from "@/lib/ensure-tables";
 
 export async function GET(req: NextRequest) {
   try {
-    await ensureTables();
+    await ensureNewTables();
     const auth = await getAuthContext(req);
     const filter = getProviderFilter(auth);
 
@@ -64,9 +61,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }
     console.error("[group-bookings GET]", error);
-    // If table doesn't exist yet, return empty data instead of crashing
     const msg = error instanceof Error ? error.message : String(error);
-    if (msg.includes("does not exist") || msg.includes("Unknown table") || msg.includes("relation\"public.GroupBooking\"")) {
+    if (msg.includes("does not exist") || msg.includes("Unknown table") || msg.includes("relation")) {
       return NextResponse.json({ data: [], total: 0, page: 1, limit: 20, totalPages: 0 });
     }
     return NextResponse.json({ error: "Failed to fetch group bookings" }, { status: 500 });
@@ -75,7 +71,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    await ensureTables();
+    await ensureNewTables();
     const auth = await getAuthContext(req);
     const { providerId } = getProviderFilter(auth);
     if (!providerId) return NextResponse.json({ error: "Provider required" }, { status: 403 });

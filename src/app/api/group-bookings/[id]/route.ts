@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAuthContext, getProviderFilter, AuthError } from "@/lib/tenant";
 import { logStaffActivity, getLogUserInfo } from "@/lib/staff-log";
+import { ensureNewTables } from "@/lib/ensure-tables";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    await ensureNewTables();
     const auth = await getAuthContext(req);
     const filter = getProviderFilter(auth);
 
@@ -38,6 +40,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    await ensureNewTables();
     const auth = await getAuthContext(req);
     const { providerId } = getProviderFilter(auth);
     if (!providerId) return NextResponse.json({ error: "Provider required" }, { status: 403 });
@@ -49,7 +52,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const existing = await db.groupBooking.findFirst({ where: { id, providerId } });
     if (!existing) return NextResponse.json({ error: "Group booking not found" }, { status: 404 });
 
-    // Recalculate totals from linked reservations
     const reservations = await db.reservation.findMany({
       where: { groupBookingId: id },
     });
@@ -96,6 +98,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    await ensureNewTables();
     const auth = await getAuthContext(req);
     const { providerId } = getProviderFilter(auth);
     if (!providerId) return NextResponse.json({ error: "Provider required" }, { status: 403 });
@@ -104,7 +107,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const existing = await db.groupBooking.findFirst({ where: { id, providerId } });
     if (!existing) return NextResponse.json({ error: "Group booking not found" }, { status: 404 });
 
-    // Unlink reservations from this group
     await db.reservation.updateMany({
       where: { groupBookingId: id },
       data: { groupBookingId: null },
