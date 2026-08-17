@@ -7,10 +7,12 @@ import {
   apiCreateGroupBooking,
   apiUpdateGroupBooking,
   apiDeleteGroupBooking,
-  apiGetReservations,
   apiGetRooms,
   apiGetGuests,
   apiCreateReservation,
+  apiCreateGuest,
+  apiUpdateReservation,
+  apiCheckin,
 } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -67,6 +69,9 @@ import {
   Phone,
   Mail,
   Building2,
+  UserPlus,
+  X,
+  LogIn,
 } from "lucide-react";
 
 interface GroupBooking {
@@ -79,10 +84,11 @@ interface GroupBooking {
   endDate: string;
   status: string;
   notes: string;
- roomCount: number;
-  guestCount: number;
+  totalRooms: number;
+  totalGuests: number;
   totalCost: number;
   reservations?: Reservation[];
+  _count?: { reservations: number };
   createdAt: string;
 }
 
@@ -93,8 +99,9 @@ interface Reservation {
   checkIn: string;
   checkOut: string;
   status: string;
+  totalCost: number;
   guest?: { id: string; name: string; phone: string };
-  room?: { id: string; number: string; name: string; type: string };
+  room?: { id: string; number: string; name: string; type: string; pricePerNight: number };
 }
 
 interface GuestOption {
@@ -109,6 +116,7 @@ interface RoomOption {
   name: string;
   type: string;
   status: string;
+  pricePerNight: number;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -145,6 +153,7 @@ export default function GroupBookingsPage() {
   const [creating, setCreating] = useState(false);
   const [addingReservation, setAddingReservation] = useState(false);
 
+  // Create group form
   const [name, setName] = useState("");
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
@@ -153,10 +162,22 @@ export default function GroupBookingsPage() {
   const [endDate, setEndDate] = useState("");
   const [notes, setNotes] = useState("");
 
+  // Add reservation form
   const [resGuestId, setResGuestId] = useState("");
   const [resRoomId, setResRoomId] = useState("");
   const [resCheckIn, setResCheckIn] = useState("");
   const [resCheckOut, setResCheckOut] = useState("");
+
+  // Inline guest registration
+  const [showNewGuest, setShowNewGuest] = useState(false);
+  const [newGuestName, setNewGuestName] = useState("");
+  const [newGuestPhone, setNewGuestPhone] = useState("");
+  const [newGuestIdNumber, setNewGuestIdNumber] = useState("");
+  const [newGuestIdType, setNewGuestIdType] = useState("");
+  const [registeringGuest, setRegisteringGuest] = useState(false);
+
+  // Unlink reservation
+  const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
 
   const [guests, setGuests] = useState<GuestOption[]>([]);
   const [rooms, setRooms] = useState<RoomOption[]>([]);
@@ -218,17 +239,16 @@ export default function GroupBookingsPage() {
     setResRoomId("");
     setResCheckIn("");
     setResCheckOut("");
+    setShowNewGuest(false);
+    setNewGuestName("");
+    setNewGuestPhone("");
+    setNewGuestIdNumber("");
+    setNewGuestIdType("");
   };
 
   const handleCreate = async () => {
-    if (!name.trim()) {
-      toast.error("Group name is required");
-      return;
-    }
-    if (!startDate || !endDate) {
-      toast.error("Start and end dates are required");
-      return;
-    }
+    if (!name.trim()) { toast.error("Group name is required"); return; }
+    if (!startDate || !endDate) { toast.error("Start and end dates are required"); return; }
     try {
       setCreating(true);
       await apiCreateGroupBooking({
@@ -236,8 +256,7 @@ export default function GroupBookingsPage() {
         contactName: contactName.trim(),
         contactPhone: contactPhone.trim(),
         contactEmail: contactEmail.trim(),
-        startDate,
-        endDate,
+        startDate, endDate,
         notes: notes.trim(),
       });
       toast.success("Group booking created successfully");
@@ -277,6 +296,32 @@ export default function GroupBookingsPage() {
     }
   };
 
+  const handleRegisterGuest = async () => {
+    if (!newGuestName.trim()) { toast.error("Guest name is required"); return; }
+    try {
+      setRegisteringGuest(true);
+      const guest = await apiCreateGuest({
+        name: newGuestName.trim(),
+        phone: newGuestPhone.trim(),
+        idNumber: newGuestIdNumber.trim(),
+        idType: newGuestIdType || undefined,
+      });
+      const newGuest = { id: guest.id, name: guest.name, phone: guest.phone || "" };
+      setGuests((prev) => [newGuest, ...prev]);
+      setResGuestId(guest.id);
+      setShowNewGuest(false);
+      setNewGuestName("");
+      setNewGuestPhone("");
+      setNewGuestIdNumber("");
+      setNewGuestIdType("");
+      toast.success(`Guest "${guest.name}" registered`);
+    } catch {
+      toast.error("Failed to register guest");
+    } finally {
+      setRegisteringGuest(false);
+    }
+  };
+
   const handleAddReservation = async () => {
     if (!addReservationGroupId || !resGuestId || !resRoomId) {
       toast.error("Please select a guest and room");
@@ -307,6 +352,44 @@ export default function GroupBookingsPage() {
     }
   };
 
+  const handleUnlinkReservation = async (reservationId: string) => {
+    try {
+      setUnlinkingId(reservationId);
+      await apiUpdateReservation(reservationId, { groupBookingId: null });
+      toast.success("Reservation removed from group");
+      fetchGroupBookings();
+    } catch {
+      toast.error("Failed to remove reservation");
+    } finally {
+      setUnlinkingId(null);
+    }
+  };
+
+  const handleGroupCheckin = async (group: GroupBooking) => {
+    const upcomingReservations = group.reservations?.filter(
+      (r) => r.status === "UPCOMING"
+    ) || [];
+    if (upcomingReservations.length === 0) {
+      toast.info("No upcoming reservations to check in");
+      return;
+    }
+    try {
+      let checked = 0;
+      for (const res of upcomingReservations) {
+        try {
+          await apiCheckin(res.id);
+          checked++;
+        } catch {
+          /* skip failed ones */
+        }
+      }
+      toast.success(`${checked} reservation(s) checked in`);
+      fetchGroupBookings();
+    } catch {
+      toast.error("Bulk check-in failed");
+    }
+  };
+
   const openAddReservation = (group: GroupBooking) => {
     setAddReservationGroupId(group.id);
     setResCheckIn(group.startDate);
@@ -328,6 +411,8 @@ export default function GroupBookingsPage() {
   };
 
   const availableRooms = rooms.filter((r) => r.status === "AVAILABLE");
+  const resCount = (g: GroupBooking) =>
+    g.reservations?.length ?? g._count?.reservations ?? 0;
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -351,7 +436,7 @@ export default function GroupBookingsPage() {
       {/* Loading State */}
       {loading && (
         <div className="space-y-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+          {Array.from({ length: 3 }).map((_, i) => (
             <Card key={i}>
               <CardHeader className="pb-3">
                 <Skeleton className="h-5 w-48" />
@@ -360,7 +445,6 @@ export default function GroupBookingsPage() {
                 <div className="space-y-2">
                   <Skeleton className="h-4 w-full max-w-md" />
                   <Skeleton className="h-4 w-3/4 max-w-sm" />
-                  <Skeleton className="h-4 w-1/2 max-w-xs" />
                 </div>
               </CardContent>
             </Card>
@@ -397,6 +481,8 @@ export default function GroupBookingsPage() {
           {groupBookings.map((group) => {
             const isExpanded = detailId === group.id;
             const badgeClass = STATUS_COLORS[group.status] ?? "bg-gray-100 text-gray-700 border-gray-200";
+            const numRes = resCount(group);
+            const upcomingCount = group.reservations?.filter((r) => r.status === "UPCOMING").length ?? 0;
 
             return (
               <Card key={group.id} className="overflow-hidden">
@@ -411,31 +497,38 @@ export default function GroupBookingsPage() {
                         {group.status}
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
                       <Select
                         value={group.status}
-                        onValueChange={(value) =>
-                          handleStatusChange(group.id, value)
-                        }
+                        onValueChange={(value) => handleStatusChange(group.id, value)}
                       >
-                        <SelectTrigger className="w-[150px] h-8 text-xs">
+                        <SelectTrigger className="w-[140px] h-8 text-xs">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           {GROUP_STATUSES.map((s) => (
-                            <SelectItem key={s} value={s}>
-                              {s}
-                            </SelectItem>
+                            <SelectItem key={s} value={s}>{s}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                      {upcomingCount > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                          onClick={() => handleGroupCheckin(group)}
+                        >
+                          <LogIn className="h-3.5 w-3.5 mr-1" />
+                          Check-in All ({upcomingCount})
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => openAddReservation(group)}
                       >
-                        <Plus className="h-3.5 w-3.5 mr-1" />
-                        <span className="hidden sm:inline">Reservation</span>
+                        <UserPlus className="h-3.5 w-3.5 mr-1" />
+                        <span className="hidden sm:inline">Add Guest</span>
                       </Button>
                       <Button
                         variant="outline"
@@ -493,11 +586,11 @@ export default function GroupBookingsPage() {
                   <div className="flex items-center gap-5 mt-3 text-sm text-muted-foreground">
                     <div className="flex items-center gap-1.5">
                       <Building2 className="h-3.5 w-3.5" />
-                      <span>{group.roomCount ?? 0} rooms</span>
+                      <span>{numRes} reservation{numRes !== 1 ? "s" : ""}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Users className="h-3.5 w-3.5" />
-                      <span>{group.guestCount ?? 0} guests</span>
+                      <span>{group.totalGuests || 0} guest{group.totalGuests !== 1 ? "s" : ""}</span>
                     </div>
                     {(group.totalCost ?? 0) > 0 && (
                       <span className="font-medium text-foreground">
@@ -515,7 +608,7 @@ export default function GroupBookingsPage() {
                   {/* Expanded: Linked Reservations */}
                   {isExpanded && (
                     <div className="mt-4 border rounded-lg overflow-hidden">
-                      {group.reservations && group.reservations.length > 0 ? (
+                      {numRes > 0 ? (
                         <Table>
                           <TableHeader>
                             <TableRow>
@@ -524,13 +617,19 @@ export default function GroupBookingsPage() {
                               <TableHead className="hidden md:table-cell">Check-in</TableHead>
                               <TableHead className="hidden md:table-cell">Check-out</TableHead>
                               <TableHead>Status</TableHead>
+                              <TableHead className="w-[50px]"></TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {group.reservations.map((res) => (
+                            {group.reservations?.map((res) => (
                               <TableRow key={res.id}>
                                 <TableCell className="font-medium">
-                                  {res.guest?.name ?? "—"}
+                                  <div>
+                                    <div>{res.guest?.name ?? "Unknown"}</div>
+                                    {res.guest?.phone && (
+                                      <div className="text-xs text-muted-foreground">{res.guest.phone}</div>
+                                    )}
+                                  </div>
                                 </TableCell>
                                 <TableCell>
                                   {res.room
@@ -554,6 +653,22 @@ export default function GroupBookingsPage() {
                                     {res.status}
                                   </Badge>
                                 </TableCell>
+                                <TableCell>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                    disabled={unlinkingId === res.id}
+                                    onClick={() => handleUnlinkReservation(res.id)}
+                                    title="Remove from group"
+                                  >
+                                    {unlinkingId === res.id ? (
+                                      <span className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                      <X className="h-3.5 w-3.5" />
+                                    )}
+                                  </Button>
+                                </TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
@@ -561,7 +676,7 @@ export default function GroupBookingsPage() {
                       ) : (
                         <div className="py-6 text-center text-sm text-muted-foreground">
                           <CalendarDays className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                          No reservations linked to this group yet.
+                          No reservations linked yet. Click &quot;Add Guest&quot; to register guests and assign rooms.
                         </div>
                       )}
                     </div>
@@ -689,10 +804,7 @@ export default function GroupBookingsPage() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => {
-                setCreateOpen(false);
-                resetCreateForm();
-              }}
+              onClick={() => { setCreateOpen(false); resetCreateForm(); }}
               disabled={creating}
             >
               Cancel
@@ -704,70 +816,170 @@ export default function GroupBookingsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Reservation to Group Dialog */}
+      {/* Add Guest / Reservation to Group Dialog */}
       <Dialog
         open={addReservationOpen}
         onOpenChange={(open) => {
-          if (!open) {
-            resetReservationForm();
-            setAddReservationGroupId(null);
-          }
+          if (!open) { resetReservationForm(); setAddReservationGroupId(null); }
           setAddReservationOpen(open);
         }}
       >
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add Reservation to Group</DialogTitle>
+            <DialogTitle>Add Guest to Group</DialogTitle>
             <DialogDescription>
-              Link a new reservation to this group booking.
+              Select an existing guest or register a new one, then assign a room.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
+            {/* Guest Selection with inline register toggle */}
             <div className="grid gap-2">
-              <Label htmlFor="res-guest">Guest <span className="text-destructive">*</span></Label>
-              <Select value={resGuestId} onValueChange={setResGuestId}>
-                <SelectTrigger id="res-guest">
-                  <SelectValue placeholder="Select a guest" />
-                </SelectTrigger>
-                <SelectContent>
-                  {guests.map((g) => (
-                    <SelectItem key={g.id} value={g.id}>
-                      {g.name}{g.phone ? ` — ${g.phone}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center justify-between">
+                <Label>Guest <span className="text-destructive">*</span></Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs gap-1"
+                  onClick={() => setShowNewGuest(!showNewGuest)}
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  {showNewGuest ? "Select existing" : "Register new guest"}
+                </Button>
+              </div>
+
+              {!showNewGuest ? (
+                /* Existing guest dropdown */
+                <Select value={resGuestId} onValueChange={setResGuestId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a guest" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {guests.map((g) => (
+                      <SelectItem key={g.id} value={g.id}>
+                        {g.name}{g.phone ? ` — ${g.phone}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                /* Inline guest registration form */
+                <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="new-guest-name" className="text-xs">
+                        Full Name <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="new-guest-name"
+                        placeholder="Guest full name"
+                        value={newGuestName}
+                        onChange={(e) => setNewGuestName(e.target.value)}
+                      />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="new-guest-phone" className="text-xs">
+                        Phone Number
+                      </Label>
+                      <Input
+                        id="new-guest-phone"
+                        placeholder="Phone number"
+                        value={newGuestPhone}
+                        onChange={(e) => setNewGuestPhone(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="new-guest-id-type" className="text-xs">
+                        ID Type
+                      </Label>
+                      <Select value={newGuestIdType} onValueChange={setNewGuestIdType}>
+                        <SelectTrigger id="new-guest-id-type">
+                          <SelectValue placeholder="Select ID type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="National_ID">National ID</SelectItem>
+                          <SelectItem value="Passport">Passport</SelectItem>
+                          <SelectItem value="Driver_License">Driver License</SelectItem>
+                          <SelectItem value="Military_ID">Military ID</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="new-guest-id-number" className="text-xs">
+                        ID Number
+                      </Label>
+                      <Input
+                        id="new-guest-id-number"
+                        placeholder="ID number"
+                        value={newGuestIdNumber}
+                        onChange={(e) => setNewGuestIdNumber(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleRegisterGuest}
+                    disabled={registeringGuest || !newGuestName.trim()}
+                    className="w-full"
+                  >
+                    {registeringGuest ? (
+                      <>
+                        <span className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                        Registering...
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="h-3.5 w-3.5 mr-1" />
+                        Register & Select Guest
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
             </div>
+
+            {/* Room Selection */}
             <div className="grid gap-2">
-              <Label htmlFor="res-room">Room <span className="text-destructive">*</span></Label>
+              <Label>Room <span className="text-destructive">*</span></Label>
               <Select value={resRoomId} onValueChange={setResRoomId}>
-                <SelectTrigger id="res-room">
+                <SelectTrigger>
                   <SelectValue placeholder="Select an available room" />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableRooms.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.number}{r.name ? ` — ${r.name}` : ""}
-                      {r.type ? ` (${r.type})` : ""}
-                    </SelectItem>
-                  ))}
+                  {availableRooms.length > 0 ? (
+                    availableRooms.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.number}{r.name ? ` — ${r.name}` : ""}
+                        {r.type ? ` (${r.type})` : ""}
+                        {r.pricePerNight ? ` — ${r.pricePerNight} ETB/night` : ""}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                      No available rooms
+                    </div>
+                  )}
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Dates */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="res-checkin">Check-in Date</Label>
+                <Label>Check-in Date</Label>
                 <Input
-                  id="res-checkin"
                   type="date"
                   value={resCheckIn}
                   onChange={(e) => setResCheckIn(e.target.value)}
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="res-checkout">Check-out Date</Label>
+                <Label>Check-out Date</Label>
                 <Input
-                  id="res-checkout"
                   type="date"
                   value={resCheckOut}
                   onChange={(e) => setResCheckOut(e.target.value)}
@@ -787,8 +999,11 @@ export default function GroupBookingsPage() {
             >
               Cancel
             </Button>
-            <Button onClick={handleAddReservation} disabled={addingReservation}>
-              {addingReservation ? "Adding..." : "Add Reservation"}
+            <Button
+              onClick={handleAddReservation}
+              disabled={addingReservation || !resGuestId || !resRoomId}
+            >
+              {addingReservation ? "Adding..." : "Add to Group"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -797,17 +1012,15 @@ export default function GroupBookingsPage() {
       {/* Delete Confirmation Dialog */}
       <AlertDialog
         open={!!deleteTarget}
-        onOpenChange={(open) => {
-          if (!open) setDeleteTarget(null);
-        }}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Group Booking</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete{" "}
-              <span className="font-semibold">{deleteTarget?.name}</span>? This action
-              cannot be undone and may affect all linked reservations.
+              <span className="font-semibold">{deleteTarget?.name}</span>? All linked
+              reservations will be unlinked (not deleted).
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

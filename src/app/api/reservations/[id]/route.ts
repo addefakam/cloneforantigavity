@@ -21,7 +21,7 @@ export async function PUT(
       return NextResponse.json({ error: "Reservation not found" }, { status: 404 });
     }
 
-    const { guestId, roomId, checkIn, checkOut, roomRate, taxAmount, discountAmount, paymentMethod, notes, status } = body;
+    const { guestId, roomId, checkIn, checkOut, roomRate, taxAmount, discountAmount, paymentMethod, notes, status, groupBookingId } = body;
 
     // Recalculate if dates or rates changed
     let nights = existing.nights;
@@ -61,6 +61,7 @@ export async function PUT(
         ...(paymentMethod !== undefined && { paymentMethod: paymentMethod || null }),
         ...(notes !== undefined && { notes }),
         ...(status !== undefined && { status }),
+        ...(groupBookingId !== undefined && { groupBookingId: groupBookingId || null }),
       },
       include: {
         guest: { select: { id: true, name: true, phone: true } },
