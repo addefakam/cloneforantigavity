@@ -1,0 +1,1103 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect, useCallback } from "react";
+     4→import { useAppStore } from "@/lib/store";
+     5→import {
+     6→  apiGetGroupBookings,
+     7→  apiCreateGroupBooking,
+     8→  apiUpdateGroupBooking,
+     9→  apiDeleteGroupBooking,
+    10→  apiAutoAssignGroup,
+    11→  apiGetRooms,
+    12→  apiGetGuests,
+    13→  apiCreateReservation,
+    14→  apiCreateGuest,
+    15→  apiUpdateReservation,
+    16→  apiCheckin,
+    17→} from "@/lib/api";
+    18→import { toast } from "sonner";
+    19→import { Button } from "@/components/ui/button";
+    20→import { Badge } from "@/components/ui/badge";
+    21→import { Input } from "@/components/ui/input";
+    22→import { Label } from "@/components/ui/label";
+    23→import { Skeleton } from "@/components/ui/skeleton";
+    24→import {
+    25→  Card,
+    26→  CardContent,
+    27→  CardHeader,
+    28→  CardTitle,
+    29→} from "@/components/ui/card";
+    30→import {
+    31→  Dialog,
+    32→  DialogContent,
+    33→  DialogHeader,
+    34→  DialogTitle,
+    35→  DialogFooter,
+    36→  DialogDescription,
+    37→} from "@/components/ui/dialog";
+    38→import {
+    39→  Select,
+    40→  SelectContent,
+    41→  SelectItem,
+    42→  SelectTrigger,
+    43→  SelectValue,
+    44→} from "@/components/ui/select";
+    45→import {
+    46→  Table,
+    47→  TableBody,
+    48→  TableCell,
+    49→  TableHead,
+    50→  TableHeader,
+    51→  TableRow,
+    52→} from "@/components/ui/table";
+    53→import {
+    54→  AlertDialog,
+    55→  AlertDialogContent,
+    56→  AlertDialogHeader,
+    57→  AlertDialogTitle,
+    58→  AlertDialogDescription,
+    59→  AlertDialogFooter,
+    60→  AlertDialogAction,
+    61→  AlertDialogCancel,
+    62→} from "@/components/ui/alert-dialog";
+    63→import {
+    64→  Users,
+    65→  Plus,
+    66→  Trash2,
+    67→  ChevronDown,
+    68→  ChevronUp,
+    69→  CalendarDays,
+    70→  Phone,
+    71→  Mail,
+    72→  Building2,
+    73→  UserPlus,
+    74→  X,
+    75→  LogIn,
+    76→  Wand2,
+    77→} from "lucide-react";
+    78→
+    79→interface GroupBooking {
+    80→  id: string;
+    81→  name: string;
+    82→  contactName: string;
+    83→  contactPhone: string;
+    84→  contactEmail: string;
+    85→  startDate: string;
+    86→  endDate: string;
+    87→  status: string;
+    88→  notes: string;
+    89→  totalRooms: number;
+    90→  totalGuests: number;
+    91→  totalCost: number;
+    92→  reservations?: Reservation[];
+    93→  _count?: { reservations: number };
+    94→  createdAt: string;
+    95→}
+    96→
+    97→interface Reservation {
+    98→  id: string;
+    99→  guestId: string;
+   100→  roomId: string;
+   101→  checkIn: string;
+   102→  checkOut: string;
+   103→  status: string;
+   104→  totalCost: number;
+   105→  guest?: { id: string; name: string; phone: string };
+   106→  room?: { id: string; number: string; name: string; type: string; pricePerNight: number };
+   107→}
+   108→
+   109→interface GuestOption {
+   110→  id: string;
+   111→  name: string;
+   112→  phone: string;
+   113→}
+   114→
+   115→interface RoomOption {
+   116→  id: string;
+   117→  number: string;
+   118→  name: string;
+   119→  type: string;
+   120→  status: string;
+   121→  pricePerNight: number;
+   122→}
+   123→
+   124→const STATUS_COLORS: Record<string, string> = {
+   125→  PENDING: "bg-amber-100 text-amber-700 border-amber-200",
+   126→  CONFIRMED: "bg-blue-100 text-blue-700 border-blue-200",
+   127→  IN_PROGRESS: "bg-emerald-100 text-emerald-700 border-emerald-200",
+   128→  COMPLETED: "bg-green-100 text-green-700 border-green-200",
+   129→  CANCELLED: "bg-red-100 text-red-700 border-red-200",
+   130→};
+   131→
+   132→const RESERVATION_STATUS_BADGE: Record<string, string> = {
+   133→  UPCOMING: "bg-sky-100 text-sky-800 border-sky-200",
+   134→  ACTIVE: "bg-emerald-100 text-emerald-800 border-emerald-200",
+   135→  COMPLETED: "bg-gray-100 text-gray-700 border-gray-200",
+   136→  CANCELLED: "bg-rose-100 text-rose-800 border-rose-200",
+   137→};
+   138→
+   139→const GROUP_STATUSES = ["PENDING", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED"] as const;
+   140→
+   141→export default function GroupBookingsPage() {
+   142→  const { refreshKey } = useAppStore();
+   143→
+   144→  const [groupBookings, setGroupBookings] = useState<GroupBooking[]>([]);
+   145→  const [loading, setLoading] = useState(true);
+   146→  const [page, setPage] = useState(1);
+   147→  const [totalPages, setTotalPages] = useState(1);
+   148→
+   149→  const [createOpen, setCreateOpen] = useState(false);
+   150→  const [detailId, setDetailId] = useState<string | null>(null);
+   151→  const [addReservationOpen, setAddReservationOpen] = useState(false);
+   152→  const [addReservationGroupId, setAddReservationGroupId] = useState<string | null>(null);
+   153→  const [deleteTarget, setDeleteTarget] = useState<GroupBooking | null>(null);
+   154→  const [deleting, setDeleting] = useState(false);
+   155→  const [creating, setCreating] = useState(false);
+   156→  const [addingReservation, setAddingReservation] = useState(false);
+   157→
+   158→  // Create group form
+   159→  const [name, setName] = useState("");
+   160→  const [contactName, setContactName] = useState("");
+   161→  const [contactPhone, setContactPhone] = useState("");
+   162→  const [contactEmail, setContactEmail] = useState("");
+   163→  const [startDate, setStartDate] = useState("");
+   164→  const [endDate, setEndDate] = useState("");
+   165→  const [notes, setNotes] = useState("");
+   166→
+   167→  // Add reservation form
+   168→  const [resGuestId, setResGuestId] = useState("");
+   169→  const [resRoomId, setResRoomId] = useState("");
+   170→  const [resCheckIn, setResCheckIn] = useState("");
+   171→  const [resCheckOut, setResCheckOut] = useState("");
+   172→
+   173→  // Inline guest registration
+   174→  const [showNewGuest, setShowNewGuest] = useState(false);
+   175→  const [newGuestName, setNewGuestName] = useState("");
+   176→  const [newGuestPhone, setNewGuestPhone] = useState("");
+   177→  const [newGuestIdNumber, setNewGuestIdNumber] = useState("");
+   178→  const [newGuestIdType, setNewGuestIdType] = useState("");
+   179→  const [registeringGuest, setRegisteringGuest] = useState(false);
+   180→
+   181→  // Unlink reservation
+   182→  const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
+   183→
+   184→  // Auto-assign
+   185→  const [autoAssigning, setAutoAssigning] = useState<string | null>(null);
+   186→
+   187→  const [guests, setGuests] = useState<GuestOption[]>([]);
+   188→  const [rooms, setRooms] = useState<RoomOption[]>([]);
+   189→
+   190→  const fetchGroupBookings = useCallback(async () => {
+   191→    try {
+   192→      setLoading(true);
+   193→      const res = await apiGetGroupBookings(`page=${page}&limit=10`);
+   194→      setGroupBookings(res.data ?? []);
+   195→      setTotalPages(res.totalPages ?? 1);
+   196→    } catch {
+   197→      toast.error("Failed to load group bookings");
+   198→    } finally {
+   199→      setLoading(false);
+   200→    }
+   201→  }, [page]);
+   202→
+   203→  const fetchGuests = useCallback(async () => {
+   204→    try {
+   205→      const data = await apiGetGuests("");
+   206→      setGuests(Array.isArray(data) ? data : []);
+   207→    } catch {
+   208→      /* silent */
+   209→    }
+   210→  }, []);
+   211→
+   212→  const fetchRooms = useCallback(async () => {
+   213→    try {
+   214→      const data = await apiGetRooms();
+   215→      setRooms(Array.isArray(data) ? data : []);
+   216→    } catch {
+   217→      /* silent */
+   218→    }
+   219→  }, []);
+   220→
+   221→  useEffect(() => {
+   222→    fetchGroupBookings();
+   223→  }, [fetchGroupBookings, refreshKey]);
+   224→
+   225→  useEffect(() => {
+   226→    if (createOpen || addReservationOpen) {
+   227→      fetchGuests();
+   228→      fetchRooms();
+   229→    }
+   230→  }, [createOpen, addReservationOpen, fetchGuests, fetchRooms]);
+   231→
+   232→  const resetCreateForm = () => {
+   233→    setName("");
+   234→    setContactName("");
+   235→    setContactPhone("");
+   236→    setContactEmail("");
+   237→    setStartDate("");
+   238→    setEndDate("");
+   239→    setNotes("");
+   240→  };
+   241→
+   242→  const resetReservationForm = () => {
+   243→    setResGuestId("");
+   244→    setResRoomId("");
+   245→    setResCheckIn("");
+   246→    setResCheckOut("");
+   247→    setShowNewGuest(false);
+   248→    setNewGuestName("");
+   249→    setNewGuestPhone("");
+   250→    setNewGuestIdNumber("");
+   251→    setNewGuestIdType("");
+   252→  };
+   253→
+   254→  const handleCreate = async () => {
+   255→    if (!name.trim()) { toast.error("Group name is required"); return; }
+   256→    if (!startDate || !endDate) { toast.error("Start and end dates are required"); return; }
+   257→    try {
+   258→      setCreating(true);
+   259→      await apiCreateGroupBooking({
+   260→        name: name.trim(),
+   261→        contactName: contactName.trim(),
+   262→        contactPhone: contactPhone.trim(),
+   263→        contactEmail: contactEmail.trim(),
+   264→        startDate, endDate,
+   265→        notes: notes.trim(),
+   266→      });
+   267→      toast.success("Group booking created successfully");
+   268→      setCreateOpen(false);
+   269→      resetCreateForm();
+   270→      fetchGroupBookings();
+   271→    } catch {
+   272→      toast.error("Failed to create group booking");
+   273→    } finally {
+   274→      setCreating(false);
+   275→    }
+   276→  };
+   277→
+   278→  const handleStatusChange = async (id: string, status: string) => {
+   279→    try {
+   280→      await apiUpdateGroupBooking(id, { status });
+   281→      toast.success(`Status updated to ${status}`);
+   282→      fetchGroupBookings();
+   283→    } catch {
+   284→      toast.error("Failed to update status");
+   285→    }
+   286→  };
+   287→
+   288→  const handleDelete = async () => {
+   289→    if (!deleteTarget) return;
+   290→    try {
+   291→      setDeleting(true);
+   292→      await apiDeleteGroupBooking(deleteTarget.id);
+   293→      toast.success("Group booking deleted");
+   294→      setDeleteTarget(null);
+   295→      if (detailId === deleteTarget.id) setDetailId(null);
+   296→      fetchGroupBookings();
+   297→    } catch {
+   298→      toast.error("Failed to delete group booking");
+   299→    } finally {
+   300→      setDeleting(false);
+   301→    }
+   302→  };
+   303→
+   304→  const handleRegisterGuest = async () => {
+   305→    if (!newGuestName.trim()) { toast.error("Guest name is required"); return; }
+   306→    try {
+   307→      setRegisteringGuest(true);
+   308→      const guest = await apiCreateGuest({
+   309→        name: newGuestName.trim(),
+   310→        phone: newGuestPhone.trim(),
+   311→        idNumber: newGuestIdNumber.trim(),
+   312→        idType: newGuestIdType || undefined,
+   313→      });
+   314→      const newGuest = { id: guest.id, name: guest.name, phone: guest.phone || "" };
+   315→      setGuests((prev) => [newGuest, ...prev]);
+   316→      setResGuestId(guest.id);
+   317→      setShowNewGuest(false);
+   318→      setNewGuestName("");
+   319→      setNewGuestPhone("");
+   320→      setNewGuestIdNumber("");
+   321→      setNewGuestIdType("");
+   322→      toast.success(`Guest "${guest.name}" registered`);
+   323→    } catch {
+   324→      toast.error("Failed to register guest");
+   325→    } finally {
+   326→      setRegisteringGuest(false);
+   327→    }
+   328→  };
+   329→
+   330→  const handleAddReservation = async () => {
+   331→    if (!addReservationGroupId || !resGuestId || !resRoomId) {
+   332→      toast.error("Please select a guest and room");
+   333→      return;
+   334→    }
+   335→    if (!resCheckIn || !resCheckOut) {
+   336→      toast.error("Check-in and check-out dates are required");
+   337→      return;
+   338→    }
+   339→    try {
+   340→      setAddingReservation(true);
+   341→      await apiCreateReservation({
+   342→        guestId: resGuestId,
+   343→        roomId: resRoomId,
+   344→        checkIn: resCheckIn,
+   345→        checkOut: resCheckOut,
+   346→        groupBookingId: addReservationGroupId,
+   347→      });
+   348→      toast.success("Reservation added to group");
+   349→      setAddReservationOpen(false);
+   350→      resetReservationForm();
+   351→      setAddReservationGroupId(null);
+   352→      fetchGroupBookings();
+   353→    } catch {
+   354→      toast.error("Failed to add reservation");
+   355→    } finally {
+   356→      setAddingReservation(false);
+   357→    }
+   358→  };
+   359→
+   360→  const handleUnlinkReservation = async (reservationId: string) => {
+   361→    try {
+   362→      setUnlinkingId(reservationId);
+   363→      await apiUpdateReservation(reservationId, { groupBookingId: null });
+   364→      toast.success("Reservation removed from group");
+   365→      fetchGroupBookings();
+   366→    } catch {
+   367→      toast.error("Failed to remove reservation");
+   368→    } finally {
+   369→      setUnlinkingId(null);
+   370→    }
+   371→  };
+   372→
+   373→  const handleAutoAssign = async (groupId: string) => {
+   374→    try {
+   375→      setAutoAssigning(groupId);
+   376→      const result = await apiAutoAssignGroup(groupId);
+   377→      const { assigned, unassigned } = result as { assigned: Array<{ guestName: string; roomNumber: string; roomName: string; roomType: string; pricePerNight: number; totalCost: number; isNew: boolean }>; unassigned: Array<{ guestName: string; reason: string }> };
+   378→      if (assigned.length > 0) {
+   379→        const newCount = assigned.filter((a) => a.isNew).length;
+   380→        toast.success(`Auto-assigned ${assigned.length} guest(s) to rooms${newCount > 0 ? ` (${newCount} new reservations created)` : ""}`);
+   381→      }
+   382→      if (unassigned.length > 0) {
+   383→        toast.warning(`${unassigned.length} guest(s) could not be assigned: ${unassigned.map((u) => u.guestName).join(", ")}`);
+   384→      }
+   385→      if (assigned.length === 0 && unassigned.length === 0) {
+   386→        toast.info("No unassigned guests found. All guests already have rooms.");
+   387→      }
+   388→      setDetailId(groupId);
+   389→      fetchGroupBookings();
+   390→    } catch (err: unknown) {
+   391→      const msg = err instanceof Error ? err.message : "Auto-assign failed";
+   392→      if (msg.includes("NO_ROOMS")) {
+   393→        toast.error("No available rooms for the selected dates");
+   394→      } else {
+   395→        toast.error(msg);
+   396→      }
+   397→    } finally {
+   398→      setAutoAssigning(null);
+   399→    }
+   400→  };
+   401→
+   402→  const handleGroupCheckin = async (group: GroupBooking) => {
+   403→    const upcomingReservations = group.reservations?.filter(
+   404→      (r) => r.status === "UPCOMING"
+   405→    ) || [];
+   406→    if (upcomingReservations.length === 0) {
+   407→      toast.info("No upcoming reservations to check in");
+   408→      return;
+   409→    }
+   410→    try {
+   411→      let checked = 0;
+   412→      for (const res of upcomingReservations) {
+   413→        try {
+   414→          await apiCheckin(res.id);
+   415→          checked++;
+   416→        } catch {
+   417→          /* skip failed ones */
+   418→        }
+   419→      }
+   420→      toast.success(`${checked} reservation(s) checked in`);
+   421→      fetchGroupBookings();
+   422→    } catch {
+   423→      toast.error("Bulk check-in failed");
+   424→    }
+   425→  };
+   426→
+   427→  const openAddReservation = (group: GroupBooking) => {
+   428→    setAddReservationGroupId(group.id);
+   429→    setResCheckIn(group.startDate);
+   430→    setResCheckOut(group.endDate);
+   431→    setAddReservationOpen(true);
+   432→  };
+   433→
+   434→  const toggleDetail = (id: string) => {
+   435→    setDetailId((prev) => (prev === id ? null : id));
+   436→  };
+   437→
+   438→  const formatDate = (dateStr: string) => {
+   439→    if (!dateStr) return "—";
+   440→    return new Date(dateStr).toLocaleDateString("en-US", {
+   441→      year: "numeric",
+   442→      month: "short",
+   443→      day: "numeric",
+   444→    });
+   445→  };
+   446→
+   447→  const availableRooms = rooms.filter((r) => r.status === "AVAILABLE");
+   448→  const resCount = (g: GroupBooking) =>
+   449→    g.reservations?.length ?? g._count?.reservations ?? 0;
+   450→
+   451→  return (
+   452→    <div className="space-y-6 p-4 md:p-6">
+   453→      {/* Header */}
+   454→      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+   455→        <div>
+   456→          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+   457→            <Users className="h-6 w-6" />
+   458→            Group Bookings
+   459→          </h1>
+   460→          <p className="text-muted-foreground text-sm mt-1">
+   461→            Manage teams, events, and bulk reservations
+   462→          </p>
+   463→        </div>
+   464→        <Button onClick={() => setCreateOpen(true)}>
+   465→          <Plus className="h-4 w-4 mr-2" />
+   466→          New Group Booking
+   467→        </Button>
+   468→      </div>
+   469→
+   470→      {/* Loading State */}
+   471→      {loading && (
+   472→        <div className="space-y-4">
+   473→          {Array.from({ length: 3 }).map((_, i) => (
+   474→            <Card key={i}>
+   475→              <CardHeader className="pb-3">
+   476→                <Skeleton className="h-5 w-48" />
+   477→              </CardHeader>
+   478→              <CardContent>
+   479→                <div className="space-y-2">
+   480→                  <Skeleton className="h-4 w-full max-w-md" />
+   481→                  <Skeleton className="h-4 w-3/4 max-w-sm" />
+   482→                </div>
+   483→              </CardContent>
+   484→            </Card>
+   485→          ))}
+   486→        </div>
+   487→      )}
+   488→
+   489→      {/* Empty State */}
+   490→      {!loading && groupBookings.length === 0 && (
+   491→        <Card className="py-12">
+   492→          <CardContent className="flex flex-col items-center justify-center text-center">
+   493→            <Users className="h-12 w-12 text-muted-foreground/40 mb-4" />
+   494→            <h3 className="text-lg font-medium text-muted-foreground">
+   495→              No group bookings yet
+   496→            </h3>
+   497→            <p className="text-sm text-muted-foreground mt-1">
+   498→              Create your first group booking to get started.
+   499→            </p>
+   500→            <Button
+   501→              className="mt-4"
+   502→              variant="outline"
+   503→              onClick={() => setCreateOpen(true)}
+   504→            >
+   505→              <Plus className="h-4 w-4 mr-2" />
+   506→              Create Group Booking
+   507→            </Button>
+   508→          </CardContent>
+   509→        </Card>
+   510→      )}
+   511→
+   512→      {/* Group Booking List */}
+   513→      {!loading && groupBookings.length > 0 && (
+   514→        <div className="space-y-4">
+   515→          {groupBookings.map((group) => {
+   516→            const isExpanded = detailId === group.id;
+   517→            const badgeClass = STATUS_COLORS[group.status] ?? "bg-gray-100 text-gray-700 border-gray-200";
+   518→            const numRes = resCount(group);
+   519→            const upcomingCount = group.reservations?.filter((r) => r.status === "UPCOMING").length ?? 0;
+   520→
+   521→            return (
+   522→              <Card key={group.id} className="overflow-hidden">
+   523→                {/* Card Header */}
+   524→                <CardHeader className="pb-3">
+   525→                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+   526→                    <div className="flex items-center gap-3 min-w-0">
+   527→                      <CardTitle className="text-base font-semibold truncate">
+   528→                        {group.name}
+   529→                      </CardTitle>
+   530→                      <Badge variant="outline" className={badgeClass}>
+   531→                        {group.status}
+   532→                      </Badge>
+   533→                    </div>
+   534→                    <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+   535→                      <Select
+   536→                        value={group.status}
+   537→                        onValueChange={(value) => handleStatusChange(group.id, value)}
+   538→                      >
+   539→                        <SelectTrigger className="w-[140px] h-8 text-xs">
+   540→                          <SelectValue />
+   541→                        </SelectTrigger>
+   542→                        <SelectContent>
+   543→                          {GROUP_STATUSES.map((s) => (
+   544→                            <SelectItem key={s} value={s}>{s}</SelectItem>
+   545→                          ))}
+   546→                        </SelectContent>
+   547→                      </Select>
+   548→                      {upcomingCount > 0 && (
+   549→                        <Button
+   550→                          variant="outline"
+   551→                          size="sm"
+   552→                          className="text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+   553→                          onClick={() => handleGroupCheckin(group)}
+   554→                        >
+   555→                          <LogIn className="h-3.5 w-3.5 mr-1" />
+   556→                          Check-in All ({upcomingCount})
+   557→                        </Button>
+   558→                      )}
+   559→                      <Button
+   560→                        variant="outline"
+   561→                        size="sm"
+   562→                        className="text-violet-600 border-violet-200 hover:bg-violet-50"
+   563→                        disabled={autoAssigning === group.id}
+   564→                        onClick={() => handleAutoAssign(group.id)}
+   565→                      >
+   566→                        {autoAssigning === group.id ? (
+   567→                          <span className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+   568→                        ) : (
+   569→                          <Wand2 className="h-3.5 w-3.5 mr-1" />
+   570→                        )}
+   571→                        <span className="hidden sm:inline">Auto Assign</span>
+   572→                      </Button>
+   573→                      <Button
+   574→                        variant="outline"
+   575→                        size="sm"
+   576→                        onClick={() => openAddReservation(group)}
+   577→                      >
+   578→                        <UserPlus className="h-3.5 w-3.5 mr-1" />
+   579→                        <span className="hidden sm:inline">Add Guest</span>
+   580→                      </Button>
+   581→                      <Button
+   582→                        variant="outline"
+   583→                        size="sm"
+   584→                        className="text-destructive hover:text-destructive"
+   585→                        onClick={() => setDeleteTarget(group)}
+   586→                      >
+   587→                        <Trash2 className="h-3.5 w-3.5" />
+   588→                      </Button>
+   589→                      <Button
+   590→                        variant="ghost"
+   591→                        size="sm"
+   592→                        onClick={() => toggleDetail(group.id)}
+   593→                      >
+   594→                        {isExpanded ? (
+   595→                          <ChevronUp className="h-4 w-4" />
+   596→                        ) : (
+   597→                          <ChevronDown className="h-4 w-4" />
+   598→                        )}
+   599→                      </Button>
+   600→                    </div>
+   601→                  </div>
+   602→                </CardHeader>
+   603→
+   604→                {/* Card Body */}
+   605→                <CardContent className="pt-0">
+   606→                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+   607→                    {group.contactName && (
+   608→                      <div className="flex items-center gap-2 text-muted-foreground">
+   609→                        <Users className="h-4 w-4 flex-shrink-0" />
+   610→                        <span className="truncate">{group.contactName}</span>
+   611→                      </div>
+   612→                    )}
+   613→                    {group.contactPhone && (
+   614→                      <div className="flex items-center gap-2 text-muted-foreground">
+   615→                        <Phone className="h-4 w-4 flex-shrink-0" />
+   616→                        <span>{group.contactPhone}</span>
+   617→                      </div>
+   618→                    )}
+   619→                    {group.contactEmail && (
+   620→                      <div className="flex items-center gap-2 text-muted-foreground">
+   621→                        <Mail className="h-4 w-4 flex-shrink-0" />
+   622→                        <span className="truncate">{group.contactEmail}</span>
+   623→                      </div>
+   624→                    )}
+   625→                    <div className="flex items-center gap-2 text-muted-foreground">
+   626→                      <CalendarDays className="h-4 w-4 flex-shrink-0" />
+   627→                      <span>
+   628→                        {formatDate(group.startDate)} — {formatDate(group.endDate)}
+   629→                      </span>
+   630→                    </div>
+   631→                  </div>
+   632→
+   633→                  {/* Stats row */}
+   634→                  <div className="flex items-center gap-5 mt-3 text-sm text-muted-foreground">
+   635→                    <div className="flex items-center gap-1.5">
+   636→                      <Building2 className="h-3.5 w-3.5" />
+   637→                      <span>{numRes} reservation{numRes !== 1 ? "s" : ""}</span>
+   638→                    </div>
+   639→                    <div className="flex items-center gap-1.5">
+   640→                      <Users className="h-3.5 w-3.5" />
+   641→                      <span>{group.totalGuests || 0} guest{group.totalGuests !== 1 ? "s" : ""}</span>
+   642→                    </div>
+   643→                    {(group.totalCost ?? 0) > 0 && (
+   644→                      <span className="font-medium text-foreground">
+   645→                        {group.totalCost?.toLocaleString()} ETB
+   646→                      </span>
+   647→                    )}
+   648→                  </div>
+   649→
+   650→                  {group.notes && (
+   651→                    <p className="mt-3 text-sm text-muted-foreground border-l-2 border-muted pl-3">
+   652→                      {group.notes}
+   653→                    </p>
+   654→                  )}
+   655→
+   656→                  {/* Expanded: Linked Reservations */}
+   657→                  {isExpanded && (
+   658→                    <div className="mt-4 border rounded-lg overflow-hidden">
+   659→                      {numRes > 0 ? (
+   660→                        <Table>
+   661→                          <TableHeader>
+   662→                            <TableRow>
+   663→                              <TableHead>Guest</TableHead>
+   664→                              <TableHead>Assigned Room</TableHead>
+   665→                              <TableHead className="hidden md:table-cell">Room Type</TableHead>
+   666→                              <TableHead className="hidden lg:table-cell">Cost</TableHead>
+   667→                              <TableHead className="hidden md:table-cell">Check-in</TableHead>
+   668→                              <TableHead>Status</TableHead>
+   669→                              <TableHead className="w-[50px]"></TableHead>
+   670→                            </TableRow>
+   671→                          </TableHeader>
+   672→                          <TableBody>
+   673→                            {group.reservations?.map((res) => (
+   674→                              <TableRow key={res.id}>
+   675→                                <TableCell className="font-medium">
+   676→                                  <div>
+   677→                                    <div>{res.guest?.name ?? "Unknown"}</div>
+   678→                                    {res.guest?.phone && (
+   679→                                      <div className="text-xs text-muted-foreground">{res.guest.phone}</div>
+   680→                                    )}
+   681→                                  </div>
+   682→                                </TableCell>
+   683→                                <TableCell>
+   684→                                  {res.room
+   685→                                    ? (
+   686→                                      <div>
+   687→                                        <div className="font-medium">{res.room.number}{res.room.name ? ` - ${res.room.name}` : ""}</div>
+   688→                                      </div>
+   689→                                    )
+   690→                                    : <span className="text-muted-foreground">Not assigned</span>}
+   691→                                </TableCell>
+   692→                                <TableCell className="hidden md:table-cell">
+   693→                                  {res.room?.type ? (
+   694→                                    <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 text-xs">
+   695→                                      {res.room.type}
+   696→                                    </Badge>
+   697→                                  ) : "—"}
+   698→                                </TableCell>
+   699→                                <TableCell className="hidden lg:table-cell">
+   700→                                  {res.totalCost > 0 ? (
+   701→                                    <span className="text-sm font-medium">{res.totalCost.toLocaleString()} ETB</span>
+   702→                                  ) : "—"}
+   703→                                </TableCell>
+   704→                                <TableCell className="hidden md:table-cell">
+   705→                                  {formatDate(res.checkIn)}
+   706→                                </TableCell>
+   707→                                <TableCell>
+   708→                                  <Badge
+   709→                                    variant="outline"
+   710→                                    className={
+   711→                                      RESERVATION_STATUS_BADGE[res.status] ??
+   712→                                      "bg-gray-100 text-gray-700 border-gray-200"
+   713→                                    }
+   714→                                  >
+   715→                                    {res.status}
+   716→                                  </Badge>
+   717→                                </TableCell>
+   718→                                <TableCell>
+   719→                                  <Button
+   720→                                    variant="ghost"
+   721→                                    size="icon"
+   722→                                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+   723→                                    disabled={unlinkingId === res.id}
+   724→                                    onClick={() => handleUnlinkReservation(res.id)}
+   725→                                    title="Remove from group"
+   726→                                  >
+   727→                                    {unlinkingId === res.id ? (
+   728→                                      <span className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+   729→                                    ) : (
+   730→                                      <X className="h-3.5 w-3.5" />
+   731→                                    )}
+   732→                                  </Button>
+   733→                                </TableCell>
+   734→                              </TableRow>
+   735→                            ))}
+   736→                          </TableBody>
+   737→                        </Table>
+   738→                      ) : (
+   739→                        <div className="py-6 text-center text-sm text-muted-foreground">
+   740→                          <CalendarDays className="h-8 w-8 mx-auto mb-2 opacity-40" />
+   741→                          No reservations yet. Add guests manually or use "Auto Assign" to assign rooms automatically.
+   742→                        </div>
+   743→                      )}
+   744→                    </div>
+   745→                  )}
+   746→                </CardContent>
+   747→              </Card>
+   748→            );
+   749→          })}
+   750→        </div>
+   751→      )}
+   752→
+   753→      {/* Pagination */}
+   754→      {!loading && totalPages > 1 && (
+   755→        <div className="flex items-center justify-center gap-2">
+   756→          <Button
+   757→            variant="outline"
+   758→            size="sm"
+   759→            disabled={page <= 1}
+   760→            onClick={() => setPage((p) => Math.max(1, p - 1))}
+   761→          >
+   762→            Previous
+   763→          </Button>
+   764→          <span className="text-sm text-muted-foreground">
+   765→            Page {page} of {totalPages}
+   766→          </span>
+   767→          <Button
+   768→            variant="outline"
+   769→            size="sm"
+   770→            disabled={page >= totalPages}
+   771→            onClick={() => setPage((p) => p + 1)}
+   772→          >
+   773→            Next
+   774→          </Button>
+   775→        </div>
+   776→      )}
+   777→
+   778→      {/* Create Group Booking Dialog */}
+   779→      <Dialog open={createOpen} onOpenChange={(open) => {
+   780→        if (!open) resetCreateForm();
+   781→        setCreateOpen(open);
+   782→      }}>
+   783→        <DialogContent className="sm:max-w-[520px]">
+   784→          <DialogHeader>
+   785→            <DialogTitle>Create Group Booking</DialogTitle>
+   786→            <DialogDescription>
+   787→              Add a new group booking for a team or event.
+   788→            </DialogDescription>
+   789→          </DialogHeader>
+   790→          <div className="grid gap-4 py-2">
+   791→            <div className="grid gap-2">
+   792→              <Label htmlFor="group-name">
+   793→                Group Name <span className="text-destructive">*</span>
+   794→              </Label>
+   795→              <Input
+   796→                id="group-name"
+   797→                placeholder="e.g. ABC Company Training"
+   798→                value={name}
+   799→                onChange={(e) => setName(e.target.value)}
+   800→              />
+   801→            </div>
+   802→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   803→              <div className="grid gap-2">
+   804→                <Label htmlFor="contact-name">Contact Name</Label>
+   805→                <Input
+   806→                  id="contact-name"
+   807→                  placeholder="Full name"
+   808→                  value={contactName}
+   809→                  onChange={(e) => setContactName(e.target.value)}
+   810→                />
+   811→              </div>
+   812→              <div className="grid gap-2">
+   813→                <Label htmlFor="contact-phone">Contact Phone</Label>
+   814→                <Input
+   815→                  id="contact-phone"
+   816→                  placeholder="Phone number"
+   817→                  value={contactPhone}
+   818→                  onChange={(e) => setContactPhone(e.target.value)}
+   819→                />
+   820→              </div>
+   821→            </div>
+   822→            <div className="grid gap-2">
+   823→              <Label htmlFor="contact-email">Contact Email</Label>
+   824→              <Input
+   825→                id="contact-email"
+   826→                type="email"
+   827→                placeholder="email@example.com"
+   828→                value={contactEmail}
+   829→                onChange={(e) => setContactEmail(e.target.value)}
+   830→              />
+   831→            </div>
+   832→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   833→              <div className="grid gap-2">
+   834→                <Label htmlFor="start-date">
+   835→                  Start Date <span className="text-destructive">*</span>
+   836→                </Label>
+   837→                <Input
+   838→                  id="start-date"
+   839→                  type="date"
+   840→                  value={startDate}
+   841→                  onChange={(e) => setStartDate(e.target.value)}
+   842→                />
+   843→              </div>
+   844→              <div className="grid gap-2">
+   845→                <Label htmlFor="end-date">
+   846→                  End Date <span className="text-destructive">*</span>
+   847→                </Label>
+   848→                <Input
+   849→                  id="end-date"
+   850→                  type="date"
+   851→                  value={endDate}
+   852→                  onChange={(e) => setEndDate(e.target.value)}
+   853→                />
+   854→              </div>
+   855→            </div>
+   856→            <div className="grid gap-2">
+   857→              <Label htmlFor="notes">Notes</Label>
+   858→              <Input
+   859→                id="notes"
+   860→                placeholder="Any additional notes..."
+   861→                value={notes}
+   862→                onChange={(e) => setNotes(e.target.value)}
+   863→              />
+   864→            </div>
+   865→          </div>
+   866→          <DialogFooter>
+   867→            <Button
+   868→              variant="outline"
+   869→              onClick={() => { setCreateOpen(false); resetCreateForm(); }}
+   870→              disabled={creating}
+   871→            >
+   872→              Cancel
+   873→            </Button>
+   874→            <Button onClick={handleCreate} disabled={creating}>
+   875→              {creating ? "Creating..." : "Create Group Booking"}
+   876→            </Button>
+   877→          </DialogFooter>
+   878→        </DialogContent>
+   879→      </Dialog>
+   880→
+   881→      {/* Add Guest / Reservation to Group Dialog */}
+   882→      <Dialog
+   883→        open={addReservationOpen}
+   884→        onOpenChange={(open) => {
+   885→          if (!open) { resetReservationForm(); setAddReservationGroupId(null); }
+   886→          setAddReservationOpen(open);
+   887→        }}
+   888→      >
+   889→        <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
+   890→          <DialogHeader>
+   891→            <DialogTitle>Add Guest to Group</DialogTitle>
+   892→            <DialogDescription>
+   893→              Select an existing guest or register a new one, then assign a room.
+   894→            </DialogDescription>
+   895→          </DialogHeader>
+   896→          <div className="grid gap-4 py-2">
+   897→            {/* Guest Selection with inline register toggle */}
+   898→            <div className="grid gap-2">
+   899→              <div className="flex items-center justify-between">
+   900→                <Label>Guest <span className="text-destructive">*</span></Label>
+   901→                <Button
+   902→                  type="button"
+   903→                  variant="ghost"
+   904→                  size="sm"
+   905→                  className="h-7 text-xs gap-1"
+   906→                  onClick={() => setShowNewGuest(!showNewGuest)}
+   907→                >
+   908→                  <UserPlus className="h-3.5 w-3.5" />
+   909→                  {showNewGuest ? "Select existing" : "Register new guest"}
+   910→                </Button>
+   911→              </div>
+   912→
+   913→              {!showNewGuest ? (
+   914→                /* Existing guest dropdown */
+   915→                <Select value={resGuestId} onValueChange={setResGuestId}>
+   916→                  <SelectTrigger>
+   917→                    <SelectValue placeholder="Select a guest" />
+   918→                  </SelectTrigger>
+   919→                  <SelectContent>
+   920→                    {guests.map((g) => (
+   921→                      <SelectItem key={g.id} value={g.id}>
+   922→                        {g.name}{g.phone ? ` — ${g.phone}` : ""}
+   923→                      </SelectItem>
+   924→                    ))}
+   925→                  </SelectContent>
+   926→                </Select>
+   927→              ) : (
+   928→                /* Inline guest registration form */
+   929→                <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+   930→                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   931→                    <div className="grid gap-1.5">
+   932→                      <Label htmlFor="new-guest-name" className="text-xs">
+   933→                        Full Name <span className="text-destructive">*</span>
+   934→                      </Label>
+   935→                      <Input
+   936→                        id="new-guest-name"
+   937→                        placeholder="Guest full name"
+   938→                        value={newGuestName}
+   939→                        onChange={(e) => setNewGuestName(e.target.value)}
+   940→                      />
+   941→                    </div>
+   942→                    <div className="grid gap-1.5">
+   943→                      <Label htmlFor="new-guest-phone" className="text-xs">
+   944→                        Phone Number
+   945→                      </Label>
+   946→                      <Input
+   947→                        id="new-guest-phone"
+   948→                        placeholder="Phone number"
+   949→                        value={newGuestPhone}
+   950→                        onChange={(e) => setNewGuestPhone(e.target.value)}
+   951→                      />
+   952→                    </div>
+   953→                  </div>
+   954→                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   955→                    <div className="grid gap-1.5">
+   956→                      <Label htmlFor="new-guest-id-type" className="text-xs">
+   957→                        ID Type
+   958→                      </Label>
+   959→                      <Select value={newGuestIdType} onValueChange={setNewGuestIdType}>
+   960→                        <SelectTrigger id="new-guest-id-type">
+   961→                          <SelectValue placeholder="Select ID type" />
+   962→                        </SelectTrigger>
+   963→                        <SelectContent>
+   964→                          <SelectItem value="National_ID">National ID</SelectItem>
+   965→                          <SelectItem value="Passport">Passport</SelectItem>
+   966→                          <SelectItem value="Driver_License">Driver License</SelectItem>
+   967→                          <SelectItem value="Military_ID">Military ID</SelectItem>
+   968→                          <SelectItem value="Other">Other</SelectItem>
+   969→                        </SelectContent>
+   970→                      </Select>
+   971→                    </div>
+   972→                    <div className="grid gap-1.5">
+   973→                      <Label htmlFor="new-guest-id-number" className="text-xs">
+   974→                        ID Number
+   975→                      </Label>
+   976→                      <Input
+   977→                        id="new-guest-id-number"
+   978→                        placeholder="ID number"
+   979→                        value={newGuestIdNumber}
+   980→                        onChange={(e) => setNewGuestIdNumber(e.target.value)}
+   981→                      />
+   982→                    </div>
+   983→                  </div>
+   984→                  <Button
+   985→                    type="button"
+   986→                    size="sm"
+   987→                    onClick={handleRegisterGuest}
+   988→                    disabled={registeringGuest || !newGuestName.trim()}
+   989→                    className="w-full"
+   990→                  >
+   991→                    {registeringGuest ? (
+   992→                      <>
+   993→                        <span className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+   994→                        Registering...
+   995→                      </>
+   996→                    ) : (
+   997→                      <>
+   998→                        <UserPlus className="h-3.5 w-3.5 mr-1" />
+   999→                        Register & Select Guest
+  1000→                      </>
+  1001→                    )}
+  1002→                  </Button>
+  1003→                </div>
+  1004→              )}
+  1005→            </div>
+  1006→
+  1007→            {/* Room Selection */}
+  1008→            <div className="grid gap-2">
+  1009→              <Label>Room <span className="text-destructive">*</span></Label>
+  1010→              <Select value={resRoomId} onValueChange={setResRoomId}>
+  1011→                <SelectTrigger>
+  1012→                  <SelectValue placeholder="Select an available room" />
+  1013→                </SelectTrigger>
+  1014→                <SelectContent>
+  1015→                  {availableRooms.length > 0 ? (
+  1016→                    availableRooms.map((r) => (
+  1017→                      <SelectItem key={r.id} value={r.id}>
+  1018→                        {r.number}{r.name ? ` — ${r.name}` : ""}
+  1019→                        {r.type ? ` (${r.type})` : ""}
+  1020→                        {r.pricePerNight ? ` — ${r.pricePerNight} ETB/night` : ""}
+  1021→                      </SelectItem>
+  1022→                    ))
+  1023→                  ) : (
+  1024→                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
+  1025→                      No available rooms
+  1026→                    </div>
+  1027→                  )}
+  1028→                </SelectContent>
+  1029→              </Select>
+  1030→            </div>
+  1031→
+  1032→            {/* Dates */}
+  1033→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  1034→              <div className="grid gap-2">
+  1035→                <Label>Check-in Date</Label>
+  1036→                <Input
+  1037→                  type="date"
+  1038→                  value={resCheckIn}
+  1039→                  onChange={(e) => setResCheckIn(e.target.value)}
+  1040→                />
+  1041→              </div>
+  1042→              <div className="grid gap-2">
+  1043→                <Label>Check-out Date</Label>
+  1044→                <Input
+  1045→                  type="date"
+  1046→                  value={resCheckOut}
+  1047→                  onChange={(e) => setResCheckOut(e.target.value)}
+  1048→                />
+  1049→              </div>
+  1050→            </div>
+  1051→          </div>
+  1052→          <DialogFooter>
+  1053→            <Button
+  1054→              variant="outline"
+  1055→              onClick={() => {
+  1056→                setAddReservationOpen(false);
+  1057→                resetReservationForm();
+  1058→                setAddReservationGroupId(null);
+  1059→              }}
+  1060→              disabled={addingReservation}
+  1061→            >
+  1062→              Cancel
+  1063→            </Button>
+  1064→            <Button
+  1065→              onClick={handleAddReservation}
+  1066→              disabled={addingReservation || !resGuestId || !resRoomId}
+  1067→            >
+  1068→              {addingReservation ? "Adding..." : "Add to Group"}
+  1069→            </Button>
+  1070→          </DialogFooter>
+  1071→        </DialogContent>
+  1072→      </Dialog>
+  1073→
+  1074→      {/* Delete Confirmation Dialog */}
+  1075→      <AlertDialog
+  1076→        open={!!deleteTarget}
+  1077→        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+  1078→      >
+  1079→        <AlertDialogContent>
+  1080→          <AlertDialogHeader>
+  1081→            <AlertDialogTitle>Delete Group Booking</AlertDialogTitle>
+  1082→            <AlertDialogDescription>
+  1083→              Are you sure you want to delete{" "}
+  1084→              <span className="font-semibold">{deleteTarget?.name}</span>? All linked
+  1085→              reservations will be unlinked (not deleted).
+  1086→            </AlertDialogDescription>
+  1087→          </AlertDialogHeader>
+  1088→          <AlertDialogFooter>
+  1089→            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+  1090→            <AlertDialogAction
+  1091→              onClick={handleDelete}
+  1092→              disabled={deleting}
+  1093→              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+  1094→            >
+  1095→              {deleting ? "Deleting..." : "Delete"}
+  1096→            </AlertDialogAction>
+  1097→          </AlertDialogFooter>
+  1098→        </AlertDialogContent>
+  1099→      </AlertDialog>
+  1100→    </div>
+  1101→  );
+  1102→}
+  1103→
