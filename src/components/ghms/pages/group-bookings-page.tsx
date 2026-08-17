@@ -522,7 +522,7 @@ export default function GroupBookingsPage() {
     });
   };
 
-  const availableRooms = rooms.filter((r) => r.status === "AVAILABLE");
+  const availableRooms = rooms.filter((r) => !r.status || r.status === "AVAILABLE");
   const resCount = (g: GroupBooking) =>
     g.reservations?.length ?? g._count?.reservations ?? 0;
 

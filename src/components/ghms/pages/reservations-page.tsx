@@ -269,9 +269,9 @@ export default function ReservationsPage() {
     setPreselectedRoom(null);
   };
 
-  // Available rooms for new reservation (AVAILABLE or RESERVED)
+  // Available rooms for new reservation (AVAILABLE, or null/undefined status treated as available)
   const availableRooms = useMemo(
-    () => allRooms.filter((r) => r.status === "AVAILABLE"),
+    () => allRooms.filter((r) => !r.status || r.status === "AVAILABLE"),
     [allRooms]
   );
 
