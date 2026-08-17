@@ -331,7 +331,7 @@ export default function NotificationsPage() {
                       <Badge variant="outline" className={cfg.badge}>
                         {cfg.label}
                       </Badge>
-                    )
+                    )}
                   </div>
                   <p
                     className={`text-sm leading-relaxed whitespace-pre-line ${
