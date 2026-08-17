@@ -90,7 +90,14 @@ export const apiImportRooms = (rooms: Record<string, unknown>[]) =>
   req("/api/rooms", { method: "POST", body: JSON.stringify({ bulk: rooms }) });
 
 // Guests
-export const apiGetGuests = (q?: string) => req(`/api/guests${q ? `?q=${q}` : ""}`);
+export const apiGetGuests = async (q?: string) => {
+  // Always fetch all records so frontend can client-side filter/search
+  const sep = q ? '&' : '?';
+  const res = await req(`/api/guests${q ? `?q=${q}` : ""}${!q ? '?limit=999' : `${sep}limit=999`}`);
+  // API returns { guests: [...], total, ... } — unwrap to array
+  if (res && Array.isArray(res.guests)) return res.guests;
+  return Array.isArray(res) ? res : [];
+};
 export const apiCreateGuest = (data: Record<string, unknown>) =>
   req("/api/guests", { method: "POST", body: JSON.stringify(data) });
 export const apiUpdateGuest = (id: string, data: Record<string, unknown>) =>
@@ -100,7 +107,9 @@ export const apiDeleteGuest = (id: string) =>
 
 // Reservations
 export const apiGetReservations = async (q?: string) => {
-  const res = await req(`/api/reservations${q ? `?${q}` : ""}`);
+  // Always fetch all records (limit=999) so frontend can client-side filter
+  const sep = q ? '&' : '?';
+  const res = await req(`/api/reservations${q ? `?${q}` : ""}${!q ? '?limit=999' : `${sep}limit=999`}`);
   // API returns { data: [...], total, ... } — unwrap to array
   if (res && Array.isArray(res.data)) return res.data;
   return Array.isArray(res) ? res : [];
