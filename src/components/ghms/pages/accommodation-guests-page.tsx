@@ -1,0 +1,632 @@
+"use client";
+
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useAppStore } from "@/lib/store";
+import {
+  apiGetGuests,
+  apiCreateGuest,
+  apiGetReservations,
+  apiCheckin,
+  apiCheckout,
+  apiGetRooms,
+  apiCreateReservation,
+} from "@/lib/api";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Search, Plus, LogIn, LogOut, UserPlus, Users, BedDouble, CalendarDays,
+  Phone, CreditCard, XCircle, Eye, ChevronDown, ChevronUp,
+} from "lucide-react";
+import { usePagination } from "@/hooks/use-pagination";
+import { PaginationControls } from "@/components/shared/pagination-controls";
+
+// ── Types ──
+interface Guest {
+  id: string; name: string; phone: string; idNumber: string; idType: string;
+  nationality: string; email: string; vip: boolean; totalStays: number; totalSpent: number;
+  createdAt: string;
+}
+
+interface Room { id: string; number: string; name: string; type: string; status: string; pricePerNight: number; }
+
+interface Reservation {
+  id: string; status: string; checkIn: string; checkOut: string; nights: number;
+  totalCost: number; paidAmount: number; balance: number; paymentStatus: string;
+  guest?: { id: string; name: string; phone: string; idNumber: string };
+  room?: { id: string; number: string; name: string; type: string };
+  createdAt: string;
+}
+
+// ── Constants ──
+const STATUS_COLORS: Record<string, string> = {
+  AVAILABLE: "bg-emerald-100 text-emerald-800",
+  OCCUPIED: "bg-blue-100 text-blue-800",
+  MAINTENANCE: "bg-amber-100 text-amber-800",
+  RESERVED: "bg-purple-100 text-purple-800",
+};
+
+const RES_STATUS: Record<string, { color: string; label: string }> = {
+  UPCOMING: { color: "bg-blue-100 text-blue-800", label: "Upcoming" },
+  ACTIVE: { color: "bg-emerald-100 text-emerald-800", label: "Checked In" },
+  COMPLETED: { color: "bg-slate-100 text-slate-700", label: "Completed" },
+  CANCELLED: { color: "bg-red-100 text-red-800", label: "Cancelled" },
+};
+
+const emptyNewGuest = {
+  name: "", phone: "", email: "", idNumber: "", idType: "National ID",
+  nationality: "", notes: "",
+};
+
+const emptyResForm = {
+  guestId: "", roomId: "", checkIn: "", checkOut: "", notes: "",
+};
+
+// ── Helpers ──
+function formatDate(d: string) {
+  if (!d) return "—";
+  try { return new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); } catch { return d; }
+}
+
+function formatCurrency(v: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "ETB", maximumFractionDigits: 0 }).format(v);
+}
+
+function todayStr() { return new Date().toISOString().split("T")[0]; }
+
+function addDays(d: string, n: number) {
+  const dt = new Date(d + "T00:00:00");
+  dt.setDate(dt.getDate() + n);
+  return dt.toISOString().split("T")[0];
+}
+
+// ── Component ──
+export default function AccommodationGuestsPage() {
+  const { refreshKey, triggerRefresh } = useAppStore();
+
+  // Data
+  const [guests, setGuests] = useState<Guest[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Search & filter
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+
+  // Expanded row
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Register guest dialog
+  const [registerOpen, setRegisterOpen] = useState(false);
+  const [newGuest, setNewGuest] = useState(emptyNewGuest);
+  const [registering, setRegistering] = useState(false);
+
+  // New reservation dialog
+  const [resDialogOpen, setResDialogOpen] = useState(false);
+  const [resForm, setResForm] = useState(emptyResForm);
+  const [resGuestSearch, setResGuestSearch] = useState("");
+  const [creatingRes, setCreatingRes] = useState(false);
+
+  // Check-in / Check-out confirm
+  const [confirmAction, setConfirmAction] = useState<{
+    type: "checkin" | "checkout"; reservation: Reservation;
+  } | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  // Pagination
+  const pagination = usePagination({ totalItems: 0, initialPageSize: 10, pageSizeOptions: [10, 20, 50] });
+
+  // ── Fetch data ──
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [gData, rData, rmData] = await Promise.all([
+        apiGetGuests(),
+        apiGetReservations(),
+        apiGetRooms(),
+      ]);
+      setGuests(Array.isArray(gData) ? gData : []);
+      setReservations(Array.isArray(rData) ? rData : []);
+      const raw = Array.isArray(rmData?.rooms) ? rmData.rooms : [];
+      setRooms(raw);
+    } catch {
+      toast.error("Failed to load guest data");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData, refreshKey]);
+
+  // ── Computed: active guests (have ACTIVE reservation) ──
+  const activeReservations = useMemo(() =>
+    reservations.filter((r) => r.status === "ACTIVE" || r.status === "UPCOMING"),
+    [reservations]
+  );
+
+  const activeGuestIds = useMemo(() =>
+    new Set(activeReservations.map((r) => r.guest?.id).filter(Boolean)),
+    [activeReservations]
+  );
+
+  // Merge guests with their active reservation info
+  const enrichedGuests = useMemo(() => {
+    const activeMap = new Map<string, Reservation>();
+    for (const r of activeReservations) {
+      if (r.guest?.id && !activeMap.has(r.guest.id)) activeMap.set(r.guest.id, r);
+    }
+    return guests.map((g) => ({
+      ...g,
+      activeReservation: activeMap.get(g.id) || null,
+    }));
+  }, [guests, activeReservations]);
+
+  // ── Filtered list ──
+  const filtered = useMemo(() => {
+    let list = enrichedGuests;
+    if (statusFilter === "CHECKED_IN") list = list.filter((g) => g.activeReservation?.status === "ACTIVE");
+    else if (statusFilter === "UPCOMING") list = list.filter((g) => g.activeReservation?.status === "UPCOMING");
+    else if (statusFilter === "NO_RESERVATION") list = list.filter((g) => !g.activeReservation);
+    if (search) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (g) =>
+          g.name.toLowerCase().includes(q) ||
+          g.phone.toLowerCase().includes(q) ||
+          g.idNumber.toLowerCase().includes(q)
+      );
+    }
+    // Sort: checked-in first, then upcoming, then others. Within each, latest first.
+    return [...list].sort((a, b) => {
+      const aPri = a.activeReservation?.status === "ACTIVE" ? 2 : a.activeReservation?.status === "UPCOMING" ? 1 : 0;
+      const bPri = b.activeReservation?.status === "ACTIVE" ? 2 : b.activeReservation?.status === "UPCOMING" ? 1 : 0;
+      if (bPri !== aPri) return bPri - aPri;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }, [enrichedGuests, statusFilter, search]);
+
+  // Update pagination total
+  useEffect(() => { pagination.setTotalItems(filtered.length); }, [filtered.length, pagination]);
+  const paginated = useMemo(() => pagination.paginate(filtered), [filtered, pagination]);
+
+  // Available rooms for reservation
+  const availableRooms = useMemo(() => rooms.filter((r) => r.status === "AVAILABLE"), [rooms]);
+
+  // Guest search for reservation dialog
+  const resGuestResults = useMemo(() => {
+    if (!resGuestSearch || resGuestSearch.length < 2) return guests.slice(0, 10);
+    const q = resGuestSearch.toLowerCase();
+    return guests
+      .filter((g) => g.name.toLowerCase().includes(q) || g.phone.includes(q) || g.idNumber.toLowerCase().includes(q))
+      .slice(0, 10);
+  }, [resGuestSearch, guests]);
+
+  const resNights = useMemo(() => {
+    if (!resForm.checkIn || !resForm.checkOut) return 0;
+    return Math.max(1, Math.ceil((new Date(resForm.checkOut).getTime() - new Date(resForm.checkIn).getTime()) / 86400000));
+  }, [resForm.checkIn, resForm.checkOut]);
+
+  const resRate = useMemo(() => {
+    const rm = rooms.find((r) => r.id === resForm.roomId);
+    return rm ? rm.pricePerNight : 0;
+  }, [resForm.roomId, rooms]);
+
+  // ── Handlers ──
+  const handleRegister = async () => {
+    if (!newGuest.name.trim() || !newGuest.phone.trim()) {
+      toast.error("Name and phone are required"); return;
+    }
+    try {
+      setRegistering(true);
+      await apiCreateGuest(newGuest);
+      toast.success("Guest registered successfully");
+      setRegisterOpen(false);
+      setNewGuest(emptyNewGuest);
+      triggerRefresh();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Registration failed");
+    } finally { setRegistering(false); }
+  };
+
+  const handleCreateRes = async () => {
+    if (!resForm.guestId || !resForm.roomId || !resForm.checkIn || !resForm.checkOut) {
+      toast.error("Please fill all required fields"); return;
+    }
+    try {
+      setCreatingRes(true);
+      await apiCreateReservation({
+        guestId: resForm.guestId, roomId: resForm.roomId,
+        checkIn: resForm.checkIn, checkOut: resForm.checkOut, notes: resForm.notes,
+      });
+      toast.success("Reservation created");
+      setResDialogOpen(false);
+      setResForm(emptyResForm);
+      setResGuestSearch("");
+      triggerRefresh();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to create reservation";
+      toast.error(msg);
+    } finally { setCreatingRes(false); }
+  };
+
+  const handleAction = async () => {
+    if (!confirmAction) return;
+    const { type, reservation } = confirmAction;
+    try {
+      setActionLoading(true);
+      if (type === "checkin") { await apiCheckin(reservation.id); toast.success("Guest checked in"); }
+      else { await apiCheckout(reservation.id); toast.success("Guest checked out"); }
+      setConfirmAction(null);
+      triggerRefresh();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : `Failed to ${type}`);
+    } finally { setActionLoading(false); }
+  };
+
+  const quickCheckin = (r: Reservation) => setConfirmAction({ type: "checkin", reservation: r });
+  const quickCheckout = (r: Reservation) => setConfirmAction({ type: "checkout", reservation: r });
+
+  // ── Stats ──
+  const stats = useMemo(() => ({
+    total: guests.length,
+    checkedIn: activeReservations.filter((r) => r.status === "ACTIVE").length,
+    upcoming: activeReservations.filter((r) => r.status === "UPCOMING").length,
+    availableRooms: rooms.filter((r) => r.status === "AVAILABLE").length,
+  }), [guests, activeReservations, rooms]);
+
+  // ── Render ──
+  if (loading) {
+    return (
+      <div className="space-y-4 p-3 sm:p-4 md:p-6">
+        <div className="grid grid-cols-2 gap-3"><Skeleton className="h-20 w-full" /><Skeleton className="h-20 w-full" /></div>
+        <Skeleton className="h-10 w-full" />
+        <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
+      </div>
+    );
+  }
+
+  const actionInfo = confirmAction
+    ? { label: confirmAction.type === "checkin" ? "Check In" : "Check Out", icon: confirmAction.type === "checkin" ? <LogIn className="h-4 w-4" /> : <LogOut className="h-4 w-4" />, cls: confirmAction.type === "checkin" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-sky-600 hover:bg-sky-700", desc: confirmAction.type === "checkin" ? `Check in ${confirmAction.reservation.guest?.name || "guest"} to Room ${confirmAction.reservation.room?.number || ""}?` : `Check out ${confirmAction.reservation.guest?.name || "guest"} from Room ${confirmAction.reservation.room?.number || ""}?` }
+    : null;
+
+  return (
+    <div className="space-y-4 p-3 sm:p-4 md:p-6">
+      {/* Header */}
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-base sm:text-lg font-semibold">Manage Guests</h2>
+          <p className="text-xs sm:text-sm text-muted-foreground">Register guests, manage check-in & check-out</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setResDialogOpen(true)} className="h-8 text-xs gap-1.5">
+            <CalendarDays className="h-3.5 w-3.5" /> New Reservation
+          </Button>
+          <Button size="sm" onClick={() => setRegisterOpen(true)} className="h-8 text-xs gap-1.5">
+            <UserPlus className="h-3.5 w-3.5" /> Register Guest
+          </Button>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Total Guests", value: stats.total, icon: <Users className="h-4 w-4" />, color: "text-slate-700 bg-slate-50" },
+          { label: "Checked In", value: stats.checkedIn, icon: <BedDouble className="h-4 w-4" />, color: "text-emerald-700 bg-emerald-50" },
+          { label: "Upcoming", value: stats.upcoming, icon: <CalendarDays className="h-4 w-4" />, color: "text-blue-700 bg-blue-50" },
+          { label: "Available Rooms", value: stats.availableRooms, icon: <BedDouble className="h-4 w-4" />, color: "text-purple-700 bg-purple-50" },
+        ].map((s) => (
+          <div key={s.label} className="rounded-lg border p-3">
+            <div className="flex items-center gap-2">
+              <div className={`flex h-8 w-8 items-center justify-center rounded-md ${s.color}`}>{s.icon}</div>
+              <div>
+                <p className="text-lg font-bold leading-tight">{s.value}</p>
+                <p className="text-[10px] text-muted-foreground">{s.label}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Search & Filter */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input placeholder="Search by name, phone, or ID..." value={search} onChange={(e) => setSearch(e.target.value)} className="h-9 pl-8 text-sm" />
+        </div>
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); pagination.resetToFirst(); }}>
+          <SelectTrigger className="h-9 w-full sm:w-44 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All Guests</SelectItem>
+            <SelectItem value="CHECKED_IN">Checked In</SelectItem>
+            <SelectItem value="UPCOMING">Upcoming</SelectItem>
+            <SelectItem value="NO_RESERVATION">No Reservation</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Guest List */}
+      <div className="rounded-xl border bg-card shadow-sm">
+        {filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Users className="mb-3 h-10 w-10 text-muted-foreground/40" />
+            <p className="text-sm text-muted-foreground">No guests found</p>
+          </div>
+        ) : (
+          <>
+            {/* Mobile Cards */}
+            <div className="divide-y md:hidden">
+              {paginated.map((g) => (
+                <div key={g.id} className="p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium ${g.activeReservation?.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700" : g.activeReservation?.status === "UPCOMING" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500"}`}>
+                        {g.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="truncate text-sm font-medium">{g.name}</p>
+                          {g.vip && <span className="text-[9px] text-amber-600 font-semibold">VIP</span>}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">{g.phone}{g.idNumber ? ` | ${g.idNumber}` : ""}</p>
+                      </div>
+                    </div>
+                    {g.activeReservation && (
+                      <Badge variant="outline" className={`text-[9px] shrink-0 ${RES_STATUS[g.activeReservation.status]?.color || ""}`}>
+                        {RES_STATUS[g.activeReservation.status]?.label || g.activeReservation.status}
+                      </Badge>
+                    )}
+                  </div>
+                  {g.activeReservation && g.activeReservation.room && (
+                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground pl-10">
+                      <span>Room {g.activeReservation.room.number}{g.activeReservation.room.name ? ` (${g.activeReservation.room.name})` : ""}</span>
+                      <span>{formatDate(g.activeReservation.checkIn)} → {formatDate(g.activeReservation.checkOut)}</span>
+                    </div>
+                  )}
+                  {g.activeReservation && (
+                    <div className="flex gap-2 pl-10">
+                      {g.activeReservation.status === "UPCOMING" && (
+                        <Button size="sm" className="h-7 text-[10px] gap-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => quickCheckin(g.activeReservation!)}>
+                          <LogIn className="h-3 w-3" /> Check In
+                        </Button>
+                      )}
+                      {g.activeReservation.status === "ACTIVE" && (
+                        <Button size="sm" className="h-7 text-[10px] gap-1 bg-sky-600 hover:bg-sky-700" onClick={() => quickCheckout(g.activeReservation!)}>
+                          <LogOut className="h-3 w-3" /> Check Out
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Guest</TableHead>
+                    <TableHead>Phone / ID</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Room</TableHead>
+                    <TableHead>Stay Period</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginated.map((g) => (
+                    <TableRow key={g.id} className={g.activeReservation?.status === "ACTIVE" ? "bg-emerald-50/30" : ""}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${g.activeReservation?.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700" : g.activeReservation?.status === "UPCOMING" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500"}`}>
+                            {g.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">{g.name}{g.vip ? " ★" : ""}</p>
+                            <p className="text-[10px] text-muted-foreground">{g.totalStays} stay(s) | {formatCurrency(g.totalSpent)} total</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <p className="text-xs">{g.phone || "—"}</p>
+                        <p className="text-[10px] text-muted-foreground font-mono">{g.idNumber || "—"}</p>
+                      </TableCell>
+                      <TableCell>
+                        {g.activeReservation ? (
+                          <Badge variant="outline" className={`text-[10px] ${RES_STATUS[g.activeReservation.status]?.color || ""}`}>
+                            {RES_STATUS[g.activeReservation.status]?.label || g.activeReservation.status}
+                          </Badge>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {g.activeReservation?.room ? (
+                          <span>Room {g.activeReservation.room.number}{g.activeReservation.room.name ? ` (${g.activeReservation.room.name})` : ""}</span>
+                        ) : "—"}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                        {g.activeReservation ? `${formatDate(g.activeReservation.checkIn)} → ${formatDate(g.activeReservation.checkOut)}` : "—"}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {g.activeReservation ? formatCurrency(g.activeReservation.totalCost) : "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {g.activeReservation?.status === "UPCOMING" && (
+                            <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1 text-emerald-700 border-emerald-300 hover:bg-emerald-50" onClick={() => quickCheckin(g.activeReservation!)}>
+                              <LogIn className="h-3 w-3" /> Check In
+                            </Button>
+                          )}
+                          {g.activeReservation?.status === "ACTIVE" && (
+                            <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1 text-sky-700 border-sky-300 hover:bg-sky-50" onClick={() => quickCheckout(g.activeReservation!)}>
+                              <LogOut className="h-3 w-3" /> Check Out
+                            </Button>
+                          )}
+                          {!g.activeReservation && (
+                            <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1" onClick={() => { setResDialogOpen(true); setResForm({ ...emptyResForm, guestId: g.id }); setResGuestSearch(g.name); }}>
+                              <CalendarDays className="h-3 w-3" /> Reserve
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Pagination */}
+      {!loading && filtered.length > 0 && (
+        <PaginationControls
+          currentPage={pagination.currentPage} totalPages={pagination.totalPages}
+          pageSize={pagination.pageSize} pageSizeOptions={pagination.pageSizeOptions}
+          totalItems={pagination.totalItems} rangeInfo={pagination.rangeInfo}
+          goToPage={pagination.goToPage} setPageSize={pagination.setPageSize}
+        />
+      )}
+
+      {/* ── Register Guest Dialog ── */}
+      <Dialog open={registerOpen} onOpenChange={setRegisterOpen}>
+        <DialogContent className="max-w-md mx-4 w-[calc(100%-2rem)]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><UserPlus className="h-5 w-5" /> Register Guest</DialogTitle>
+            <DialogDescription>Register a new guest in the system</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div><Label className="text-xs">Name *</Label><Input value={newGuest.name} onChange={(e) => setNewGuest({ ...newGuest, name: e.target.value })} placeholder="Full name" className="h-9 text-sm" /></div>
+            <div><Label className="text-xs">Phone *</Label><Input value={newGuest.phone} onChange={(e) => setNewGuest({ ...newGuest, phone: e.target.value })} placeholder="Phone number" className="h-9 text-sm" /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label className="text-xs">ID Type</Label>
+                <Select value={newGuest.idType} onValueChange={(v) => setNewGuest({ ...newGuest, idType: v })}>
+                  <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="National ID">National ID</SelectItem>
+                    <SelectItem value="Passport">Passport</SelectItem>
+                    <SelectItem value="Driver License">Driver License</SelectItem>
+                    <SelectItem value="Military ID">Military ID</SelectItem>
+                    <SelectItem value="Refugee ID">Refugee ID</SelectItem>
+                    <SelectItem value="Voter ID">Voter ID</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label className="text-xs">ID Number</Label><Input value={newGuest.idNumber} onChange={(e) => setNewGuest({ ...newGuest, idNumber: e.target.value })} placeholder="ID number" className="h-9 text-sm" /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label className="text-xs">Email</Label><Input value={newGuest.email} onChange={(e) => setNewGuest({ ...newGuest, email: e.target.value })} placeholder="Email" className="h-9 text-sm" /></div>
+              <div><Label className="text-xs">Nationality</Label><Input value={newGuest.nationality} onChange={(e) => setNewGuest({ ...newGuest, nationality: e.target.value })} placeholder="Nationality" className="h-9 text-sm" /></div>
+            </div>
+            <div><Label className="text-xs">Notes</Label><Input value={newGuest.notes} onChange={(e) => setNewGuest({ ...newGuest, notes: e.target.value })} placeholder="Optional notes" className="h-9 text-sm" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setRegisterOpen(false)}>Cancel</Button>
+            <Button size="sm" onClick={handleRegister} disabled={registering}>{registering ? "Saving..." : "Register Guest"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── New Reservation Dialog ── */}
+      <Dialog open={resDialogOpen} onOpenChange={(open) => { if (!open) { setResDialogOpen(false); setResForm(emptyResForm); setResGuestSearch(""); } }}>
+        <DialogContent className="max-w-lg mx-4 w-[calc(100%-2rem)]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><CalendarDays className="h-5 w-5" /> New Reservation</DialogTitle>
+            <DialogDescription>Create a room reservation for a guest</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {/* Guest Select */}
+            <div>
+              <Label className="text-xs">Guest *</Label>
+              {resForm.guestId ? (
+                <div className="flex items-center gap-2 mt-1 p-2 rounded-md border bg-muted/30">
+                  <span className="text-sm font-medium flex-1">{guests.find((g) => g.id === resForm.guestId)?.name || "Selected"}</span>
+                  <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => { setResForm({ ...resForm, guestId: "" }); setResGuestSearch(""); }}>Change</Button>
+                </div>
+              ) : (
+                <div className="relative mt-1">
+                  <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input value={resGuestSearch} onChange={(e) => setResGuestSearch(e.target.value)} placeholder="Search guest by name, phone, or ID..." className="h-9 pl-8 text-sm" />
+                </div>
+              )}
+              {!resForm.guestId && resGuestResults.length > 0 && (
+                <div className="mt-1 max-h-32 overflow-y-auto rounded-md border">
+                  {resGuestResults.map((g) => (
+                    <button key={g.id} className="w-full text-left px-3 py-2 text-xs hover:bg-muted/50 border-b last:border-b-0 flex justify-between items-center" onClick={() => { setResForm({ ...resForm, guestId: g.id }); setResGuestSearch(g.name); }}>
+                      <span className="font-medium">{g.name}</span>
+                      <span className="text-muted-foreground">{g.phone}{g.idNumber ? ` | ${g.idNumber}` : ""}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {/* Room Select */}
+            <div>
+              <Label className="text-xs">Room *</Label>
+              <Select value={resForm.roomId} onValueChange={(v) => setResForm({ ...resForm, roomId: v })}>
+                <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select available room" /></SelectTrigger>
+                <SelectContent>
+                  {availableRooms.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>Room {r.number}{r.name ? ` (${r.name})` : ""} — {r.type} — {formatCurrency(r.pricePerNight)}/night</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label className="text-xs">Check-in *</Label><Input type="date" value={resForm.checkIn} min={todayStr()} onChange={(e) => setResForm({ ...resForm, checkIn: e.target.value, checkOut: resForm.checkOut || addDays(e.target.value, 1) })} className="h-9 text-sm" /></div>
+              <div><Label className="text-xs">Check-out *</Label><Input type="date" value={resForm.checkOut} min={resForm.checkIn || todayStr()} onChange={(e) => setResForm({ ...resForm, checkOut: e.target.value })} className="h-9 text-sm" /></div>
+            </div>
+            {resNights > 0 && resRate > 0 && (
+              <div className="rounded-md bg-muted/50 p-2 flex justify-between text-xs">
+                <span>{resNights} night(s) × {formatCurrency(resRate)}</span>
+                <span className="font-bold">{formatCurrency(resNights * resRate)}</span>
+              </div>
+            )}
+            <div><Label className="text-xs">Notes</Label><Input value={resForm.notes} onChange={(e) => setResForm({ ...resForm, notes: e.target.value })} placeholder="Optional notes" className="h-9 text-sm" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => { setResDialogOpen(false); setResForm(emptyResForm); setResGuestSearch(""); }}>Cancel</Button>
+            <Button size="sm" onClick={handleCreateRes} disabled={creatingRes || !resForm.guestId || !resForm.roomId}>{creatingRes ? "Creating..." : "Create Reservation"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Check-in / Check-out Confirm ── */}
+      {actionInfo && confirmAction && (
+        <AlertDialog open={!!confirmAction} onOpenChange={(open) => { if (!open) setConfirmAction(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">{actionInfo.icon} {actionInfo.label}</AlertDialogTitle>
+              <AlertDialogDescription>{actionInfo.desc}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={actionLoading}>Cancel</AlertDialogCancel>
+              <AlertDialogAction className={actionInfo.cls} onClick={handleAction} disabled={actionLoading}>{actionLoading ? "Processing..." : actionInfo.label}</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+    </div>
+  );
+}
