@@ -117,7 +117,8 @@ export default function SuspectAlertsPage() {
       setLoading(true);
       const query = filter === "unread" ? "unread=true" : "";
       const data = await apiGetSuspectMatches(query);
-      setMatches(data.matches || []);
+      const sorted = [...(data.matches || [])].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setMatches(sorted);
       setUnreadCount(data.unreadCount || 0);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to load alerts";
