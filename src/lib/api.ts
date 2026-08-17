@@ -404,6 +404,8 @@ export const apiUpdateGroupBooking = (id: string, data: Record<string, unknown>)
   req(`/api/group-bookings/${id}`, { method: "PUT", body: JSON.stringify(data) });
 export const apiDeleteGroupBooking = (id: string) =>
   req(`/api/group-bookings/${id}`, { method: "DELETE" });
+export const apiAutoAssignGroup = (id: string, guestIds?: string[]) =>
+  req(`/api/group-bookings/${id}/auto-assign`, { method: "POST", body: JSON.stringify({ guestIds: guestIds || [] }) });
 
 // ── Staff Logs ──
 export const apiGetStaffLogs = (params?: string) =>

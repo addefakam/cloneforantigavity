@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
     checkWritePermission(auth, { staffOnlyWrite: true, staffPermissionKey: "reservations" });
 
     const body = await req.json();
-    const { guestId, roomId, checkIn, checkOut, roomRate, taxAmount, discountAmount, paymentMethod, notes } = body;
+    const { guestId, roomId, checkIn, checkOut, roomRate, taxAmount, discountAmount, paymentMethod, notes, groupBookingId } = body;
 
     if (!guestId || !roomId || !checkIn || !checkOut) {
       return NextResponse.json({ error: "guestId, roomId, checkIn, and checkOut are required" }, { status: 400 });
@@ -140,6 +140,7 @@ export async function POST(req: NextRequest) {
         taxAmount: tax,
         discountAmount: discount,
         providerId,
+        ...(groupBookingId ? { groupBookingId } : {}),
       },
       include: {
         guest: { select: { id: true, name: true, phone: true, idNumber: true, idType: true } },

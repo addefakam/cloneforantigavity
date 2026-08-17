@@ -7,6 +7,7 @@ import {
   apiCreateGroupBooking,
   apiUpdateGroupBooking,
   apiDeleteGroupBooking,
+  apiAutoAssignGroup,
   apiGetRooms,
   apiGetGuests,
   apiCreateReservation,
@@ -72,6 +73,7 @@ import {
   UserPlus,
   X,
   LogIn,
+  Wand2,
 } from "lucide-react";
 
 interface GroupBooking {
@@ -178,6 +180,9 @@ export default function GroupBookingsPage() {
 
   // Unlink reservation
   const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
+
+  // Auto-assign
+  const [autoAssigning, setAutoAssigning] = useState<string | null>(null);
 
   const [guests, setGuests] = useState<GuestOption[]>([]);
   const [rooms, setRooms] = useState<RoomOption[]>([]);
@@ -365,6 +370,35 @@ export default function GroupBookingsPage() {
     }
   };
 
+  const handleAutoAssign = async (groupId: string) => {
+    try {
+      setAutoAssigning(groupId);
+      const result = await apiAutoAssignGroup(groupId);
+      const { assigned, unassigned } = result as { assigned: Array<{ guestName: string; roomNumber: string; roomName: string; roomType: string; pricePerNight: number; totalCost: number; isNew: boolean }>; unassigned: Array<{ guestName: string; reason: string }> };
+      if (assigned.length > 0) {
+        const newCount = assigned.filter((a) => a.isNew).length;
+        toast.success(`Auto-assigned ${assigned.length} guest(s) to rooms${newCount > 0 ? ` (${newCount} new reservations created)` : ""}`);
+      }
+      if (unassigned.length > 0) {
+        toast.warning(`${unassigned.length} guest(s) could not be assigned: ${unassigned.map((u) => u.guestName).join(", ")}`);
+      }
+      if (assigned.length === 0 && unassigned.length === 0) {
+        toast.info("No unassigned guests found. All guests already have rooms.");
+      }
+      setDetailId(groupId);
+      fetchGroupBookings();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Auto-assign failed";
+      if (msg.includes("NO_ROOMS")) {
+        toast.error("No available rooms for the selected dates");
+      } else {
+        toast.error(msg);
+      }
+    } finally {
+      setAutoAssigning(null);
+    }
+  };
+
   const handleGroupCheckin = async (group: GroupBooking) => {
     const upcomingReservations = group.reservations?.filter(
       (r) => r.status === "UPCOMING"
@@ -525,6 +559,20 @@ export default function GroupBookingsPage() {
                       <Button
                         variant="outline"
                         size="sm"
+                        className="text-violet-600 border-violet-200 hover:bg-violet-50"
+                        disabled={autoAssigning === group.id}
+                        onClick={() => handleAutoAssign(group.id)}
+                      >
+                        {autoAssigning === group.id ? (
+                          <span className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                        ) : (
+                          <Wand2 className="h-3.5 w-3.5 mr-1" />
+                        )}
+                        <span className="hidden sm:inline">Auto Assign</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => openAddReservation(group)}
                       >
                         <UserPlus className="h-3.5 w-3.5 mr-1" />
@@ -613,9 +661,10 @@ export default function GroupBookingsPage() {
                           <TableHeader>
                             <TableRow>
                               <TableHead>Guest</TableHead>
-                              <TableHead>Room</TableHead>
+                              <TableHead>Assigned Room</TableHead>
+                              <TableHead className="hidden md:table-cell">Room Type</TableHead>
+                              <TableHead className="hidden lg:table-cell">Cost</TableHead>
                               <TableHead className="hidden md:table-cell">Check-in</TableHead>
-                              <TableHead className="hidden md:table-cell">Check-out</TableHead>
                               <TableHead>Status</TableHead>
                               <TableHead className="w-[50px]"></TableHead>
                             </TableRow>
@@ -633,14 +682,27 @@ export default function GroupBookingsPage() {
                                 </TableCell>
                                 <TableCell>
                                   {res.room
-                                    ? `${res.room.number}${res.room.name ? ` — ${res.room.name}` : ""}`
-                                    : "—"}
+                                    ? (
+                                      <div>
+                                        <div className="font-medium">{res.room.number}{res.room.name ? ` - ${res.room.name}` : ""}</div>
+                                      </div>
+                                    )
+                                    : <span className="text-muted-foreground">Not assigned</span>}
+                                </TableCell>
+                                <TableCell className="hidden md:table-cell">
+                                  {res.room?.type ? (
+                                    <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 text-xs">
+                                      {res.room.type}
+                                    </Badge>
+                                  ) : "—"}
+                                </TableCell>
+                                <TableCell className="hidden lg:table-cell">
+                                  {res.totalCost > 0 ? (
+                                    <span className="text-sm font-medium">{res.totalCost.toLocaleString()} ETB</span>
+                                  ) : "—"}
                                 </TableCell>
                                 <TableCell className="hidden md:table-cell">
                                   {formatDate(res.checkIn)}
-                                </TableCell>
-                                <TableCell className="hidden md:table-cell">
-                                  {formatDate(res.checkOut)}
                                 </TableCell>
                                 <TableCell>
                                   <Badge
@@ -676,7 +738,7 @@ export default function GroupBookingsPage() {
                       ) : (
                         <div className="py-6 text-center text-sm text-muted-foreground">
                           <CalendarDays className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                          No reservations linked yet. Click &quot;Add Guest&quot; to register guests and assign rooms.
+                          No reservations yet. Add guests manually or use "Auto Assign" to assign rooms automatically.
                         </div>
                       )}
                     </div>
