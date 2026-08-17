@@ -5,7 +5,7 @@ import { useAppStore } from "@/lib/store";
 import LoginPage from "@/components/ghms/login-page";
 import Sidebar from "@/components/ghms/sidebar";
 import PageRenderer from "@/components/ghms/page-renderer";
-import { apiGetNotifications } from "@/lib/api";
+import { apiGetNotifications, apiMarkNotificationRead } from "@/lib/api";
 import { Bell } from "lucide-react";
 
 interface UrgentNotif {
@@ -64,7 +64,15 @@ export default function Home() {
           <div
             role="button"
             tabIndex={0}
-            onClick={(e) => { e.preventDefault(); setCurrentPage("notifications"); }}
+            onClick={(e) => {
+              e.preventDefault();
+              // Mark all urgent as read, clear ticker, navigate to notifications
+              const ids = urgentNotifs.map((n) => n.id);
+              setUrgentNotifs([]);
+              setUnreadCount((c) => Math.max(0, c - ids.length));
+              ids.forEach((id) => apiMarkNotificationRead(id).catch(() => {}));
+              setCurrentPage("notifications");
+            }}
             onKeyDown={(e) => { if (e.key === "Enter") setCurrentPage("notifications"); }}
             className="shrink-0 bg-red-600 text-white text-sm font-medium overflow-hidden cursor-pointer hover:bg-red-700 active:bg-red-800 transition-colors"
           >
