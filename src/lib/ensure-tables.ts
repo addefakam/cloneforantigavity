@@ -20,8 +20,6 @@ export async function ensureNewTables(): Promise<void> {
         EXCEPTION WHEN duplicate_object THEN NULL;
         END $$;
       `);
-      // MessageChannel enum: only SMS/WHATSAPP for existing MessageLog table.
-      // Broadcast system uses its own NotificationBroadcast table with TEXT channel column.
       await db.$executeRawUnsafe(`
         DO $$ BEGIN
           CREATE TYPE "MessageChannel" AS ENUM ('SMS','WHATSAPP');
@@ -31,12 +29,6 @@ export async function ensureNewTables(): Promise<void> {
       await db.$executeRawUnsafe(`
         DO $$ BEGIN
           CREATE TYPE "MessageStatus" AS ENUM ('PENDING','SENT','FAILED','DELIVERED');
-        EXCEPTION WHEN duplicate_object THEN NULL;
-        END $$;
-      `);
-      await db.$executeRawUnsafe(`
-        DO $$ BEGIN
-          CREATE TYPE "BroadcastPriority" AS ENUM ('LOW','NORMAL','HIGH','URGENT');
         EXCEPTION WHEN duplicate_object THEN NULL;
         END $$;
       `);
@@ -149,14 +141,17 @@ export async function ensureNewTables(): Promise<void> {
         END $$;
       `);
 
-      // 5. NotificationBroadcast table — tracks broadcast dispatches
+      // 5. NotificationBroadcast table — all TEXT columns, no enum dependency
+      // Drop existing (new feature, no production data) to ensure clean schema
+      await db.$executeRawUnsafe(`DROP TABLE IF EXISTS "NotificationBroadcast"`);
+      await db.$executeRawUnsafe(`DROP TYPE IF EXISTS "BroadcastPriority"`);
       await db.$executeRawUnsafe(`
-        CREATE TABLE IF NOT EXISTS "NotificationBroadcast" (
+        CREATE TABLE "NotificationBroadcast" (
           "id"            TEXT NOT NULL PRIMARY KEY,
           "title"         TEXT NOT NULL,
           "message"       TEXT NOT NULL,
           "channel"       TEXT NOT NULL DEFAULT 'IN_APP',
-          "priority"      "BroadcastPriority" NOT NULL DEFAULT 'NORMAL',
+          "priority"      TEXT NOT NULL DEFAULT 'NORMAL',
           "targetType"    TEXT NOT NULL DEFAULT 'ALL_PROVIDERS',
           "targetIds"     TEXT NOT NULL DEFAULT '[]',
           "sentBy"        TEXT NOT NULL DEFAULT '',

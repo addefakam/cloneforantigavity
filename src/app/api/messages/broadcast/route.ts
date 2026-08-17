@@ -12,11 +12,11 @@ export async function GET(req: NextRequest) {
     await ensureNewTables();
     const auth = await getAuthContext(req);
 
-    // Only POLICE and SUPERUSER can view provider contact list for broadcasts
     if (auth.role !== "POLICE" && auth.role !== "SUPERUSER") {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
+    // Only select columns that definitely exist in the Provider model
     const providers = await db.$queryRawUnsafe<
       Array<{
         id: string;
@@ -27,7 +27,6 @@ export async function GET(req: NextRequest) {
         address: string;
         type: string;
         status: string;
-        telegramChatId: string | null;
         room_count: number;
         guest_count: number;
         user_count: number;
@@ -35,7 +34,6 @@ export async function GET(req: NextRequest) {
     >(`
       SELECT 
         p.id, p.name, p."ownerName", p.phone, p.email, p.address, p.type, p.status,
-        COALESCE(p."telegramChatId", '') as "telegramChatId",
         (SELECT COUNT(*)::int FROM "Room" r WHERE r."providerId" = p.id) as room_count,
         (SELECT COUNT(*)::int FROM "Guest" g WHERE g."providerId" = p.id) as guest_count,
         (SELECT COUNT(*)::int FROM "User" u WHERE u."providerId" = p.id AND u."isActive" = true) as user_count
@@ -44,7 +42,6 @@ export async function GET(req: NextRequest) {
       ORDER BY p.name ASC
     `);
 
-    // Format the response
     const formatted = providers.map((p) => ({
       id: p.id,
       name: p.name,
@@ -54,9 +51,9 @@ export async function GET(req: NextRequest) {
       address: p.address,
       type: p.type,
       status: p.status,
-      telegramChatId: p.telegramChatId,
+      telegramChatId: "",
       hasPhone: !!p.phone,
-      hasTelegram: !!p.telegramChatId,
+      hasTelegram: false,
       roomCount: p.room_count,
       guestCount: p.guest_count,
       userCount: p.user_count,
