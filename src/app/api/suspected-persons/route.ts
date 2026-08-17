@@ -28,17 +28,14 @@ export async function GET(req: NextRequest) {
 
     const where: Record<string, unknown> = {};
     if (q) {
-      // Search in IDs table too
+      // ID-only search: match against SuspectId table and legacy idNumber field
       const matchingIdPersons = await db.$queryRaw<{ suspectedPersonId: string }[]>(
         sql`SELECT DISTINCT "suspectedPersonId" FROM "SuspectId" WHERE LOWER("idNumber") LIKE LOWER(${`%${q}%`})`
       );
       const idsFromIdTable = matchingIdPersons.map(r => r.suspectedPersonId);
 
       const orConditions: Record<string, unknown>[] = [
-        { name: { contains: q } },
-        { phone: { contains: q } },
         { idNumber: { contains: q } },
-        { description: { contains: q } },
       ];
       if (idsFromIdTable.length > 0) {
         orConditions.push({ id: { in: idsFromIdTable } });
