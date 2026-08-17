@@ -62,8 +62,11 @@ export default function Home() {
       <div className="flex-1 flex flex-col min-w-0">
         {urgentNotifs.length > 0 && (
           <div
-            onClick={() => setCurrentPage("notifications")}
-            className="shrink-0 bg-red-600 text-white text-sm font-medium overflow-hidden cursor-pointer hover:bg-red-700 transition-colors select-none"
+            role="button"
+            tabIndex={0}
+            onClick={(e) => { e.preventDefault(); setCurrentPage("notifications"); }}
+            onKeyDown={(e) => { if (e.key === "Enter") setCurrentPage("notifications"); }}
+            className="shrink-0 bg-red-600 text-white text-sm font-medium overflow-hidden cursor-pointer hover:bg-red-700 active:bg-red-800 transition-colors"
           >
             <div className="flex items-center h-8">
               <span className="shrink-0 px-3 bg-red-800 text-[11px] font-bold uppercase tracking-wider h-full flex items-center gap-1.5 z-10 relative">
@@ -73,13 +76,16 @@ export default function Home() {
               <div className="relative flex-1 overflow-hidden">
                 <div
                   ref={scrollRef}
-                  className="urgent-ticker-track flex whitespace-nowrap"
+                  className="urgent-ticker-track flex whitespace-nowrap pointer-events-none"
                   style={{ animation: `urgent-scroll ${Math.max(15, tickerText.length * 0.15)}s linear infinite` }}
                 >
                   <span className="px-8">{tickerText}</span>
                   <span className="px-8">{tickerText}</span>
                 </div>
               </div>
+              <span className="shrink-0 px-3 text-[11px] text-red-200 z-10 relative">
+                Click to view →
+              </span>
             </div>
           </div>
         )}
