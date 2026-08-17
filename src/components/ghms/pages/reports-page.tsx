@@ -19,6 +19,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   DollarSign,
   TrendingDown,
   TrendingUp,
@@ -116,6 +123,7 @@ export default function ReportsPage() {
 
   const [from, setFrom] = useState(monthAgo);
   const [to, setTo] = useState(today);
+  const [preset, setPreset] = useState<string>("CUSTOM");
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showGuests, setShowGuests] = useState(false);
@@ -125,6 +133,7 @@ export default function ReportsPage() {
   const [expandedGuestIdx, setExpandedGuestIdx] = useState<number | null>(null);
   const [guestSearch, setGuestSearch] = useState("");
 
+  // ── Preset date ranges ──
   const fetchReports = useCallback(async () => {
     setLoading(true);
     try {
@@ -149,6 +158,62 @@ export default function ReportsPage() {
       setLoading(false);
     }
   }, [from, to]);
+
+  const handlePresetChange = (value: string) => {
+    setPreset(value);
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    const d = now.getDate();
+    const dayOfWeek = now.getDay();
+
+    let newFrom = from;
+    let newTo = to;
+
+    if (value === "TODAY") {
+      newFrom = today;
+      newTo = today;
+    } else if (value === "THIS_WEEK") {
+      const monday = new Date(y, m, d - ((dayOfWeek + 6) % 7));
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      newFrom = monday.toISOString().split("T")[0];
+      newTo = sunday.toISOString().split("T")[0];
+    } else if (value === "LAST_WEEK") {
+      const thisMonday = new Date(y, m, d - ((dayOfWeek + 6) % 7));
+      const lastMonday = new Date(thisMonday);
+      lastMonday.setDate(thisMonday.getDate() - 7);
+      const lastSunday = new Date(lastMonday);
+      lastSunday.setDate(lastMonday.getDate() + 6);
+      newFrom = lastMonday.toISOString().split("T")[0];
+      newTo = lastSunday.toISOString().split("T")[0];
+    } else if (value.startsWith("MONTH_")) {
+      const monthStr = value.replace("MONTH_", "");
+      const [my, mm] = monthStr.split("-").map(Number);
+      const first = new Date(my, mm - 1, 1);
+      const last = new Date(my, mm, 0);
+      newFrom = first.toISOString().split("T")[0];
+      newTo = last.toISOString().split("T")[0];
+    }
+    // CUSTOM does nothing — user picks from/to manually
+    if (value !== "CUSTOM") {
+      setFrom(newFrom);
+      setTo(newTo);
+    }
+  };
+
+  // Generate month options for the last 12 months
+  const monthOptions = useMemo(() => {
+    const opts: { value: string; label: string }[] = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const val = `MONTH_${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+      opts.push({ value: val, label });
+    }
+    return opts;
+  }, []);
 
   useEffect(() => {
     fetchReports();
@@ -364,14 +429,33 @@ export default function ReportsPage() {
 
       {/* Date Range Picker */}
       <Card>
-        <CardContent className="flex flex-col sm:flex-row items-end gap-4 pt-6">
+        <CardContent className="flex flex-col sm:flex-row items-end gap-3 pt-6">
+          {/* Preset Dropdown */}
+          <div className="grid gap-2 w-full sm:w-48 shrink-0">
+            <Label>Period</Label>
+            <Select value={preset} onValueChange={handlePresetChange}>
+              <SelectTrigger><SelectValue placeholder="Select period" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="TODAY">Today</SelectItem>
+                <SelectItem value="THIS_WEEK">This Week</SelectItem>
+                <SelectItem value="LAST_WEEK">Last Week</SelectItem>
+                {monthOptions.map((mo, i) => (
+                  <SelectItem key={mo.value} value={mo.value}>
+                    {i === 0 ? "── " : ""}{mo.label}{i === 0 ? " ──" : ""}
+                  </SelectItem>
+                ))}
+                <SelectItem value="CUSTOM">Custom Range</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {/* From / To */}
           <div className="grid gap-2 flex-1 w-full sm:w-auto">
             <Label htmlFor="from">From</Label>
             <Input
               id="from"
               type="date"
               value={from}
-              onChange={(e) => setFrom(e.target.value)}
+              onChange={(e) => { setFrom(e.target.value); setPreset("CUSTOM"); }}
             />
           </div>
           <div className="grid gap-2 flex-1 w-full sm:w-auto">
@@ -380,7 +464,7 @@ export default function ReportsPage() {
               id="to"
               type="date"
               value={to}
-              onChange={(e) => setTo(e.target.value)}
+              onChange={(e) => { setTo(e.target.value); setPreset("CUSTOM"); }}
             />
           </div>
           <Button onClick={fetchReports} disabled={loading}>
