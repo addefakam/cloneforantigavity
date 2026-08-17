@@ -274,7 +274,7 @@ export async function GET(req: NextRequest) {
       <path d="M22 34 L28 40 L40 26" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
     <div class="header-text">
-      <h1>Ethiopian Federal Police</h1>
+      <h1>Oromia Police</h1>
       <h2>Monthly Intelligence Report</h2>
       <div class="header-meta">
         <span>Reporting Period: ${dateRangeStr}</span>
@@ -417,7 +417,7 @@ export async function GET(req: NextRequest) {
 </div>
 
 <div class="footer">
-  <span>Ethiopian Federal Police — Guest House Monitoring System</span>
+  <span>Oromia Police — Guest House Monitoring System</span>
   <span>Page 1 of 1 | Report ID: RPT-${year}${String(month).padStart(2, "0")}-${Date.now().toString(36).toUpperCase()}</span>
 </div>
 

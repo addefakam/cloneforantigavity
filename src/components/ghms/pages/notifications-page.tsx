@@ -32,6 +32,10 @@ import {
   Trash2,
   Eye,
   MessageSquarePlus,
+  Shield,
+  Megaphone,
+  AlertOctagon,
+  FileText,
 } from "lucide-react";
 
 interface Notification {
@@ -43,6 +47,52 @@ interface Notification {
   createdAt: string;
   link: string | null;
 }
+
+// Priority-level detection from notification title (police broadcasts)
+const PRIORITY_STYLE: Record<
+  string,
+  {
+    icon: React.ElementType;
+    badge: string;
+    badgeLabel: string;
+    border: string;
+    bg: string;
+    iconColor: string;
+  }
+> = {
+  URGENT: {
+    icon: AlertOctagon,
+    badge: "bg-red-100 text-red-700 border-red-300",
+    badgeLabel: "Urgent",
+    border: "border-red-300 bg-red-50/60",
+    bg: "bg-red-50/60",
+    iconColor: "text-red-600",
+  },
+  "HIGH PRIORITY": {
+    icon: AlertTriangle,
+    badge: "bg-amber-100 text-amber-700 border-amber-300",
+    badgeLabel: "High Priority",
+    border: "border-amber-300 bg-amber-50/60",
+    bg: "bg-amber-50/60",
+    iconColor: "text-amber-600",
+  },
+  NOTICE: {
+    icon: Megaphone,
+    badge: "bg-blue-100 text-blue-700 border-blue-300",
+    badgeLabel: "Police Notice",
+    border: "border-blue-200 bg-blue-50/40",
+    bg: "bg-blue-50/40",
+    iconColor: "text-blue-600",
+  },
+  LOW: {
+    icon: FileText,
+    badge: "bg-slate-100 text-slate-600 border-slate-300",
+    badgeLabel: "Low Priority",
+    border: "border-slate-200 bg-slate-50/40",
+    bg: "bg-slate-50/40",
+    iconColor: "text-slate-500",
+  },
+};
 
 const TYPE_CONFIG: Record<
   string,
@@ -74,6 +124,12 @@ const TYPE_CONFIG: Record<
     label: "Concern",
   },
 };
+
+/** Detect if a notification is a police/admin broadcast from its title prefix */
+function detectBroadcastPriority(title: string) {
+  const match = title.match(/^\[(URGENT|HIGH PRIORITY|NOTICE|LOW)\]/);
+  return match ? match[1] : null;
+}
 
 function timeAgo(dateStr: string) {
   const now = Date.now();
@@ -213,8 +269,10 @@ export default function NotificationsPage() {
       ) : (
         <div className="space-y-3">
           {notifications.map((n) => {
+            const isBroadcast = detectBroadcastPriority(n.title);
+            const priorityStyle = isBroadcast ? PRIORITY_STYLE[isBroadcast] : null;
             const cfg = TYPE_CONFIG[n.type] || TYPE_CONFIG.INFO;
-            const Icon = cfg.icon;
+            const Icon = isBroadcast && priorityStyle ? priorityStyle.icon : cfg.icon;
 
             return (
               <div
@@ -222,18 +280,32 @@ export default function NotificationsPage() {
                 onClick={() => markRead(n.id)}
                 className={`
                   group relative flex items-start gap-4 rounded-lg border p-4 transition-colors cursor-pointer
-                  ${n.isRead ? "bg-card" : "bg-primary/[0.03] border-primary/20"}
+                  ${n.isRead
+                    ? isBroadcast && priorityStyle
+                      ? priorityStyle.border.replace(/border-\S+\s/, 'border-slate-200 ').replace(/bg-\S+\s*/, 'bg-card')
+                      : "bg-card"
+                    : isBroadcast && priorityStyle
+                      ? priorityStyle.border
+                      : "bg-primary/[0.03] border-primary/20"}
                   hover:bg-accent/50
                 `}
               >
                 <div
                   className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                    n.isRead ? "bg-muted" : "bg-primary/10"
+                    n.isRead
+                      ? "bg-muted"
+                      : isBroadcast && priorityStyle
+                        ? priorityStyle.bg
+                        : "bg-primary/10"
                   }`}
                 >
                   <Icon
                     className={`h-4 w-4 ${
-                      n.isRead ? "text-muted-foreground" : "text-primary"
+                      n.isRead
+                        ? "text-muted-foreground"
+                        : isBroadcast && priorityStyle
+                          ? priorityStyle.iconColor
+                          : "text-primary"
                     }`}
                   />
                 </div>
@@ -250,12 +322,19 @@ export default function NotificationsPage() {
                     {!n.isRead && (
                       <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
                     )}
-                    <Badge variant="outline" className={cfg.badge}>
-                      {cfg.label}
-                    </Badge>
+                    {isBroadcast && priorityStyle ? (
+                      <Badge variant="outline" className={`${priorityStyle.badge} gap-1`}>
+                        <Shield className="h-3 w-3" />
+                        {priorityStyle.badgeLabel}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className={cfg.badge}>
+                        {cfg.label}
+                      </Badge>
+                    )
                   </div>
                   <p
-                    className={`text-sm leading-relaxed ${
+                    className={`text-sm leading-relaxed whitespace-pre-line ${
                       n.isRead ? "text-muted-foreground" : "text-foreground/80"
                     }`}
                   >

@@ -121,8 +121,15 @@ export async function POST(req: NextRequest) {
       auth.role === "POLICE"
         ? `Oromia Police - ${RANK_LABELS[(auth.policeRank as keyof typeof RANK_LABELS)] || auth.policeRank}`
         : "GHMS System Administrator";
-    const priorityLabel =
-      priority === "URGENT" ? "[URGENT] " : priority === "HIGH" ? "[HIGH PRIORITY] " : "";
+
+    // Priority display config
+    const PRIORITY_DISPLAY: Record<string, { prefix: string; label: string }> = {
+      URGENT:  { prefix: "", label: "URGENT" },
+      HIGH:     { prefix: "", label: "HIGH PRIORITY" },
+      NORMAL:   { prefix: "", label: "NOTICE" },
+      LOW:      { prefix: "", label: "LOW" },
+    };
+    const pd = PRIORITY_DISPLAY[priority] || PRIORITY_DISPLAY.NORMAL;
 
     let sent = 0;
     let failed = 0;
@@ -162,12 +169,25 @@ export async function POST(req: NextRequest) {
               sendSuccess = false;
               errorMsg = "No active users found for this provider";
             } else {
-              const notifTitle = `${priorityLabel}[${senderLabel}] ${title}`;
+              const notifTitle = `[${pd.label}] ${title}`;
+              const priorityIndicators: Record<string, string> = {
+                URGENT: "*** URGENT ***",
+                HIGH: "** HIGH PRIORITY **",
+                NORMAL: "-- NOTICE --",
+                LOW: "(Low Priority)",
+              };
+              const formattedMessage = [
+                messageText,
+                "",
+                `${priorityIndicators[priority] || ""}`,
+                `From: ${senderLabel}`,
+                `Priority: ${pd.label}`,
+              ].join("\n");
               const notifType = priority === "URGENT" ? "ERROR" : priority === "HIGH" ? "WARNING" : "INFO";
               await db.notification.createMany({
                 data: users.map((u) => ({
                   title: notifTitle,
-                  message: messageText,
+                  message: formattedMessage,
                   type: notifType as "INFO" | "WARNING" | "SUCCESS" | "ERROR",
                   userId: u.id,
                   providerId: provider.id,
