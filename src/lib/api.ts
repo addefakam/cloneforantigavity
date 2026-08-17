@@ -409,6 +409,14 @@ export const apiDeleteGroupBooking = (id: string) =>
 export const apiGetStaffLogs = (params?: string) =>
   req(`/api/staff-logs${params ? `?${params}` : ""}`);
 
+// ── Notification Broadcast (Police / Admin) ──
+export const apiGetBroadcastProviders = () =>
+  req("/api/messages/broadcast");
+export const apiSendBroadcast = (data: Record<string, unknown>) =>
+  req("/api/notifications/broadcast", { method: "POST", body: JSON.stringify(data) });
+export const apiGetBroadcastHistory = (params?: string) =>
+  req(`/api/notifications/broadcast${params ? `?${params}` : ""}`);
+
 // ── Messages ──
 export const apiGetMessageTemplates = () =>
   req("/api/messages/templates");

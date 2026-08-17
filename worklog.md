@@ -23,3 +23,33 @@ Stage Summary:
 - Bulk SMS/WhatsApp send capability (simulated - needs external API integration)
 - Staff activity auto-logged on checkin and checkout operations
 - All new TypeScript files compile with zero errors
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Implement Notification Dispatch System for Police and Admin modules
+
+Work Log:
+- Updated ensure-tables.ts: added BroadcastPriority enum, NotificationBroadcast table, telegramChatId column on Provider
+- Created /api/messages/broadcast/route.ts (GET): returns list of approved providers with contact info for broadcast targeting
+- Created /api/notifications/broadcast/route.ts (GET/POST): broadcast history + send broadcast to all/selected providers
+- Broadcast API supports 4 channels: In-App Notification, SMS, WhatsApp, Telegram
+- Broadcast API supports 4 priority levels: LOW, NORMAL, HIGH, URGENT
+- In-App channel creates real Notification records for all active users of each provider
+- SMS/WhatsApp/Telegram channels are logged in NotificationBroadcast (external API integration needed for actual delivery)
+- Added 3 API client functions: apiGetBroadcastProviders, apiSendBroadcast, apiGetBroadcastHistory
+- Added 'notification-dispatch' to POLICE_NAV_ITEMS and SUPERUSER_NAV_ITEMS in sidebar.tsx
+- Added Megaphone icon import to sidebar.tsx
+- Added 'notification-dispatch' to police permissions for ADMIN, DETECTIVE, OFFICER ranks (not VIEWER)
+- Built notification-dispatch-page.tsx: full compose form + provider selection + broadcast history with pagination
+- Registered 'notification-dispatch' in page-renderer.tsx (lazy import + PAGE_MAP)
+
+Stage Summary:
+- New NotificationBroadcast table tracks all broadcast dispatches with delivery stats
+- Police (OFFICER+) and Admin/Superuser can send broadcasts to all or selected providers
+- Police VIEWER rank can view history but cannot send (read-only)
+- 4 delivery channels: In-App (working), SMS/WhatsApp/Telegram (logged, need external API integration)
+- 4 priority levels with visual indicators (LOW/NORMAL/HIGH/URGENT)
+- Channel availability warnings shown in UI (e.g., '3 of 10 providers have Telegram configured')
+- Provider list shows contact capabilities (phone, telegram, in-app user count)
+- Broadcast history with pagination, delivery stats (sent/failed), and filter by date

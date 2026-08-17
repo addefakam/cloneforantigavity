@@ -20,6 +20,8 @@ export async function ensureNewTables(): Promise<void> {
         EXCEPTION WHEN duplicate_object THEN NULL;
         END $$;
       `);
+      // MessageChannel enum: only SMS/WHATSAPP for existing MessageLog table.
+      // Broadcast system uses its own NotificationBroadcast table with TEXT channel column.
       await db.$executeRawUnsafe(`
         DO $$ BEGIN
           CREATE TYPE "MessageChannel" AS ENUM ('SMS','WHATSAPP');
@@ -29,6 +31,12 @@ export async function ensureNewTables(): Promise<void> {
       await db.$executeRawUnsafe(`
         DO $$ BEGIN
           CREATE TYPE "MessageStatus" AS ENUM ('PENDING','SENT','FAILED','DELIVERED');
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+      `);
+      await db.$executeRawUnsafe(`
+        DO $$ BEGIN
+          CREATE TYPE "BroadcastPriority" AS ENUM ('LOW','NORMAL','HIGH','URGENT');
         EXCEPTION WHEN duplicate_object THEN NULL;
         END $$;
       `);
@@ -128,6 +136,39 @@ export async function ensureNewTables(): Promise<void> {
           END IF;
         END $$;
       `);
+
+      // 4. Add telegramChatId to Provider if missing
+      await db.$executeRawUnsafe(`
+        DO $$ BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'Provider' AND column_name = 'telegramChatId'
+          ) THEN
+            ALTER TABLE "Provider" ADD COLUMN "telegramChatId" TEXT;
+          END IF;
+        END $$;
+      `);
+
+      // 5. NotificationBroadcast table — tracks broadcast dispatches
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "NotificationBroadcast" (
+          "id"            TEXT NOT NULL PRIMARY KEY,
+          "title"         TEXT NOT NULL,
+          "message"       TEXT NOT NULL,
+          "channel"       TEXT NOT NULL DEFAULT 'IN_APP',
+          "priority"      "BroadcastPriority" NOT NULL DEFAULT 'NORMAL',
+          "targetType"    TEXT NOT NULL DEFAULT 'ALL_PROVIDERS',
+          "targetIds"     TEXT NOT NULL DEFAULT '[]',
+          "sentBy"        TEXT NOT NULL DEFAULT '',
+          "sentByName"    TEXT NOT NULL DEFAULT '',
+          "totalSent"     INTEGER NOT NULL DEFAULT 0,
+          "totalFailed"   INTEGER NOT NULL DEFAULT 0,
+          "status"        TEXT NOT NULL DEFAULT 'COMPLETED',
+          "createdAt"     TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "NotificationBroadcast_createdAt_idx" ON "NotificationBroadcast"("createdAt");`);
+      await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "NotificationBroadcast_sentBy_idx" ON "NotificationBroadcast"("sentBy");`);
 
       console.log("[ensureNewTables] All new tables verified/created");
     } catch (err) {
