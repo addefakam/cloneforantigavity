@@ -101,11 +101,6 @@ const POLICE_NAV_ITEMS: NavItem[] = [
     label: "Room Availability",
     icon: BedDouble,
   },
-  {
-    page: "notification-dispatch",
-    label: "Dispatch Notification",
-    icon: Megaphone,
-  },
 ];
 
 const JOINT_SESSION_POLICE_ITEMS: NavItem[] = [
@@ -157,7 +152,6 @@ const SUPERUSER_NAV_ITEMS: NavItem[] = [
   { page: "super-admin-dashboard", label: "Admin Dashboard", icon: LayoutDashboard },
   { page: "guesthouse-user-management", label: "Guesthouse & User Mgmt", icon: Hotel },
   { page: "subscriptions", label: "Subscriptions", icon: CreditCard },
-  { page: "notification-dispatch", label: "Dispatch Notification", icon: Megaphone },
   { page: "super-system-config", label: "System Configuration", icon: Settings },
   { page: "super-audit-logs", label: "Audit Logs", icon: ClipboardList },
   { page: "super-data-reports", label: "Data & Reports", icon: BarChart3 },
