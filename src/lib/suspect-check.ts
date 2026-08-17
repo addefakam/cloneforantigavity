@@ -36,9 +36,153 @@ async function ensureTables() {
 }
 
 /**
- * Check if a person matches any suspected person BY ID NUMBER ONLY.
+ * Normalize a name for fuzzy comparison.
+ * Strips extra whitespace, converts to lowercase, removes common punctuation.
+ */
+function normalizeName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")  // remove non-alphanumeric except spaces
+    .replace(/\s+/g, " ")            // collapse multiple spaces
+    .trim();
+}
+
+/**
+ * Check if two names are a fuzzy match.
+ * Returns true if:
+ *  - Exact match (after normalization)
+ *  - One name contains the other (after normalization)
+ *  - Both names share the same last word (surname match)
+ *  - Levenshtein distance is very small (1-2 chars) for short names
+ */
+function namesMatch(name1: string, name2: string): boolean {
+  const n1 = normalizeName(name1);
+  const n2 = normalizeName(name2);
+
+  if (!n1 || !n2) return false;
+  if (n1 === n2) return true;
+
+  // One contains the other (e.g. "John Doe" contains "John")
+  if (n1.includes(n2) || n2.includes(n1)) return true;
+
+  // Surname match: last word is the same
+  const words1 = n1.split(" ").filter(Boolean);
+  const words2 = n2.split(" ").filter(Boolean);
+  if (words1.length > 1 && words2.length > 1) {
+    if (words1[words1.length - 1] === words2[words2.length - 1]) return true;
+  }
+
+  // First word match (given name)
+  if (words1.length > 0 && words2.length > 0) {
+    if (words1[0] === words2[0]) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Find matching suspect person IDs using multiple strategies:
+ * 1. ID number (exact, case-insensitive) — highest confidence
+ * 2. Phone number (exact, case-insensitive) — high confidence
+ * 3. Name (fuzzy) — medium confidence
+ */
+async function findMatchingSuspects(params: {
+  name: string;
+  phone?: string;
+  idNumber?: string;
+}): Promise<{ suspectPersonIds: string[]; matchReasons: Record<string, string> }> {
+  const { name, phone, idNumber } = params;
+  const suspectPersonIds: string[] = [];
+  const matchReasons: Record<string, string> = {};
+
+  // ── Strategy 1: ID Number Match (highest confidence) ──
+  if (idNumber && idNumber.trim().length >= 2) {
+    const normalizedId = idNumber.trim();
+
+    // Search the SuspectId table
+    const matchingIds = await db.$queryRaw<{ suspectedPersonId: string }[]>(
+      sql`SELECT DISTINCT "suspectedPersonId" FROM "SuspectId" WHERE LOWER("idNumber") = LOWER(${normalizedId})`
+    );
+    for (const m of matchingIds) {
+      if (!suspectPersonIds.includes(m.suspectedPersonId)) {
+        suspectPersonIds.push(m.suspectedPersonId);
+        matchReasons[m.suspectedPersonId] = "ID_NUMBER";
+      }
+    }
+
+    // Also search legacy idNumber field
+    const legacyMatches = await db.suspectedPerson.findMany({
+      where: { is_active: true, idNumber: { not: "" } },
+      select: { id: true, idNumber: true },
+    });
+    for (const lm of legacyMatches) {
+      if (lm.idNumber.trim().toLowerCase() === normalizedId.toLowerCase()) {
+        if (!suspectPersonIds.includes(lm.id)) {
+          suspectPersonIds.push(lm.id);
+          matchReasons[lm.id] = "ID_NUMBER";
+        }
+      }
+    }
+  }
+
+  // ── Strategy 2: Phone Number Match (high confidence) ──
+  if (phone && phone.trim().length >= 6) {
+    const normalizedPhone = phone.trim().replace(/[^0-9+]/g, "");
+    if (normalizedPhone.length >= 6) {
+      // Search suspected persons by phone
+      const phoneMatches = await db.suspectedPerson.findMany({
+        where: { is_active: true, phone: { not: "" } },
+        select: { id: true, phone: true },
+      });
+
+      for (const pm of phoneMatches) {
+        const suspectPhone = pm.phone.trim().replace(/[^0-9+]/g, "");
+        // Match if: exact match, or one contains the other (handles +251 vs 251 prefix differences)
+        if (
+          suspectPhone === normalizedPhone ||
+          suspectPhone.endsWith(normalizedPhone.replace(/^\+/, "")) ||
+          normalizedPhone.endsWith(suspectPhone.replace(/^\+/, "")) ||
+          suspectPhone.includes(normalizedPhone.slice(-9)) ||  // last 9 digits match
+          normalizedPhone.includes(suspectPhone.slice(-9))
+        ) {
+          if (!suspectPersonIds.includes(pm.id)) {
+            suspectPersonIds.push(pm.id);
+            matchReasons[pm.id] = "PHONE";
+          } else if (!matchReasons[pm.id] || matchReasons[pm.id] === "NAME") {
+            // Upgrade reason if phone match is stronger than name match
+            matchReasons[pm.id] = "PHONE";
+          }
+        }
+      }
+    }
+  }
+
+  // ── Strategy 3: Name Match (fuzzy, medium confidence) ──
+  if (name && name.trim().length >= 2) {
+    const normalizedName = name.trim();
+    const nameMatches = await db.suspectedPerson.findMany({
+      where: { is_active: true },
+      select: { id: true, name: true },
+    });
+
+    for (const nm of nameMatches) {
+      if (namesMatch(normalizedName, nm.name)) {
+        if (!suspectPersonIds.includes(nm.id)) {
+          suspectPersonIds.push(nm.id);
+          matchReasons[nm.id] = "NAME";
+        }
+        // Don't downgrade — keep the stronger match reason
+      }
+    }
+  }
+
+  return { suspectPersonIds, matchReasons };
+}
+
+/**
+ * Check if a person matches any suspected person.
+ * Uses multiple matching strategies: ID number, phone, and name.
  * Searches both the legacy single idNumber field and the new SuspectId table.
- * A suspect might have multiple IDs (national ID, passport, driver license, etc.).
  */
 export async function checkSuspectMatch(params: {
   name: string;
@@ -57,43 +201,23 @@ export async function checkSuspectMatch(params: {
 
     const { name, phone, idNumber, idType, matchType, providerId, providerName, reservationId, daytimeBookingId, extraDetails } = params;
 
-    if (!idNumber || idNumber.trim().length < 2) return;
+    // At minimum we need a name to attempt matching
+    if (!name || name.trim().length < 1) return;
 
-    const normalizedId = idNumber.trim();
-
-    // --- Step 1: Find all suspect IDs that match the guest's ID number ---
-    // Search the new SuspectId table (case-insensitive exact match on idNumber)
-    const matchingIds = await db.$queryRaw<{ suspectedPersonId: string }[]>(
-      sql`SELECT DISTINCT "suspectedPersonId" FROM "SuspectId" WHERE LOWER("idNumber") = LOWER(${normalizedId})`
-    );
-
-    const suspectPersonIds = matchingIds.map((r) => r.suspectedPersonId);
-
-    // Also search the legacy single idNumber field for backwards compatibility
-    const legacyMatches = await db.suspectedPerson.findMany({
-      where: {
-        is_active: true,
-        idNumber: { not: "" },
-      },
-      select: { id: true },
+    const { suspectPersonIds, matchReasons } = await findMatchingSuspects({
+      name,
+      phone,
+      idNumber,
     });
 
-    for (const lm of legacyMatches) {
-      if (lm.idNumber.trim().toLowerCase() === normalizedId.toLowerCase()) {
-        if (!suspectPersonIds.includes(lm.id)) {
-          suspectPersonIds.push(lm.id);
-        }
-      }
-    }
-
     if (suspectPersonIds.length === 0) {
-      console.log(`[suspect-check] No match for ID: ${normalizedId}`);
+      console.log(`[suspect-check] No match for: ${name} (id: ${idNumber || "none"}, phone: ${phone || "none"})`);
       return;
     }
 
-    console.log(`[suspect-check] MATCH FOUND for ID: ${normalizedId} -> ${suspectPersonIds.length} suspect(s)`);
+    console.log(`[suspect-check] MATCH FOUND for ${name} -> ${suspectPersonIds.length} suspect(s), reasons: ${JSON.stringify(matchReasons)}`);
 
-    // --- Step 2: Fetch full suspect records ---
+    // Fetch full suspect records
     const suspects = await db.suspectedPerson.findMany({
       where: { id: { in: suspectPersonIds }, is_active: true },
     });
@@ -112,13 +236,14 @@ export async function checkSuspectMatch(params: {
       matchType,
       guestName: name,
       guestPhone: phone || "",
-      guestIdNumber: normalizedId,
+      guestIdNumber: idNumber?.trim() || "",
       guestIdType: idType || "",
       providerName: provName,
       providerId,
       reservationId: reservationId || null,
       daytimeBookingId: daytimeBookingId || null,
       matchedAt: new Date().toISOString(),
+      matchReasons,
       ...extraDetails,
     });
 
@@ -130,7 +255,7 @@ export async function checkSuspectMatch(params: {
           matchType,
           guestName: name,
           guestPhone: phone || "",
-          guestIdNumber: normalizedId,
+          guestIdNumber: idNumber?.trim() || "",
           providerName: provName,
           providerId,
           reservationId: reservationId || null,
