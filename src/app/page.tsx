@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useAppStore } from "@/lib/store";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useAppStore } from "lib/store";
 import LoginPage from "@/components/ghms/login-page";
 import Sidebar from "@/components/ghms/sidebar";
 import PageRenderer from "@/components/ghms/page-renderer";
@@ -18,20 +18,22 @@ export default function Home() {
   const { currentUser, currentPage, setCurrentPage } = useAppStore();
   const [unreadCount, setUnreadCount] = useState(0);
   const [urgentNotifs, setUrgentNotifs] = useState<UrgentNotif[]>([]);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const fetchNotifData = useCallback(async () => {
     try {
       const res = await apiGetNotifications();
-      const list = Array.isArray(res) ? res : (res as Record<string, unknown>).notifications;
-      const arr = Array.isArray(list) ? list : [];
-      setUnreadCount(arr.filter((n: { isRead: boolean }) => !n.isRead).length);
+      const raw = res as Record<string, unknown> | unknown[];
+      const list = Array.isArray(raw) ? raw : raw?.notifications;
+      const arr: Record<string, unknown>[] = Array.isArray(list) ? list : [];
+      setUnreadCount(arr.filter((n) => !n.isRead).length);
       // Collect unread URGENT broadcast notifications
       const urgent = arr
-        .filter((n: { isRead: boolean; title: string }) => !n.isRead && /^\[URGENT\]/.test(n.title))
-        .map((n: { id: string; title: string; message: string }) => ({
-          id: n.id,
-          title: n.title.replace(/^\[URGENT\]\s*/, ""),
-          message: n.message.split("\n")[0],
+        .filter((n) => !n.isRead && typeof n.title === "string" && n.title.startsWith("[URGENT]"))
+        .map((n) => ({
+          id: n.id as string,
+          title: (n.title as string).replace(/^\[URGENT\]\s*/, ""),
+          message: ((n.message as string) || "").split("\n")[0],
         }));
       setUrgentNotifs(urgent);
     } catch {
@@ -42,13 +44,17 @@ export default function Home() {
   useEffect(() => {
     if (!currentUser) return;
     fetchNotifData();
-    const interval = setInterval(fetchNotifData, 30000);
+    const interval = setInterval(fetchNotifData, 15000);
     return () => clearInterval(interval);
   }, [currentUser, fetchNotifData]);
 
   if (!currentUser || currentPage === "login") {
     return <LoginPage />;
   }
+
+  const tickerText = urgentNotifs
+    .map((n) => `${n.title}: ${n.message}`)
+    .join("     \u2022     ");
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
@@ -57,21 +63,21 @@ export default function Home() {
         {urgentNotifs.length > 0 && (
           <div
             onClick={() => setCurrentPage("notifications")}
-            className="shrink-0 bg-red-600 text-white text-sm font-medium overflow-hidden cursor-pointer hover:bg-red-700 transition-colors"
+            className="shrink-0 bg-red-600 text-white text-sm font-medium overflow-hidden cursor-pointer hover:bg-red-700 transition-colors select-none"
           >
             <div className="flex items-center h-8">
-              <span className="shrink-0 px-3 bg-red-700 text-xs font-bold uppercase tracking-wider h-full flex items-center gap-1.5">
-                <span className="inline-block h-2 w-2 rounded-full bg-white animate-pulse" />
-                Urgent
+              <span className="shrink-0 px-3 bg-red-800 text-[11px] font-bold uppercase tracking-wider h-full flex items-center gap-1.5 z-10 relative">
+                <span className="inline-block h-2 w-2 rounded-full bg-red-300 animate-pulse" />
+                URGENT
               </span>
               <div className="relative flex-1 overflow-hidden">
-                <div className="flex animate-marquee whitespace-nowrap">
-                  {urgentNotifs.map((n, i) => (
-                    <span key={n.id} className="mx-8">
-                      {n.title}: {n.message}
-                      {i < urgentNotifs.length - 1 && "   •   "}
-                    </span>
-                  ))}
+                <div
+                  ref={scrollRef}
+                  className="urgent-ticker-track flex whitespace-nowrap"
+                  style={{ animation: `urgent-scroll ${Math.max(15, tickerText.length * 0.15)}s linear infinite` }}
+                >
+                  <span className="px-8">{tickerText}</span>
+                  <span className="px-8">{tickerText}</span>
                 </div>
               </div>
             </div>
