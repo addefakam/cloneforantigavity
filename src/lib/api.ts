@@ -77,7 +77,12 @@ export const apiJointLogout = async () => {
 export const apiDashboard = () => req("/api/dashboard");
 
 // Rooms
-export const apiGetRooms = (q?: string) => req(`/api/rooms${q ? `?q=${q}` : ""}`);
+export const apiGetRooms = async (q?: string) => {
+  const res = await req(`/api/rooms${q ? `?q=${q}` : ""}`);
+  // API returns { rooms: [...] } — unwrap to array
+  if (res && Array.isArray(res.rooms)) return res.rooms;
+  return Array.isArray(res) ? res : [];
+};
 export const apiCreateRoom = (data: Record<string, unknown>) =>
   req("/api/rooms", { method: "POST", body: JSON.stringify(data) });
 export const apiUpdateRoom = (id: string, data: Record<string, unknown>) =>
