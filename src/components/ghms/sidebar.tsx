@@ -126,6 +126,11 @@ const JOINT_SESSION_POLICE_ITEMS: NavItem[] = [
     icon: UserX,
   },
   {
+    page: "notification-dispatch",
+    label: "Dispatch Notification",
+    icon: Megaphone,
+  },
+  {
     page: "police-investigation",
     label: "Investigation & Settings",
     icon: Search,
