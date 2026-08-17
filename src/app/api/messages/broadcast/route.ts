@@ -28,7 +28,9 @@ export async function GET(req: NextRequest) {
         type: string;
         status: string;
         telegramChatId: string | null;
-        _count: { rooms: number; guests: number; users: number };
+        room_count: number;
+        guest_count: number;
+        user_count: number;
       }>
     >(`
       SELECT 
