@@ -841,17 +841,11 @@ export default function RoomsPage() {
                       <DropdownMenuContent align="end">
                         {room.status === "OCCUPIED" ? (
                           <>
-                            <DropdownMenuItem onClick={() => {
-                              setPreselectedRoom({ id: room.id, number: room.number, name: room.name, type: room.type, pricePerNight: room.pricePerNight });
-                              setCurrentPage("reservations");
-                            }}>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setInfoRoom(room); }}>
                               <CalendarClock className="mr-2 h-4 w-4" />
                               Extend Stay / Early Checkout
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => {
-                              setPreselectedRoom({ id: room.id, number: room.number, name: room.name, type: room.type, pricePerNight: room.pricePerNight });
-                              setCurrentPage("reservations");
-                            }}>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setInfoRoom(room); }}>
                               <ArrowRightLeft className="mr-2 h-4 w-4" />
                               Room Shift
                             </DropdownMenuItem>
@@ -1577,6 +1571,7 @@ export default function RoomsPage() {
                         onClick={() => {
                           const active = roomReservations.find((r) => r.status === "ACTIVE");
                           if (active) openExtendDialog(active);
+                          else toast.error("No active reservation found for this room");
                         }}
                       >
                         <CalendarClock className="h-4 w-4" />
@@ -1588,6 +1583,7 @@ export default function RoomsPage() {
                         onClick={() => {
                           const active = roomReservations.find((r) => r.status === "ACTIVE");
                           if (active) setEarlyCheckoutDialog(active);
+                          else toast.error("No active reservation found for this room");
                         }}
                       >
                         <LogOut className="h-4 w-4" />
@@ -1598,6 +1594,7 @@ export default function RoomsPage() {
                         onClick={() => {
                           const active = roomReservations.find((r) => r.status === "ACTIVE");
                           if (active) openShiftDialog(active);
+                          else toast.error("No active reservation found for this room");
                         }}
                       >
                         <ArrowRightLeft className="h-4 w-4" />
