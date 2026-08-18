@@ -74,6 +74,7 @@ interface NavItem {
   label: string;
   icon: React.ElementType;
   badge?: string;
+  section?: string;
 }
 
 // ── All available navigation items ──
@@ -114,11 +115,13 @@ const JOINT_SESSION_POLICE_ITEMS: NavItem[] = [
     label: "Suspect Alerts",
     icon: ShieldAlert,
     badge: "new",
+    section: "suspect-watch",
   },
   {
     page: "suspected-persons",
     label: "Suspected Persons",
     icon: UserX,
+    section: "suspect-watch",
   },
   {
     page: "notification-dispatch",
@@ -568,14 +571,30 @@ function SidebarContent({
                   Police Tools
                 </p>
               )}
-              {JOINT_SESSION_POLICE_ITEMS.map((item) => (
-                <NavItemButton
-                  key={item.page}
-                  item={item}
-                  currentPage={currentPage}
-                  onClick={() => onNavigate(item.page)}
-                />
-              ))}
+              {JOINT_SESSION_POLICE_ITEMS.map((item, idx) => {
+                // Show section label before the first item in a new section
+                const showSection =
+                  !collapsed &&
+                  item.section &&
+                  (idx === 0 || JOINT_SESSION_POLICE_ITEMS[idx - 1]?.section !== item.section);
+                return (
+                  <React.Fragment key={item.page}>
+                    {showSection && (
+                      <>
+                        <Separator className="my-2 bg-slate-200/60" />
+                        <p className="px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                          Suspect Watch
+                        </p>
+                      </>
+                    )}
+                    <NavItemButton
+                      item={item}
+                      currentPage={currentPage}
+                      onClick={() => onNavigate(item.page)}
+                    />
+                  </React.Fragment>
+                );
+              })}
             </>
           )}
 
