@@ -1,0 +1,477 @@
+   200→    { key: "charts" as const, label: "Analytics", icon: BarChart3 },
+   201→    { key: "frequent" as const, label: "Frequent Stays", icon: AlertTriangle },
+   202→    { key: "audit" as const, label: "Activity Log", icon: Activity },
+   203→  ];
+   204→
+   205→  return (
+   206→    <div className="space-y-4 p-3 sm:p-4 md:p-6">
+   207→      {/* Header */}
+   208→      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+   209→        <div>
+   210→          <h2 className="text-base sm:text-lg font-semibold">Intelligence Center</h2>
+   211→          <p className="text-xs sm:text-sm text-muted-foreground">Crime analytics, hotspot analysis, and pattern detection</p>
+   212→        </div>
+   213→        <div className="flex items-center gap-2">
+   214→          <Button variant="outline" size="sm" onClick={() => setReportOpen(true)}>
+   215→            <FileDown className="mr-1.5 h-3.5 w-3.5" /> Download Report
+   216→          </Button>
+   217→          <Button variant="outline" size="sm" onClick={fetchData} disabled={loading}>
+   218→            <RefreshCw className={`mr-1 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} /> Refresh
+   219→          </Button>
+   220→        </div>
+   221→      </div>
+   222→
+   223→      {/* Report Download Modal */}
+   224→      <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+   225→        <DialogContent className="sm:max-w-md">
+   226→          <DialogHeader>
+   227→            <DialogTitle className="flex items-center gap-2">
+   228→              <FileDown className="h-5 w-5" />
+   229→              Download Monthly Report
+   230→            </DialogTitle>
+   231→            <DialogDescription>
+   232→              Generate a printable HTML intelligence report for the selected month.
+   233→            </DialogDescription>
+   234→          </DialogHeader>
+   235→          <div className="grid gap-4 py-2">
+   236→            <div className="grid gap-2">
+   237→              <Label htmlFor="report-month">Month</Label>
+   238→              <Select value={reportMonth} onValueChange={setReportMonth}>
+   239→                <SelectTrigger id="report-month"><SelectValue placeholder="Select month" /></SelectTrigger>
+   240→                <SelectContent>
+   241→                  {MONTH_OPTIONS.map((m) => (
+   242→                    <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+   243→                  ))}
+   244→                </SelectContent>
+   245→              </Select>
+   246→            </div>
+   247→            <div className="grid gap-2">
+   248→              <Label htmlFor="report-year">Year</Label>
+   249→              <Select value={reportYear} onValueChange={setReportYear}>
+   250→                <SelectTrigger id="report-year"><SelectValue placeholder="Select year" /></SelectTrigger>
+   251→                <SelectContent>
+   252→                  {YEAR_OPTIONS.map((y) => (
+   253→                    <SelectItem key={y.value} value={y.value}>{y.label}</SelectItem>
+   254→                  ))}
+   255→                </SelectContent>
+   256→              </Select>
+   257→            </div>
+   258→          </div>
+   259→          <DialogFooter className="gap-2 sm:gap-0">
+   260→            <Button variant="outline" onClick={() => setReportOpen(false)} disabled={reportGenerating}>
+   261→              Cancel
+   262→            </Button>
+   263→            <Button onClick={handleDownloadReport} disabled={reportGenerating}>
+   264→              {reportGenerating ? (
+   265→                <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Generating...</>
+   266→              ) : (
+   267→                <><FileDown className="mr-1.5 h-3.5 w-3.5" /> Download</>
+   268→              )}
+   269→            </Button>
+   270→          </DialogFooter>
+   271→        </DialogContent>
+   272→      </Dialog>
+   273→      <a ref={reportLinkRef} className="hidden" />
+   274→
+   275→      {/* Tab Navigation */}
+   276→      <div className="flex gap-1 overflow-x-auto rounded-lg border bg-muted/50 p-0.5">
+   277→        {tabs.map((tab) => (
+   278→          <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+   279→            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
+   280→              activeTab === tab.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+   281→            }`}>
+   282→            <tab.icon className="h-3.5 w-3.5" /> {tab.label}
+   283→          </button>
+   284→        ))}
+   285→      </div>
+   286→
+   287→      {loading && !data ? (
+   288→        <div className="space-y-3 p-4">
+   289→          <Skeleton className="h-[400px] w-full rounded-xl" />
+   290→          <Skeleton className="h-12 w-full" />
+   291→        </div>
+   292→      ) : !data ? (
+   293→        <Card><CardContent className="py-12 text-center"><p className="text-muted-foreground">No intelligence data available</p></CardContent></Card>
+   294→      ) : (
+   295→        <>
+   296→          {/* Crime Hotspots - Full Information Display */}
+   297→          {activeTab === "hotspots" && (
+   298→            <div className="space-y-4">
+   299→              {/* Summary Stats */}
+   300→              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+   301→                {[
+   302→                  { label: "Providers", value: hotspotStats.total, icon: Building2, color: "text-indigo-600", bg: "bg-indigo-50" },
+   303→                  { label: "With Alerts", value: hotspotStats.withAlerts, icon: AlertTriangle, color: "text-amber-600", bg: "bg-amber-50" },
+   304→                  { label: "Critical", value: hotspotStats.critical, icon: ShieldAlert, color: "text-red-600", bg: "bg-red-50" },
+   305→                  { label: "Total Matches", value: hotspotStats.totalMatches, icon: MapPin, color: "text-orange-600", bg: "bg-orange-50" },
+   306→                  { label: "Total Guests", value: hotspotStats.totalGuests, icon: Users, color: "text-sky-600", bg: "bg-sky-50" },
+   307→                ].map((s) => (
+   308→                  <div key={s.label} className="rounded-lg border bg-card p-2.5">
+   309→                    <div className="flex items-center gap-1.5 mb-1">
+   310→                      <div className={`flex h-6 w-6 items-center justify-center rounded-md ${s.bg}`}>
+   311→                        <s.icon className={`h-3.5 w-3.5 ${s.color}`} />
+   312→                      </div>
+   313→                      <span className="text-[10px] text-muted-foreground">{s.label}</span>
+   314→                    </div>
+   315→                    <p className="text-lg font-bold">{s.value}</p>
+   316→                  </div>
+   317→                ))}
+   318→              </div>
+   319→
+   320→              {/* Filters */}
+   321→              <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+   322→                <div className="flex gap-1 flex-wrap">
+   323→                  {["ALL", "CRITICAL", "HIGH", "MEDIUM", "NONE"].map((sev) => (
+   324→                    <button
+   325→                      key={sev}
+   326→                      onClick={() => setHotspotFilter(sev)}
+   327→                      className={`px-2.5 py-1 text-[10px] font-medium rounded-md border transition-colors ${
+   328→                        hotspotFilter === sev
+   329→                          ? "bg-foreground text-background border-foreground"
+   330→                          : "bg-card text-muted-foreground border-border hover:bg-muted"
+   331→                      }`}
+   332→                    >
+   333→                      {sev === "NONE" ? "No Alerts" : sev === "ALL" ? "All" : sev}
+   334→                      {sev !== "ALL" && sev !== "NONE" && (
+   335→                        <span className="ml-1">
+   336→                          ({(data.allProviderLocations || []).filter((p) => getSeverity(p) === sev).length})
+   337→                        </span>
+   338→                      )}
+   339→                    </button>
+   340→                  ))}
+   341→                </div>
+   342→                <div className="flex-1 w-full sm:w-auto">
+   343→                  <div className="relative">
+   344→                    <MapPin className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+   345→                    <input
+   346→                      type="text"
+   347→                      placeholder="Search by name, address, type, or phone..."
+   348→                      value={hotspotSearch}
+   349→                      onChange={(e) => setHotspotSearch(e.target.value)}
+   350→                      className="w-full h-8 pl-8 pr-3 text-xs rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+   351→                    />
+   352→                  </div>
+   353→                </div>
+   354→                <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+   355→                  {filteredHotspots.length} guesthouse{filteredHotspots.length !== 1 ? "s" : ""} found
+   356→                </span>
+   357→              </div>
+   358→
+   359→              {/* Guesthouse Cards */}
+   360→              {paginatedHotspots.length === 0 ? (
+   361→                <Card>
+   362→                  <CardContent className="py-12 text-center">
+   363→                    <Building2 className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
+   364→                    <p className="text-sm text-muted-foreground">No guesthouses match the current filter</p>
+   365→                    <p className="text-xs text-muted-foreground mt-1">Try adjusting the severity filter or search query</p>
+   366→                  </CardContent>
+   367→                </Card>
+   368→              ) : (
+   369→                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+   370→                  {paginatedHotspots.map((p) => {
+   371→                    const sev = getSeverity(p);
+   372→                    const sevCfg = SEVERITY_CONFIG[sev] || SEVERITY_CONFIG.NONE;
+   373→                    const isExpanded = expandedProvider === p.id;
+   374→
+   375→                    return (
+   376→                      <Card
+   377→                        key={p.id}
+   378→                        className={`overflow-hidden transition-all hover:shadow-md ${
+   379→                          p.matchCount > 0 ? "border-l-4" : ""
+   380→                        }`}
+   381→                        style={{
+   382→                          borderLeftColor: sev === "CRITICAL" ? "#dc2626" : sev === "HIGH" ? "#ea580c" : sev === "MEDIUM" ? "#d97706" : p.matchCount > 0 ? "#6366f1" : undefined,
+   383→                        }}
+   384→                      >
+   385→                        {/* Card Header */}
+   386→                        <div className="p-3 pb-2">
+   387→                          <div className="flex items-start justify-between gap-2">
+   388→                            <div className="min-w-0 flex-1">
+   389→                              <div className="flex items-center gap-2">
+   390→                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+   391→                                  <Building2 className="h-4 w-4 text-muted-foreground" />
+   392→                                </div>
+   393→                                <div className="min-w-0 flex-1">
+   394→                                  <p className="text-sm font-semibold truncate">{p.name}</p>
+   395→                                  <p className="text-[10px] text-muted-foreground capitalize">{p.type || "Guesthouse"}</p>
+   396→                                </div>
+   397→                              </div>
+   398→                            </div>
+   399→                            <Badge variant="outline" className={`text-[9px] shrink-0 ${sevCfg.bg} ${sevCfg.text} ${sevCfg.border}`}>
+   400→                              {sevCfg.label}
+   401→                            </Badge>
+   402→                          </div>
+   403→                        </div>
+   404→
+   405→                        {/* Quick Stats Row */}
+   406→                        <div className="px-3 pb-2">
+   407→                          <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+   408→                            <MapPin className="h-2.5 w-2.5 shrink-0" />
+   409→                            <span className="truncate">{p.address || "No address set"}</span>
+   410→                          </div>
+   411→                        </div>
+   412→
+   413→                        <div className="px-3 pb-2">
+   414→                          <div className="grid grid-cols-4 gap-1.5">
+   415→                            <div className="text-center rounded-md bg-muted/50 p-1.5">
+   416→                              <p className="text-sm font-bold">{p.guestCount}</p>
+   417→                              <p className="text-[8px] text-muted-foreground">Guests</p>
+   418→                            </div>
+   419→                            <div className="text-center rounded-md bg-muted/50 p-1.5">
+   420→                              <p className="text-sm font-bold">{p.roomCount}</p>
+   421→                              <p className="text-[8px] text-muted-foreground">Rooms</p>
+   422→                            </div>
+   423→                            <div className="text-center rounded-md bg-muted/50 p-1.5">
+   424→                              <p className={`text-sm font-bold ${p.matchCount > 0 ? "text-red-600" : ""}`}>{p.matchCount}</p>
+   425→                              <p className="text-[8px] text-muted-foreground">Matches</p>
+   426→                            </div>
+   427→                            <div className="text-center rounded-md bg-muted/50 p-1.5">
+   428→                              <p className={`text-sm font-bold ${p.criticalCount > 0 ? "text-red-700" : p.highCount > 0 ? "text-orange-600" : ""}`}>
+   429→                                {p.criticalCount + p.highCount}
+   430→                              </p>
+   431→                              <p className="text-[8px] text-muted-foreground">High/Crit</p>
+   432→                            </div>
+   433→                          </div>
+   434→                        </div>
+   435→
+   436→                        {/* Expand/Collapse Button */}
+   437→                        <button
+   438→                          onClick={() => setExpandedProvider(isExpanded ? null : p.id)}
+   439→                          className="w-full flex items-center justify-center gap-1 px-3 py-1.5 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/30 border-t transition-colors"
+   440→                        >
+   441→                          {isExpanded ? (
+   442→                            <><ChevronUp className="h-3 w-3" /> Less Details</>
+   443→                          ) : (
+   444→                            <><ChevronDown className="h-3 w-3" /> Full Details</>
+   445→                          )}
+   446→                        </button>
+   447→
+   448→                        {/* Expanded Details */}
+   449→                        {isExpanded && (
+   450→                          <div className="px-3 pb-3 pt-2 border-t bg-muted/20 space-y-2">
+   451→                            {/* Contact & Location */}
+   452→                            <div className="space-y-1.5">
+   453→                              <div className="flex items-center gap-2 text-xs">
+   454→                                <Phone className="h-3 w-3 text-muted-foreground shrink-0" />
+   455→                                <span>{p.phone || "No phone"}</span>
+   456→                              </div>
+   457→                              <div className="flex items-start gap-2 text-xs">
+   458→                                <Globe className="h-3 w-3 text-muted-foreground shrink-0 mt-0.5" />
+   459→                                <span>{p.address || "No address on file"}</span>
+   460→                              </div>
+   461→                              <div className="flex items-center gap-2 text-xs">
+   462→                                <Crosshair className="h-3 w-3 text-muted-foreground shrink-0" />
+   463→                                <span className="font-mono text-[10px]">
+   464→                                  {p.hasCoordinates
+   465→                                    ? `${p.latitude.toFixed(4)}, ${p.longitude.toFixed(4)}`
+   466→                                    : "Coordinates not set"}
+   467→                                </span>
+   468→                              </div>
+   469→                            </div>
+   470→
+   471→                            {/* Match Breakdown */}
+   472→                            {p.matchCount > 0 && (
+   473→                              <div className="rounded-md border p-2 bg-red-50/50 border-red-100">
+   474→                                <p className="text-[10px] font-semibold text-red-700 mb-1.5">Alert Breakdown</p>
+   475→                                <div className="flex gap-3">
+   476→                                  <div className="flex items-center gap-1.5">
+   477→                                    <span className="h-2 w-2 rounded-full bg-red-500" />
+   478→                                    <span className="text-[10px]">Critical: <strong>{p.criticalCount}</strong></span>
+   479→                                  </div>
+   480→                                  <div className="flex items-center gap-1.5">
+   481→                                    <span className="h-2 w-2 rounded-full bg-orange-500" />
+   482→                                    <span className="text-[10px]">High: <strong>{p.highCount}</strong></span>
+   483→                                  </div>
+   484→                                  <div className="flex items-center gap-1.5">
+   485→                                    <span className="h-2 w-2 rounded-full bg-amber-500" />
+   486→                                    <span className="text-[10px]">Total: <strong>{p.matchCount}</strong></span>
+   487→                                  </div>
+   488→                                </div>
+   489→                              </div>
+   490→                            )}
+   491→
+   492→                            {/* Risk Score Bar */}
+   493→                            <div>
+   494→                              <div className="flex items-center justify-between mb-1">
+   495→                                <span className="text-[10px] text-muted-foreground">Risk Score</span>
+   496→                                <span className="text-[10px] font-bold">
+   497→                                  {p.matchCount === 0 ? "0" : getRiskScore(p)}
+   498→                                </span>
+   499→                              </div>
+   500→                              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+   501→                                <div
+   502→                                  className={`h-full rounded-full transition-all ${
+   503→                                    sev === "CRITICAL" ? "bg-red-500" : sev === "HIGH" ? "bg-orange-500" : sev === "MEDIUM" ? "bg-amber-500" : "bg-indigo-400"
+   504→                                  }`}
+   505→                                  style={{
+   506→                                    width: p.matchCount === 0 ? "0%" : `${Math.min(100, (getRiskScore(p) / Math.max(1, hotspotStats.totalMatches > 0 ? hotspotStats.totalMatches : 1)) * 100)}%`,
+   507→                                  }}
+   508→                                />
+   509→                              </div>
+   510→                            </div>
+   511→                          </div>
+   512→                        )}
+   513→                      </Card>
+   514→                    );
+   515→                  })}
+   516→                </div>
+   517→              )}
+   518→
+   519→              {/* Pagination */}
+   520→              {filteredHotspots.length > 0 && (
+   521→                <PaginationControls
+   522→                  currentPage={hotspotPag.currentPage}
+   523→                  totalPages={hotspotPag.totalPages}
+   524→                  pageSize={hotspotPag.pageSize}
+   525→                  pageSizeOptions={hotspotPag.pageSizeOptions}
+   526→                  totalItems={filteredHotspots.length}
+   527→                  rangeInfo={hotspotPag.rangeInfo}
+   528→                  goToPage={hotspotPag.goToPage}
+   529→                  setPageSize={hotspotPag.setPageSize}
+   530→                />
+   531→              )}
+   532→            </div>
+   533→          )}
+   534→
+   535→          {/* Analytics Charts */}
+   536→          {activeTab === "charts" && (
+   537→            <div className="grid gap-4 md:grid-cols-2">
+   538→              <Card>
+   539→                <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><TrendingUp className="h-4 w-4" /> Occupancy vs. Suspect Matches (6 Months)</CardTitle></CardHeader>
+   540→                <CardContent>
+   541→                  <div className="space-y-2">
+   542→                    {data.occupancyCrimeCorrelation.map((m) => (
+   543→                      <div key={m.month} className="flex items-center gap-3">
+   544→                        <span className="w-16 text-xs text-muted-foreground shrink-0">{m.month}</span>
+   545→                        <div className="flex-1 flex items-center gap-2">
+   546→                          <div className="flex-1 flex items-center gap-1">
+   547→                            <span className="text-[10px] text-sky-600 w-5">R:{m.reservations}</span>
+   548→                            <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden">
+   549→                              <div className="h-full bg-sky-500 rounded-full transition-all" style={{ width: `${Math.min(100, (m.reservations / Math.max(...data.occupancyCrimeCorrelation.map(x => x.reservations), 1)) * 100)}%` }} />
+   550→                            </div>
+   551→                          </div>
+   552→                          <div className="flex-1 flex items-center gap-1">
+   553→                            <span className="text-[10px] text-red-600 w-5">A:{m.suspectMatches}</span>
+   554→                            <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden">
+   555→                              <div className="h-full bg-red-500 rounded-full transition-all" style={{ width: `${Math.min(100, (m.suspectMatches / Math.max(...data.occupancyCrimeCorrelation.map(x => x.suspectMatches), 1)) * 100)}%` }} />
+   556→                            </div>
+   557→                          </div>
+   558→                        </div>
+   559→                      </div>
+   560→                    ))}
+   561→                  </div>
+   562→                  <div className="flex items-center gap-4 mt-3 text-[10px] text-muted-foreground">
+   563→                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-sky-500" /> Reservations</span>
+   564→                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-500" /> Suspect Matches</span>
+   565→                  </div>
+   566→                </CardContent>
+   567→              </Card>
+   568→              <Card>
+   569→                <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><MapPin className="h-4 w-4" /> Provider Hotspot Rankings</CardTitle></CardHeader>
+   570→                <CardContent>
+   571→                  <div className="space-y-2">
+   572→                    {pagRankings.map((h, i) => (
+   573→                      <div key={h.providerId || i} className="flex items-center gap-3">
+   574→                        <span className="w-5 text-xs font-bold text-muted-foreground">{(rankingPag.currentPage - 1) * rankingPag.pageSize + i + 1}</span>
+   575→                        <div className="flex-1 min-w-0">
+   576→                          <p className="text-sm font-medium truncate">{h.providerName || "Unknown"}</p>
+   577→                          <div className="h-2 bg-muted rounded-full overflow-hidden mt-1">
+   578→                            <div className="h-full bg-gradient-to-r from-red-500 to-orange-500 rounded-full transition-all" style={{ width: `${Math.min(100, (h.matchCount / Math.max(...data.hotspotData.map(x => x.matchCount), 1)) * 100)}%` }} />
+   579→                          </div>
+   580→                        </div>
+   581→                        <div className="text-right shrink-0">
+   582→                          <p className="text-sm font-bold">{h.matchCount}</p>
+   583→                          <p className="text-[10px] text-muted-foreground">matches</p>
+   584→                        </div>
+   585→                        {(h.criticalCount > 0 || h.highCount > 0) && (
+   586→                          <div className="flex gap-0.5 shrink-0">
+   587→                            {h.criticalCount > 0 && <Badge className="bg-red-100 text-red-800 text-[8px] px-1 py-0">C:{h.criticalCount}</Badge>}
+   588→                            {h.highCount > 0 && <Badge className="bg-orange-100 text-orange-800 text-[8px] px-1 py-0">H:{h.highCount}</Badge>}
+   589→                          </div>
+   590→                        )}
+   591→                      </div>
+   592→                    ))}
+   593→                    {data.hotspotData.length === 0 && <p className="text-center text-xs text-muted-foreground py-4">No hotspot data</p>}
+   594→                  </div>
+   595→                  {data.hotspotData.length > rankingPag.pageSize && (
+   596→                    <PaginationControls currentPage={rankingPag.currentPage} totalPages={rankingPag.totalPages} pageSize={rankingPag.pageSize} pageSizeOptions={rankingPag.pageSizeOptions} totalItems={data.hotspotData.length} rangeInfo={rankingPag.rangeInfo} goToPage={rankingPag.goToPage} setPageSize={rankingPag.setPageSize} />
+   597→                  )}
+   598→                </CardContent>
+   599→              </Card>
+   600→            </div>
+   601→          )}
+   602→
+   603→          {/* Frequent Stay Alerts */}
+   604→          {activeTab === "frequent" && (
+   605→            <Card>
+   606→              <CardHeader>
+   607→                <CardTitle className="flex items-center gap-2 text-sm"><AlertTriangle className="h-4 w-4 text-amber-500" /> Frequent Stay Alerts</CardTitle>
+   608→              </CardHeader>
+   609→              <CardContent>
+   610→                {data.frequentStays.length === 0 ? (
+   611→                  <p className="py-8 text-center text-xs text-muted-foreground">No frequent stay patterns detected. Patterns appear when guests stay at multiple guesthouses with short intervals.</p>
+   612→                ) : (
+   613→                  <div className="divide-y">
+   614→                    {pagFreq.map((f) => (
+   615→                      <div key={f.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+   616→                        <div className="min-w-0 flex-1">
+   617→                          <div className="flex items-center gap-2">
+   618→                            <p className="text-sm font-medium truncate">{f.guestName}</p>
+   619→                            <Badge variant="outline" className={`text-[9px] ${RISK_STYLES[f.riskLevel] || ""}`}>{f.riskLevel}</Badge>
+   620→                          </div>
+   621→                          <p className="text-xs text-muted-foreground font-mono">{f.guestPhone || f.guestIdNumber}</p>
+   622→                          <div className="flex flex-wrap gap-2 mt-1 text-[10px] text-muted-foreground">
+   623→                            <span>{f.stayCount} stays</span>
+   624→                            <span>{f.avgDaysBetween} avg days between</span>
+   625→                            <span>Providers: {JSON.parse(f.providerNames || "[]").join(", ")}</span>
+   626→                          </div>
+   627→                        </div>
+   628→                        <span className="text-[10px] text-muted-foreground whitespace-nowrap">{new Date(f.createdAt).toLocaleDateString()}</span>
+   629→                      </div>
+   630→                    ))}
+   631→                  </div>
+   632→                )}
+   633→                {data.frequentStays.length > freqPag.pageSize && (
+   634→                  <PaginationControls currentPage={freqPag.currentPage} totalPages={freqPag.totalPages} pageSize={freqPag.pageSize} pageSizeOptions={freqPag.pageSizeOptions} totalItems={data.frequentStays.length} rangeInfo={freqPag.rangeInfo} goToPage={freqPag.goToPage} setPageSize={freqPag.setPageSize} />
+   635→                )}
+   636→              </CardContent>
+   637→            </Card>
+   638→          )}
+   639→
+   640→          {/* Activity Log */}
+   641→          {activeTab === "audit" && (
+   642→            <Card>
+   643→              <CardHeader>
+   644→                <CardTitle className="flex items-center gap-2 text-sm"><Activity className="h-4 w-4" /> Recent Activity</CardTitle>
+   645→              </CardHeader>
+   646→              <CardContent>
+   647→                {data.recentActivity.length === 0 ? (
+   648→                  <p className="py-8 text-center text-xs text-muted-foreground">No activity recorded yet</p>
+   649→                ) : (
+   650→                  <div className="divide-y">
+   651→                    {pagAudit.map((a) => (
+   652→                      <div key={a.id} className="flex items-center justify-between py-2.5">
+   653→                        <div>
+   654→                          <div className="flex items-center gap-2">
+   655→                            <Badge variant="secondary" className="text-[9px]">{a.action}</Badge>
+   656→                            <p className="text-xs">{a.officerName || "System"}</p>
+   657→                          </div>
+   658→                          {a.targetId && <p className="text-[10px] text-muted-foreground mt-0.5">{a.targetType}: {a.targetId.slice(0, 12)}...</p>}
+   659→                        </div>
+   660→                        <span className="text-[10px] text-muted-foreground whitespace-nowrap">{new Date(a.createdAt).toLocaleString()}</span>
+   661→                      </div>
+   662→                    ))}
+   663→                  </div>
+   664→                )}
+   665→                {data.recentActivity.length > auditPag.pageSize && (
+   666→                  <PaginationControls currentPage={auditPag.currentPage} totalPages={auditPag.totalPages} pageSize={auditPag.pageSize} pageSizeOptions={auditPag.pageSizeOptions} totalItems={data.recentActivity.length} rangeInfo={auditPag.rangeInfo} goToPage={auditPag.goToPage} setPageSize={auditPag.setPageSize} />
+   667→                )}
+   668→              </CardContent>
+   669→            </Card>
+   670→          )}
+   671→        </>
+   672→      )}
+   673→    </div>
+   674→  );
+   675→}
+   676→
