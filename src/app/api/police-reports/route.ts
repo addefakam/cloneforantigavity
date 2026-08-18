@@ -205,7 +205,7 @@ export async function GET(req: NextRequest) {
       : await db.$queryRaw<{ name: string; total: number; occupied: number; available: number; reserved: number; maintenance: number; rate: number }[]>(sql`
         SELECT
           p."name",
-          r_total.c AS "total",
+          COALESCE(r_total.c, 0)::int AS "total",
           COALESCE(r_occ.c, 0)::int AS "occupied",
           COALESCE(r_avail.c, 0)::int AS "available",
           COALESCE(r_res.c, 0)::int AS "reserved",
