@@ -671,8 +671,8 @@ export default function Sidebar() {
         </button>
 
         <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-          <SheetContent side="left" className="w-72 p-0">
-            <SheetHeader className="border-b border-slate-100 px-4 py-3">
+          <SheetContent side="left" className="w-72 p-0 flex flex-col overflow-hidden">
+            <SheetHeader className="border-b border-slate-100 px-4 py-3 shrink-0">
               <div className="flex items-center gap-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600">
                   <Building2 className="size-4 text-white" />
@@ -682,14 +682,16 @@ export default function Sidebar() {
                 </SheetTitle>
               </div>
             </SheetHeader>
-            <SidebarContent
-              user={currentUser}
-              currentPage={currentPage}
-              onNavigate={handleNavigate}
-              onLogout={handleLogout}
-              collapsed={false}
-              onToggleCollapse={() => {}}
-            />
+            <div className="flex-1 overflow-y-auto">
+              <SidebarContent
+                user={currentUser}
+                currentPage={currentPage}
+                onNavigate={handleNavigate}
+                onLogout={handleLogout}
+                collapsed={false}
+                onToggleCollapse={() => {}}
+              />
+            </div>
           </SheetContent>
         </Sheet>
       </>
