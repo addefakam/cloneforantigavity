@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { apiPoliceReports } from "@/lib/api";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,12 +17,12 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Users, UserCheck, UserMinus, AlertTriangle, Building2, BedDouble,
-  CalendarDays, RefreshCw, Download, TrendingUp, TrendingDown, Clock,
-  Shield, Globe, CreditCard, Activity, BarChart3,
+  CalendarDays, RefreshCw, Download, Clock,
+  Globe, CreditCard, BarChart3,
 } from "lucide-react";
 import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell, Legend, Area, AreaChart,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from "recharts";
 
 // ── Types ──
@@ -31,7 +31,6 @@ interface Summary {
   totalCheckOuts: number; activeGuests: number; totalMatches: number;
   totalProviders: number; totalRooms: number;
 }
-interface TrendItem { date: string; count: number; }
 interface NameCount { name: string; count: number; }
 interface ProviderRow { name: string; guests: number; checkIns: number; checkOuts: number; matches: number; rooms: number; }
 interface OccupancyRow { name: string; total: number; occupied: number; available: number; reserved: number; maintenance: number; rate: number; }
@@ -40,10 +39,8 @@ interface FreqStay { id: string; guestName: string; guestPhone: string; guestIdN
 interface ReportData {
   period: string; date: string; label: string; startDate: string; endDate: string;
   summary: Summary;
-  guestTrend: TrendItem[];
-  checkInTrend: TrendItem[];
-  checkOutTrend: TrendItem[];
-  suspectTrend: TrendItem[];
+  checkInTrend: { date: string; count: number }[];
+  checkOutTrend: { date: string; count: number }[];
   nationalities: NameCount[];
   idTypes: NameCount[];
   providerBreakdown: ProviderRow[];
@@ -56,8 +53,6 @@ interface ReportData {
 }
 
 const COLORS = ["#1e3a5f", "#2563eb", "#7c3aed", "#dc2626", "#ea580c", "#ca8a04", "#16a34a", "#0d9488", "#6366f1", "#ec4899", "#8b5cf6", "#14b8a6", "#f59e0b", "#64748b", "#84cc16"];
-
-const SEVERITY_COLORS: Record<string, string> = { CRITICAL: "#dc2626", HIGH: "#ea580c", MEDIUM: "#ca8a04", LOW: "#16a34a" };
 
 const STATUS_COLORS: Record<string, string> = { ACTIVE: "#16a34a", UPCOMING: "#2563eb", COMPLETED: "#64748b", CANCELLED: "#dc2626" };
 
@@ -81,7 +76,7 @@ function KpiCard({ icon: Icon, label, value, sub, color = "text-primary" }: { ic
   );
 }
 
-// ── Simple bar component for inline bars ──
+// ── Inline bar ──
 function InlineBar({ value, max, color = "bg-primary" }: { value: number; max: number; color?: string }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
   return (
@@ -94,7 +89,7 @@ function InlineBar({ value, max, color = "bg-primary" }: { value: number; max: n
   );
 }
 
-// ── Skeleton load ──
+// ── Skeleton ──
 function SkeletonGrid() {
   return (
     <div className="space-y-4">
@@ -131,31 +126,8 @@ export default function PoliceReportsPage() {
 
   useEffect(() => { fetchReport(); }, [fetchReport]);
 
-  // Merge check-in and check-out trends for overlaid chart
-  const movementData = useMemo(() => {
-    if (!data) return [];
-    const map = new Map<string, { checkIns: number; checkOuts: number; matches: number }>();
-    for (const item of data.checkInTrend) {
-      const existing = map.get(item.date) || { checkIns: 0, checkOuts: 0, matches: 0 };
-      existing.checkIns = item.count;
-      map.set(item.date, existing);
-    }
-    for (const item of data.checkOutTrend) {
-      const existing = map.get(item.date) || { checkIns: 0, checkOuts: 0, matches: 0 };
-      existing.checkOuts = item.count;
-      map.set(item.date, existing);
-    }
-    for (const item of data.suspectTrend) {
-      const existing = map.get(item.date) || { checkIns: 0, checkOuts: 0, matches: 0 };
-      existing.matches = item.count;
-      map.set(item.date, existing);
-    }
-    return Array.from(map.entries()).map(([date, vals]) => ({ date, ...vals })).sort((a, b) => a.date.localeCompare(b.date));
-  }, [data]);
-
   const exportCSV = useCallback(() => {
     if (!data) return;
-    // Build CSV from provider breakdown
     const rows = ["Provider,Registered Guests,Check-Ins,Check-Outs,Suspect Matches,Rooms"];
     for (const p of data.providerBreakdown) {
       rows.push(`"${p.name}",${p.guests},${p.checkIns},${p.checkOuts},${p.matches},${p.rooms}`);
@@ -165,7 +137,7 @@ export default function PoliceReportsPage() {
     for (const n of data.nationalities) rows.push(`"${n.name}",${n.count}`);
     rows.push("");
     rows.push("Severity,Count");
-    for (const s of data.suspectSeverities) rows.push(`${s.severity},${s.count}`);
+    for (const s of data.suspectSeverities) rows.push(`${s.name},${s.count}`);
     const blob = new Blob([rows.join("\n")], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -225,8 +197,6 @@ export default function PoliceReportsPage() {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
             <TabsTrigger value="overview" className="text-xs gap-1.5 h-8"><BarChart3 className="size-3.5" /> Overview</TabsTrigger>
-            <TabsTrigger value="movement" className="text-xs gap-1.5 h-8"><Activity className="size-3.5" /> Guest Movement</TabsTrigger>
-            <TabsTrigger value="suspect" className="text-xs gap-1.5 h-8"><Shield className="size-3.5" /> Suspect Activity</TabsTrigger>
             <TabsTrigger value="occupancy" className="text-xs gap-1.5 h-8"><BedDouble className="size-3.5" /> Occupancy</TabsTrigger>
             <TabsTrigger value="demographics" className="text-xs gap-1.5 h-8"><Globe className="size-3.5" /> Demographics</TabsTrigger>
             <TabsTrigger value="providers" className="text-xs gap-1.5 h-8"><Building2 className="size-3.5" /> Providers</TabsTrigger>
@@ -244,29 +214,6 @@ export default function PoliceReportsPage() {
 
             {/* Charts row */}
             <div className="grid md:grid-cols-2 gap-4">
-              {/* Guest movement trend */}
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold flex items-center gap-2"><TrendingUp className="size-4" /> Guest Movement Trend</CardTitle></CardHeader>
-                <CardContent>
-                  {movementData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={260}>
-                      <AreaChart data={movementData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                        <XAxis dataKey="date" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={50} />
-                        <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }} />
-                        <Legend wrapperStyle={{ fontSize: 11 }} />
-                        <Area type="monotone" dataKey="checkIns" name="Check-Ins" stroke="#2563eb" fill="#2563eb20" strokeWidth={2} />
-                        <Area type="monotone" dataKey="checkOuts" name="Check-Outs" stroke="#16a34a" fill="#16a34a20" strokeWidth={2} />
-                        <Area type="monotone" dataKey="matches" name="Suspect Matches" stroke="#dc2626" fill="#dc262620" strokeWidth={2} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex h-[260px] items-center justify-center text-sm text-muted-foreground">No movement data for this period</div>
-                  )}
-                </CardContent>
-              </Card>
-
               {/* Reservation status pie */}
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold flex items-center gap-2"><CalendarDays className="size-4" /> Reservation Status</CardTitle></CardHeader>
@@ -282,7 +229,7 @@ export default function PoliceReportsPage() {
                             <Cell key={i} fill={STATUS_COLORS[entry.status] || COLORS[i % COLORS.length]} />
                           ))}
                         </Pie>
-                        <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                        <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }} />
                         <Legend wrapperStyle={{ fontSize: 11 }} />
                       </PieChart>
                     </ResponsiveContainer>
@@ -291,25 +238,27 @@ export default function PoliceReportsPage() {
                   )}
                 </CardContent>
               </Card>
-            </div>
 
-            {/* Peak hours bar (daily/monthly only) */}
-            {data.peakHours.length > 0 && (
+              {/* Peak hours bar (daily/monthly only) */}
               <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold flex items-center gap-2"><Clock className="size-4" /> Peak Check-In Hours</CardTitle></CardHeader>
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold flex items-center gap-2"><Clock className="size-4" /> {data.peakHours.length > 0 ? "Peak Check-In Hours" : "Check-In Summary"}</CardTitle></CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={data.peakHours}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                      <XAxis dataKey="hour" tick={{ fontSize: 10 }} />
-                      <YAxis tick={{ fontSize: 10 }} />
-                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                      <Bar dataKey="count" name="Check-Ins" fill="#1e3a5f" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {data.peakHours.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={260}>
+                      <BarChart data={data.peakHours}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="hour" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                        <Bar dataKey="count" name="Check-Ins" fill="#1e3a5f" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex h-[260px] items-center justify-center text-sm text-muted-foreground">No hourly data for this period</div>
+                  )}
                 </CardContent>
               </Card>
-            )}
+            </div>
 
             {/* Frequent stay alerts */}
             {data.frequentStayAlerts.length > 0 && (
@@ -342,145 +291,6 @@ export default function PoliceReportsPage() {
                       ))}
                     </TableBody>
                   </Table>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          {/* ═══════════════ GUEST MOVEMENT TAB ═══════════════ */}
-          <TabsContent value="movement" className="space-y-4 mt-4">
-            <div className="grid md:grid-cols-2 gap-4">
-              {/* Check-in / Check-out line chart */}
-              <Card className="md:col-span-2">
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold flex items-center gap-2"><Activity className="size-4" /> Check-In vs Check-Out Trend</CardTitle></CardHeader>
-                <CardContent>
-                  {movementData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={300}>
-                      <LineChart data={movementData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                        <XAxis dataKey="date" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={50} />
-                        <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                        <Legend wrapperStyle={{ fontSize: 11 }} />
-                        <Line type="monotone" dataKey="checkIns" name="Check-Ins" stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} />
-                        <Line type="monotone" dataKey="checkOuts" name="Check-Outs" stroke="#16a34a" strokeWidth={2} dot={{ r: 3 }} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">No movement data</div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Guest registration bar chart */}
-              <Card className="md:col-span-2">
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold flex items-center gap-2"><Users className="size-4" /> New Guest Registrations</CardTitle></CardHeader>
-                <CardContent>
-                  {data.guestTrend.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={280}>
-                      <BarChart data={data.guestTrend}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                        <XAxis dataKey="date" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={50} />
-                        <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                        <Bar dataKey="count" name="New Guests" fill="#7c3aed" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex h-[280px] items-center justify-center text-sm text-muted-foreground">No registration data</div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Peak hours */}
-              {data.peakHours.length > 0 && (
-                <Card className="md:col-span-2">
-                  <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold flex items-center gap-2"><Clock className="size-4" /> Check-In Distribution by Hour</CardTitle></CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={220}>
-                      <BarChart data={data.peakHours}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                        <XAxis dataKey="hour" tick={{ fontSize: 10 }} />
-                        <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                        <Bar dataKey="count" name="Check-Ins" fill="#0d9488" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          </TabsContent>
-
-          {/* ═══════════════ SUSPECT ACTIVITY TAB ═══════════════ */}
-          <TabsContent value="suspect" className="space-y-4 mt-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <KpiCard icon={Shield} label="Total Matches" value={data.summary.totalMatches} color={data.summary.totalMatches > 0 ? "text-red-600" : "text-emerald-600"} />
-              {data.suspectSeverities.map((s) => (
-                <KpiCard key={s.name} icon={AlertTriangle} label={`${s.name} Severity`} value={s.count} color={`text-[${SEVERITY_COLORS[s.name] || "#64748b"}]`} />
-              ))}
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-4">
-              {/* Severity pie */}
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">Severity Breakdown</CardTitle></CardHeader>
-                <CardContent>
-                  {data.suspectSeverities.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={260}>
-                      <PieChart>
-                        <Pie data={data.suspectSeverities} dataKey="count" nameKey="severity" cx="50%" cy="50%" innerRadius={45} outerRadius={85} paddingAngle={3}>
-                          {data.suspectSeverities.map((entry, i) => (
-                            <Cell key={i} fill={SEVERITY_COLORS[entry.severity] || COLORS[i]} />
-                          ))}
-                        </Pie>
-                        <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                        <Legend wrapperStyle={{ fontSize: 11 }} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex h-[260px] items-center justify-center text-sm text-muted-foreground">No suspect matches in this period</div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Suspect match trend */}
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold flex items-center gap-2"><TrendingUp className="size-4" /> Match Trend</CardTitle></CardHeader>
-                <CardContent>
-                  {data.suspectTrend.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={260}>
-                      <AreaChart data={data.suspectTrend}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                        <XAxis dataKey="date" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={50} />
-                        <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                        <Area type="monotone" dataKey="count" name="Matches" stroke="#dc2626" fill="#dc262630" strokeWidth={2} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex h-[260px] items-center justify-center text-sm text-muted-foreground">No suspect match trend data</div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Suspect matches vs check-ins overlay */}
-            {movementData.length > 0 && (
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">Suspect Matches vs Check-Ins</CardTitle></CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={280}>
-                    <LineChart data={movementData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                      <XAxis dataKey="date" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={50} />
-                      <YAxis tick={{ fontSize: 10 }} />
-                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                      <Legend wrapperStyle={{ fontSize: 11 }} />
-                      <Line type="monotone" dataKey="checkIns" name="Check-Ins" stroke="#2563eb" strokeWidth={2} dot={false} />
-                      <Line type="monotone" dataKey="matches" name="Suspect Matches" stroke="#dc2626" strokeWidth={2} dot={{ r: 3, fill: "#dc2626" }} />
-                    </LineChart>
-                  </ResponsiveContainer>
                 </CardContent>
               </Card>
             )}
