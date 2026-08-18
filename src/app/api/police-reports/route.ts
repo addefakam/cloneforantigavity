@@ -210,7 +210,7 @@ export async function GET(req: NextRequest) {
           COALESCE(r_avail.c, 0)::int AS "available",
           COALESCE(r_res.c, 0)::int AS "reserved",
           COALESCE(r_maint.c, 0)::int AS "maintenance",
-          CASE WHEN r_total.c > 0 THEN ROUND((COALESCE(r_occ.c, 0)::float / r_total.c) * 100, 1) ELSE 0 END AS rate
+          CASE WHEN r_total.c > 0 THEN ROUND((COALESCE(r_occ.c, 0)::numeric / r_total.c) * 100, 1) ELSE 0 END AS rate
         FROM "Provider" p
         LEFT JOIN (SELECT "providerId", COUNT(*) AS c FROM "Room" GROUP BY "providerId") r_total ON r_total."providerId" = p."id"
         LEFT JOIN (SELECT "providerId", COUNT(*) AS c FROM "Room" WHERE "status" = 'OCCUPIED' GROUP BY "providerId") r_occ ON r_occ."providerId" = p."id"
