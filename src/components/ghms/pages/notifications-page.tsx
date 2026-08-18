@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, type FormEvent } from "react";
+import { useState, useEffect, useCallback, useMemo, type FormEvent } from "react";
 import { useAppStore } from "@/lib/store";
 import {
   apiGetNotifications,
@@ -33,9 +33,17 @@ import {
   Eye,
   MessageSquarePlus,
   Shield,
+  ShieldAlert,
   Megaphone,
   AlertOctagon,
   FileText,
+  User,
+  Phone,
+  CreditCard,
+  Calendar,
+  BedDouble,
+  MapPin,
+  Fingerprint,
 } from "lucide-react";
 
 interface Notification {
@@ -94,6 +102,36 @@ const PRIORITY_STYLE: Record<
   },
 };
 
+const SUSPECT_SEVERITY_STYLE: Record<
+  string,
+  { badge: string; border: string; bg: string; iconColor: string }
+> = {
+  CRITICAL: {
+    badge: "bg-red-100 text-red-800 border-red-300",
+    border: "border-red-300 bg-red-50/60",
+    bg: "bg-red-50/60",
+    iconColor: "text-red-600",
+  },
+  HIGH: {
+    badge: "bg-orange-100 text-orange-800 border-orange-300",
+    border: "border-orange-300 bg-orange-50/60",
+    bg: "bg-orange-50/60",
+    iconColor: "text-orange-600",
+  },
+  MEDIUM: {
+    badge: "bg-yellow-100 text-yellow-800 border-yellow-300",
+    border: "border-yellow-300 bg-yellow-50/60",
+    bg: "bg-yellow-50/60",
+    iconColor: "text-yellow-600",
+  },
+  LOW: {
+    badge: "bg-slate-100 text-slate-700 border-slate-300",
+    border: "border-slate-200 bg-slate-50/40",
+    bg: "bg-slate-50/40",
+    iconColor: "text-slate-500",
+  },
+};
+
 const TYPE_CONFIG: Record<
   string,
   { icon: React.ElementType; badge: string; label: string }
@@ -131,6 +169,31 @@ function detectBroadcastPriority(title: string) {
   return match ? match[1] : null;
 }
 
+/** Detect if a notification is a suspect match alert */
+function detectSuspectSeverity(title: string) {
+  const match = title.match(/^\[(CRITICAL|HIGH|MEDIUM|LOW)\] Suspect Match Alert/);
+  return match ? match[1] : null;
+}
+
+/** Parse a suspect alert message into structured key-value pairs */
+function parseSuspectMessage(message: string) {
+  const lines = message.split("\n").filter((l) => l.trim());
+  const data: Record<string, string> = {};
+  const summaryLines: string[] = [];
+  for (const line of lines) {
+    const idx = line.indexOf(":");
+    if (idx > 0) {
+      const key = line.slice(0, idx).trim();
+      const val = line.slice(idx + 1).trim();
+      if (key && val) data[key] = val;
+    } else if (line.trim()) {
+      // Lines without colons are summary/description lines
+      summaryLines.push(line.trim());
+    }
+  }
+  return { data, summaryLines };
+}
+
 function timeAgo(dateStr: string) {
   const now = Date.now();
   const then = new Date(dateStr).getTime();
@@ -143,6 +206,80 @@ function timeAgo(dateStr: string) {
   const days = Math.floor(hrs / 24);
   if (days < 7) return `${days}d ago`;
   return new Date(dateStr).toLocaleDateString();
+}
+
+/** Render a suspect alert notification as a structured card */
+function SuspectAlertCard({ message, isRead }: { message: string; isRead: boolean }) {
+  const { data, summaryLines } = useMemo(() => parseSuspectMessage(message), [message]);
+  const textClass = isRead ? "text-muted-foreground" : "text-foreground/80";
+
+  return (
+    <div className="mt-1 space-y-2">
+      {/* Summary line (first non-key-value line) */}
+      {summaryLines.length > 0 && (
+        <p className={`text-sm ${textClass}`}>
+          {summaryLines[0]}
+        </p>
+      )}
+
+      {/* Guest info row */}
+      {data["Matched Guest"] && (
+        <div className="flex items-center gap-2">
+          <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <p className={`text-xs ${textClass}`}>
+            <span className="font-medium">Guest:</span> {data["Matched Guest"]}
+          </p>
+        </div>
+      )}
+
+      {/* Match reason */}
+      {data["Matched By"] && (
+        <div className="flex items-center gap-2">
+          <Fingerprint className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <p className={`text-xs ${textClass}`}>
+            <span className="font-medium">Matched By:</span> {data["Matched By"]}
+          </p>
+        </div>
+      )}
+
+      {/* Booking details */}
+      {data["Booking"] && (
+        <div className="flex items-center gap-2">
+          <BedDouble className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <p className={`text-xs ${textClass}`}>
+            <span className="font-medium">Booking:</span> {data["Booking"]}
+          </p>
+        </div>
+      )}
+
+      {/* Match type */}
+      {data["Match Type"] && (
+        <div className="flex items-center gap-2">
+          <ShieldAlert className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <p className={`text-xs ${textClass}`}>
+            <span className="font-medium">Type:</span> {data["Match Type"]}
+          </p>
+        </div>
+      )}
+
+      {/* Geofence breach */}
+      {data["GEOFENCE BREACH"] && (
+        <div className="mt-1 rounded bg-red-100/70 border border-red-200 px-2.5 py-1.5">
+          <p className="text-xs font-semibold text-red-700 flex items-center gap-1.5">
+            <MapPin className="h-3 w-3" />
+            GEOFENCE BREACH: {data["GEOFENCE BREACH"]}
+          </p>
+        </div>
+      )}
+
+      {/* Fallback for messages that don't parse cleanly */}
+      {Object.keys(data).length === 0 && summaryLines.length === 0 && (
+        <p className={`text-sm leading-relaxed whitespace-pre-line ${textClass}`}>
+          {message}
+        </p>
+      )}
+    </div>
+  );
 }
 
 export default function NotificationsPage() {
@@ -270,9 +407,48 @@ export default function NotificationsPage() {
         <div className="space-y-3">
           {notifications.map((n) => {
             const isBroadcast = detectBroadcastPriority(n.title);
+            const suspectSeverity = detectSuspectSeverity(n.title);
             const priorityStyle = isBroadcast ? PRIORITY_STYLE[isBroadcast] : null;
+            const suspectStyle = suspectSeverity ? SUSPECT_SEVERITY_STYLE[suspectSeverity] : null;
             const cfg = TYPE_CONFIG[n.type] || TYPE_CONFIG.INFO;
-            const Icon = isBroadcast && priorityStyle ? priorityStyle.icon : cfg.icon;
+            const isSuspect = !!suspectSeverity;
+            const Icon = isSuspect
+              ? ShieldAlert
+              : isBroadcast && priorityStyle
+                ? priorityStyle.icon
+                : cfg.icon;
+
+            const cardBorder = isSuspect && suspectStyle
+              ? n.isRead
+                ? "bg-card border-slate-200"
+        : suspectStyle.border
+              : n.isRead
+                ? isBroadcast && priorityStyle
+                  ? priorityStyle.border.replace(/border-\S+\s/, "border-slate-200 ").replace(/bg-\S+\s*/, "bg-card")
+                  : "bg-card"
+                : isBroadcast && priorityStyle
+                  ? priorityStyle.border
+                  : "bg-primary/[0.03] border-primary/20";
+
+            const iconBg = isSuspect && suspectStyle
+              ? n.isRead
+                ? "bg-muted"
+                : suspectStyle.bg
+              : n.isRead
+                ? "bg-muted"
+                : isBroadcast && priorityStyle
+                  ? priorityStyle.bg
+                  : "bg-primary/10";
+
+            const iconColor = isSuspect && suspectStyle
+              ? n.isRead
+                ? "text-muted-foreground"
+                : suspectStyle.iconColor
+              : n.isRead
+                ? "text-muted-foreground"
+                : isBroadcast && priorityStyle
+                  ? priorityStyle.iconColor
+                  : "text-primary";
 
             return (
               <div
@@ -280,34 +456,14 @@ export default function NotificationsPage() {
                 onClick={() => markRead(n.id)}
                 className={`
                   group relative flex items-start gap-4 rounded-lg border p-4 transition-colors cursor-pointer
-                  ${n.isRead
-                    ? isBroadcast && priorityStyle
-                      ? priorityStyle.border.replace(/border-\S+\s/, 'border-slate-200 ').replace(/bg-\S+\s*/, 'bg-card')
-                      : "bg-card"
-                    : isBroadcast && priorityStyle
-                      ? priorityStyle.border
-                      : "bg-primary/[0.03] border-primary/20"}
+                  ${cardBorder}
                   hover:bg-accent/50
                 `}
               >
                 <div
-                  className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                    n.isRead
-                      ? "bg-muted"
-                      : isBroadcast && priorityStyle
-                        ? priorityStyle.bg
-                        : "bg-primary/10"
-                  }`}
+                  className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${iconBg}`}
                 >
-                  <Icon
-                    className={`h-4 w-4 ${
-                      n.isRead
-                        ? "text-muted-foreground"
-                        : isBroadcast && priorityStyle
-                          ? priorityStyle.iconColor
-                          : "text-primary"
-                    }`}
-                  />
+                  <Icon className={`h-4 w-4 ${iconColor}`} />
                 </div>
 
                 <div className="flex-1 min-w-0">
@@ -322,7 +478,12 @@ export default function NotificationsPage() {
                     {!n.isRead && (
                       <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
                     )}
-                    {isBroadcast && priorityStyle ? (
+                    {isSuspect && suspectStyle ? (
+                      <Badge variant="outline" className={`${suspectStyle.badge} gap-1`}>
+                        <ShieldAlert className="h-3 w-3" />
+                        Suspect {suspectSeverity}
+                      </Badge>
+                    ) : isBroadcast && priorityStyle ? (
                       <Badge variant="outline" className={`${priorityStyle.badge} gap-1`}>
                         <Shield className="h-3 w-3" />
                         {priorityStyle.badgeLabel}
@@ -333,13 +494,19 @@ export default function NotificationsPage() {
                       </Badge>
                     )}
                   </div>
-                  <p
-                    className={`text-sm leading-relaxed whitespace-pre-line ${
-                      n.isRead ? "text-muted-foreground" : "text-foreground/80"
-                    }`}
-                  >
-                    {n.message}
-                  </p>
+
+                  {isSuspect ? (
+                    <SuspectAlertCard message={n.message} isRead={n.isRead} />
+                  ) : (
+                    <p
+                      className={`text-sm leading-relaxed whitespace-pre-line ${
+                        n.isRead ? "text-muted-foreground" : "text-foreground/80"
+                      }`}
+                    >
+                      {n.message}
+                    </p>
+                  )}
+
                   <p className="text-xs text-muted-foreground mt-1.5">
                     {timeAgo(n.createdAt)}
                   </p>
