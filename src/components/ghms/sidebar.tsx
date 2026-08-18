@@ -456,9 +456,9 @@ function SidebarContent({
     (user.role === "POLICE" && user.policeRank === "ADMIN");
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col min-h-0">
       {/* ── User profile section ── */}
-      <div className="px-3 pt-3 pb-2">
+      <div className="shrink-0 px-3 pt-3 pb-2">
         <div
           className={`flex items-center gap-3 ${collapsed ? "flex-col text-center" : ""}`}
         >
@@ -537,10 +537,10 @@ function SidebarContent({
         </div>
       </div>
 
-      <Separator className="bg-slate-200/60" />
+      <Separator className="shrink-0 bg-slate-200/60" />
 
       {/* ── Navigation links ── */}
-      <ScrollArea className="flex-1 px-3 py-3">
+      <ScrollArea className="flex-1 min-h-0 px-3 py-3">
         <nav className="flex flex-col gap-1" aria-label="Main navigation">
           {navItems.map((item) => (
             <NavItemButton
@@ -606,15 +606,15 @@ function SidebarContent({
 
       {/* ── Subscription status for providers ── */}
       {(user.role === "OPERATOR" || user.role === "STAFF") && (
-        <div className="px-3 py-2">
+        <div className="shrink-0 px-3 py-2">
           <SubscriptionStatusCard collapsed={collapsed} />
         </div>
       )}
 
-      <Separator className="bg-slate-200/60" />
+      <Separator className="shrink-0 bg-slate-200/60" />
 
       {/* ── Bottom section: collapse toggle ── */}
-      <div className="p-3">
+      <div className="shrink-0 p-3">
         {/* Desktop collapse toggle */}
         {!collapsed && (
           <button
@@ -703,7 +703,7 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`relative flex h-full flex-col border-r border-slate-200 bg-white transition-all duration-300 ease-in-out ${
+      className={`relative flex h-full flex-col min-h-0 border-r border-slate-200 bg-white transition-all duration-300 ease-in-out ${
         collapsed ? "w-[68px]" : "w-64"
       }`}
     >
