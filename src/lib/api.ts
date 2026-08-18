@@ -306,6 +306,16 @@ export const apiPoliceAlertConfig = () => req("/api/police-alert-config");
 export const apiPoliceUpdateAlertConfig = (data: Record<string, unknown>) => req("/api/police-alert-config", { method: "PUT", body: JSON.stringify(data) });
 export const apiPoliceExport = (q: string) => req(`/api/police-export?${q}`);
 
+// Police Reports (interactive data)
+export const apiPoliceReports = (params?: { period?: string; date?: string; providerId?: string }) => {
+  const sp = new URLSearchParams();
+  if (params?.period) sp.set("period", params.period);
+  if (params?.date) sp.set("date", params.date);
+  if (params?.providerId) sp.set("providerId", params.providerId);
+  const qs = sp.toString();
+  return req(`/api/police-reports${qs ? `?${qs}` : ""}`);
+};
+
 // Police Report (HTML)
 export const apiPoliceReport = (month: number, year: number) =>
   fetch(`/api/police-report?month=${month}&year=${year}`, { headers: { ...getHeaders() }, credentials: "include" }).then(async (res) => {

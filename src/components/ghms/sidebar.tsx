@@ -102,6 +102,11 @@ const POLICE_NAV_ITEMS: NavItem[] = [
     label: "Room Availability",
     icon: BedDouble,
   },
+  {
+    page: "police-reports",
+    label: "Reports",
+    icon: BarChart3,
+  },
 ];
 
 const JOINT_SESSION_POLICE_ITEMS: NavItem[] = [
@@ -119,7 +124,7 @@ const JOINT_SESSION_POLICE_ITEMS: NavItem[] = [
   },
   {
     page: "suspected-persons",
-    label: "Suspected Persons",
+    label: "Watchlist",
     icon: UserX,
     section: "suspect-watch",
   },

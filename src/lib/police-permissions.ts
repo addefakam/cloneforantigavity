@@ -14,6 +14,7 @@ export const POLICE_RANK_PERMISSIONS: Record<PoliceRank, string[]> = {
     "police-dashboard",
     "providers",
     "police-room-availability",
+    "police-reports",
     "police-guests",
     "suspect-alerts",
     "suspected-persons",
@@ -27,6 +28,7 @@ export const POLICE_RANK_PERMISSIONS: Record<PoliceRank, string[]> = {
     "police-dashboard",
     "providers",
     "police-room-availability",
+    "police-reports",
     "police-guests",
     "suspect-alerts",
     "suspected-persons",
@@ -39,6 +41,7 @@ export const POLICE_RANK_PERMISSIONS: Record<PoliceRank, string[]> = {
     "police-dashboard",
     "providers",
     "police-room-availability",
+    "police-reports",
     "police-guests",
     "suspect-alerts",
     "suspected-persons",
@@ -47,7 +50,7 @@ export const POLICE_RANK_PERMISSIONS: Record<PoliceRank, string[]> = {
     "notifications",
     "owner-accounts",
   ],
-  VIEWER: ["police-dashboard", "providers", "police-room-availability", "police-guests", "notifications"],
+  VIEWER: ["police-dashboard", "providers", "police-room-availability", "police-reports", "police-guests", "notifications"],
 };
 
 export const RANK_LABELS: Record<PoliceRank, string> = {
