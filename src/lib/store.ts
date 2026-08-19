@@ -22,7 +22,7 @@ interface PreselectedRoom {
 }
 
 export interface SubscriptionInfo {
-  status: "ACTIVE" | "WARNING" | "GRACE" | "SUSPENDED" | "NONE";
+  status: "ACTIVE" | "WARNING" | "EXPIRED" | "SUSPENDED" | "NONE";
   daysRemaining: number;
   endDate: string;
   cycle: string;
@@ -33,6 +33,9 @@ export interface SubscriptionInfo {
   currencySymbol?: string;
   paymentMethod?: string;
   paymentInstructions?: string;
+  penaltyAmount?: number;
+  penaltyPercent?: number;
+  baseAmount?: number;
 }
 
 export interface JointSessionInfo {

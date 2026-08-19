@@ -349,19 +349,19 @@ function SubscriptionStatusCard({ collapsed }: { collapsed: boolean }) {
 
   const isActive = subscription.status === "ACTIVE";
   const isWarning = subscription.status === "WARNING";
-  const isGrace = subscription.status === "GRACE";
+  const isExpired = subscription.status === "EXPIRED";
   const isSuspended = subscription.status === "SUSPENDED";
 
   // Collapsed mode — icon indicator
   if (collapsed) {
     const bgClass = isActive
       ? "bg-emerald-100"
-      : isSuspended || isGrace
+      : isSuspended || isExpired
       ? "bg-rose-100"
       : "bg-amber-100";
     const iconClass = isActive
       ? "text-emerald-600"
-      : isSuspended || isGrace
+      : isSuspended || isExpired
       ? "text-rose-600"
       : "text-amber-600";
     return (
@@ -376,35 +376,35 @@ function SubscriptionStatusCard({ collapsed }: { collapsed: boolean }) {
   // Expanded card
   const containerClass = isActive
     ? "border-emerald-200 bg-emerald-50"
-    : isSuspended || isGrace
+    : isSuspended || isExpired
     ? "border-rose-200 bg-rose-50"
     : "border-amber-200 bg-amber-50";
 
   const iconColorClass = isActive
     ? "text-emerald-600"
-    : isSuspended || isGrace
+    : isSuspended || isExpired
     ? "text-rose-600"
     : "text-amber-600";
 
   const titleClass = isActive
     ? "text-emerald-800"
-    : isSuspended || isGrace
+    : isSuspended || isExpired
     ? "text-rose-800"
     : "text-amber-800";
 
   const subtextClass = isActive
     ? "text-emerald-700"
-    : isSuspended || isGrace
+    : isSuspended || isExpired
     ? "text-rose-700"
     : "text-amber-700";
 
   const badgeClass = isActive
     ? "bg-emerald-200/60 text-emerald-800"
-    : isSuspended || isGrace
+    : isSuspended || isExpired
     ? "bg-rose-200/60 text-rose-800"
     : "bg-amber-200/60 text-amber-800";
 
-  const Icon = isSuspended || isGrace ? AlertTriangle : Clock;
+  const Icon = isSuspended || isExpired ? AlertTriangle : Clock;
 
   return (
     <div className={`rounded-lg border p-3 ${containerClass} animate-subtle-pulse shadow-sm`}> 
@@ -415,7 +415,7 @@ function SubscriptionStatusCard({ collapsed }: { collapsed: boolean }) {
             ? "Subscription Active"
             : isSuspended
             ? "Service Suspended"
-            : isGrace
+            : isExpired
             ? "Subscription Expired"
             : "Expiring Soon"}
         </p>

@@ -212,18 +212,18 @@ function SubscriptionBadge() {
 
   const isActive = subscription.status === "ACTIVE";
   const isWarning = subscription.status === "WARNING";
-  const isGrace = subscription.status === "GRACE";
+  const isExpired = subscription.status === "EXPIRED";
   const isSuspended = subscription.status === "SUSPENDED";
 
   const badgeClass = isActive
     ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-    : isSuspended || isGrace
+    : isSuspended || isExpired
     ? "border-rose-300 bg-rose-50 text-rose-700"
     : "border-amber-300 bg-amber-50 text-amber-700";
 
   const dotClass = isActive
     ? "bg-emerald-500"
-    : isSuspended || isGrace
+    : isSuspended || isExpired
     ? "bg-rose-500"
     : "bg-amber-500";
 
@@ -231,7 +231,7 @@ function SubscriptionBadge() {
     ? "Active"
     : isSuspended
     ? "Suspended"
-    : isGrace
+    : isExpired
     ? "Expired"
     : "Expiring";
 

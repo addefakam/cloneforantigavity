@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAuthContext, AuthError } from "@/lib/tenant";
 import { ensureInlineMigrations } from "@/lib/inline-migrate";
-import { calcSubscriptionStatus, TRIAL_DAYS, WARNING_DAYS, GRACE_DAYS } from "@/lib/subscription";
+import { calcSubscriptionStatus, TRIAL_DAYS, WARNING_DAYS, GRACE_DAYS, CYCLE_DAYS } from "@/lib/subscription";
 
 async function getPaymentConfig() {
   try {
@@ -13,13 +13,16 @@ async function getPaymentConfig() {
       const config = sysSettings.configJson as Record<string, unknown>;
       const payment = config.payment;
       if (payment && typeof payment === "object") {
+        const p = payment as Record<string, unknown>;
         return {
-          trialDays: (payment as Record<string, unknown>).trialDays as number ?? TRIAL_DAYS,
-          warningDays: (payment as Record<string, unknown>).warningDays as number ?? WARNING_DAYS,
-          graceDays: (payment as Record<string, unknown>).graceDays as number ?? GRACE_DAYS,
-          currencySymbol: (payment as Record<string, unknown>).currencySymbol as string ?? "Br",
-          paymentMethod: (payment as Record<string, unknown>).paymentMethod as string ?? "manual",
-          paymentInstructions: (payment as Record<string, unknown>).paymentInstructions as string ?? "",
+          trialDays: (p.trialDays as number) ?? TRIAL_DAYS,
+          warningDays: (p.warningDays as number) ?? WARNING_DAYS,
+          graceDays: (p.graceDays as number) ?? GRACE_DAYS,
+          currencySymbol: (p.currencySymbol as string) ?? "Br",
+          paymentMethod: (p.paymentMethod as string) ?? "manual",
+          paymentInstructions: (p.paymentInstructions as string) ?? "",
+          latePaymentPenalty: (p.latePaymentPenalty as number) ?? 10,
+          pricePerBedPerDay: (p.pricePerBedPerDay as number) ?? 15,
         };
       }
     }
@@ -33,6 +36,8 @@ async function getPaymentConfig() {
     currencySymbol: "Br",
     paymentMethod: "manual",
     paymentInstructions: "",
+    latePaymentPenalty: 10,
+    pricePerBedPerDay: 15,
   };
 }
 
@@ -91,6 +96,16 @@ export async function GET(req: NextRequest) {
       graceDays: paymentConfig.graceDays,
     });
 
+    // Calculate penalty if EXPIRED
+    let penaltyAmount: number | undefined;
+    let penaltyPercent: number | undefined;
+    let baseAmount: number | undefined;
+    if (status === "EXPIRED" && finalSub.price > 0) {
+      penaltyPercent = paymentConfig.latePaymentPenalty;
+      baseAmount = finalSub.price;
+      penaltyAmount = Math.round(finalSub.price * (1 + penaltyPercent / 100));
+    }
+
     return NextResponse.json({
       status,
       daysRemaining,
@@ -103,6 +118,9 @@ export async function GET(req: NextRequest) {
       currencySymbol: paymentConfig.currencySymbol,
       paymentMethod: paymentConfig.paymentMethod,
       paymentInstructions: paymentConfig.paymentInstructions,
+      penaltyAmount,
+      penaltyPercent,
+      baseAmount,
     });
   } catch (error: unknown) {
     if (error instanceof AuthError) {

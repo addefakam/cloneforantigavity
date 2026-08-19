@@ -51,6 +51,7 @@ export async function GET(req: NextRequest) {
     paymentInstructions: "",
     pricePerBedPerDay: 15,
     pricingEnabled: false,
+    latePaymentPenalty: 10,
   };
     if (sysSettings?.configJson && typeof sysSettings.configJson === "object") {
       const config = sysSettings.configJson as Record<string, unknown>;
@@ -66,6 +67,7 @@ export async function GET(req: NextRequest) {
           paymentInstructions: (p.paymentInstructions as string) ?? "",
           pricePerBedPerDay: (p.pricePerBedPerDay as number) ?? 15,
           pricingEnabled: (p.pricingEnabled as boolean) ?? true,
+          latePaymentPenalty: (p.latePaymentPenalty as number) ?? 10,
         };
       }
     }

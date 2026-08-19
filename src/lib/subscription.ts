@@ -22,7 +22,7 @@ export const GRACE_DAYS = 2;
 // ── Free trial days when provider is approved ──
 export const TRIAL_DAYS = 15;
 
-export type SubscriptionStatus = "ACTIVE" | "WARNING" | "GRACE" | "SUSPENDED";
+export type SubscriptionStatus = "ACTIVE" | "WARNING" | "EXPIRED" | "SUSPENDED";
 
 export interface SubscriptionInfo {
   status: SubscriptionStatus;
@@ -48,7 +48,6 @@ export function calcSubscriptionStatus(
   daysRemaining: number;
 } {
   const wd = options?.warningDays ?? WARNING_DAYS;
-  const gd = options?.graceDays ?? GRACE_DAYS;
   const end = new Date(endDate);
   const now = new Date();
   const diffMs = end.getTime() - now.getTime();
@@ -60,10 +59,8 @@ export function calcSubscriptionStatus(
   if (daysRemaining > 0) {
     return { status: "WARNING", daysRemaining };
   }
-  if (daysRemaining > -gd) {
-    return { status: "GRACE", daysRemaining };
-  }
-  return { status: "SUSPENDED", daysRemaining };
+  // Expired but NOT auto-suspended — SUSPENDED is only set manually by superuser
+  return { status: "EXPIRED", daysRemaining };
 }
 
 /**
@@ -117,10 +114,10 @@ export function getStatusBadgeClasses(status: SubscriptionStatus): string {
       return "bg-emerald-100 text-emerald-800 border-emerald-200";
     case "WARNING":
       return "bg-amber-100 text-amber-800 border-amber-200";
-    case "GRACE":
+    case "EXPIRED":
       return "bg-rose-100 text-rose-800 border-rose-200";
     case "SUSPENDED":
-      return "bg-slate-100 text-slate-800 border-slate-200";
+      return "bg-slate-200 text-slate-900 border-slate-400";
     default:
       return "bg-slate-100 text-slate-800 border-slate-200";
   }

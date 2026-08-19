@@ -256,7 +256,7 @@ export default function PageRenderer() {
   // If on the login page, don't render anything
   if (currentPage === "login") return null;
 
-  // ── Subscription lockout: SUSPENDED users see lockout page ──
+  // ── Subscription lockout: only manually SUSPENDED by superuser ──
   if (
     subscription &&
     (subscription.status === "SUSPENDED") &&
@@ -283,9 +283,9 @@ export default function PageRenderer() {
 
   return (
     <>
-      {/* Subscription banner for WARNING/GRACE */}
+      {/* Subscription banner for WARNING / EXPIRED */}
       {subscription &&
-        (subscription.status === "WARNING" || subscription.status === "GRACE") && (
+        (subscription.status === "WARNING" || subscription.status === "EXPIRED") && (
           <div className="p-4 pb-0 md:px-6">
             <SubscriptionBanner
               status={subscription.status}
@@ -293,6 +293,10 @@ export default function PageRenderer() {
               providerName={subscription.providerName}
               paymentMethod={subscription.paymentMethod}
               paymentInstructions={subscription.paymentInstructions}
+              penaltyAmount={subscription.penaltyAmount}
+              baseAmount={subscription.baseAmount}
+              penaltyPercent={subscription.penaltyPercent}
+              currencySymbol={subscription.currencySymbol}
             />
           </div>
         )}

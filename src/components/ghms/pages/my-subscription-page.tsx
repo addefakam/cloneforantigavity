@@ -94,6 +94,7 @@ interface SubData {
     paymentInstructions: string;
     pricePerBedPerDay: number;
     pricingEnabled: boolean;
+    latePaymentPenalty: number;
   };
   totalBeds: number;
 }
@@ -212,7 +213,13 @@ export default function MySubscriptionPage() {
   }
 
   const isTrial = sub.price === 0 && data.payments.length === 0;
-  const statusColor = getStatusBadgeClasses(sub.status as "ACTIVE" | "WARNING" | "GRACE" | "SUSPENDED");
+  const isExpired = sub.status === "EXPIRED";
+  const penaltyPercent = data.config.latePaymentPenalty || 10;
+  const baseAmount = sub.price || 0;
+  const penaltyAmount = isExpired && baseAmount > 0
+    ? Math.round(baseAmount * (1 + penaltyPercent / 100))
+    : 0;
+  const statusColor = getStatusBadgeClasses(sub.status as "ACTIVE" | "WARNING" | "EXPIRED" | "SUSPENDED");
 
   return (
     <div className="space-y-4 p-3 sm:p-4 md:p-6 max-w-4xl mx-auto">
@@ -261,7 +268,7 @@ export default function MySubscriptionPage() {
       {/* ═══ Current Status Card ═══ */}
       <Card className={`overflow-hidden ${
         sub.status === "WARNING" ? "border-amber-300 bg-amber-50/30" :
-        sub.status === "GRACE" ? "border-rose-300 bg-rose-50/30" :
+        sub.status === "EXPIRED" ? "border-2 border-rose-400 bg-rose-50/30" :
         sub.status === "SUSPENDED" ? "border-slate-300" : ""
       }`}>
         <CardContent className="p-0">
@@ -269,7 +276,7 @@ export default function MySubscriptionPage() {
           <div className={`px-4 py-3 flex items-center justify-between ${
             sub.status === "ACTIVE" ? "bg-emerald-50" :
             sub.status === "WARNING" ? "bg-amber-50" :
-            sub.status === "GRACE" ? "bg-rose-50" :
+            sub.status === "EXPIRED" ? "bg-rose-100" :
             "bg-slate-50"
           }`}>
             <div className="flex items-center gap-2">
@@ -277,8 +284,8 @@ export default function MySubscriptionPage() {
                 <ShieldCheck className="w-5 h-5 text-emerald-600" />
               ) : sub.status === "WARNING" ? (
                 <AlertTriangle className="w-5 h-5 text-amber-600" />
-              ) : sub.status === "GRACE" ? (
-                <AlertTriangle className="w-5 h-5 text-rose-600" />
+              ) : sub.status === "EXPIRED" ? (
+                <XCircle className="w-5 h-5 text-rose-600" />
               ) : (
                 <XCircle className="w-5 h-5 text-slate-400" />
               )}
@@ -341,32 +348,41 @@ export default function MySubscriptionPage() {
             </div>
           )}
 
-          {/* Expiry warning message */}
-          {(sub.status === "WARNING" || sub.status === "GRACE" || sub.status === "SUSPENDED") && (
+          {/* Penalty alarm for EXPIRED */}
+          {isExpired && baseAmount > 0 && (
             <div className="px-4 pb-4">
-              <div className={`flex items-start gap-2 p-3 rounded-lg border ${
-                sub.status === "WARNING"
-                  ? "bg-amber-50 border-amber-200"
-                  : "bg-rose-50 border-rose-200"
-              }`}>
-                <AlertTriangle className={`w-4 h-4 mt-0.5 shrink-0 ${
-                  sub.status === "WARNING" ? "text-amber-600" : "text-rose-600"
-                }`} />
+              <div className="flex items-start gap-3 p-4 rounded-xl border-2 border-rose-300 bg-rose-50 animate-pulse">
+                <div className="shrink-0 mt-0.5 animate-bounce">
+                  <AlertTriangle className="w-5 h-5 text-rose-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-rose-800">PAYMENT OVERDUE</p>
+                  <p className="text-xs text-rose-700 mt-0.5">
+                    Your subscription expired {Math.abs(sub.daysRemaining)} day{Math.abs(sub.daysRemaining) !== 1 ? "s" : ""} ago.
+                    A <strong>{penaltyPercent}% late payment penalty</strong> has been applied.
+                  </p>
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-rose-600">Base: <strong>{baseAmount.toLocaleString()} {cur}</strong></span>
+                    <span className="text-rose-300">+</span>
+                    <span className="text-xs text-rose-600">Penalty: <strong>{(penaltyAmount - baseAmount).toLocaleString()} {cur}</strong></span>
+                    <span className="text-rose-300">=</span>
+                    <span className="text-sm font-bold text-rose-900 bg-rose-100 border border-rose-300 px-2.5 py-1 rounded-lg">
+                      TOTAL DUE: {penaltyAmount.toLocaleString()} {cur}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Warning message for WARNING status */}
+          {sub.status === "WARNING" && (
+            <div className="px-4 pb-4">
+              <div className="flex items-start gap-2 p-3 rounded-lg border bg-amber-50 border-amber-200">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
                 <div>
-                  <p className={`text-xs font-semibold ${
-                    sub.status === "WARNING" ? "text-amber-800" : "text-rose-800"
-                  }`}>
-                    {sub.status === "WARNING"
-                      ? "Subscription expiring soon!"
-                      : sub.status === "GRACE"
-                      ? "Subscription expired — grace period active"
-                      : "Service suspended due to unpaid subscription"}
-                  </p>
-                  <p className={`text-xs mt-1 ${
-                    sub.status === "WARNING" ? "text-amber-700" : "text-rose-700"
-                  }`}>
-                    Please select a plan below and submit your payment to continue using the service.
-                  </p>
+                  <p className="text-xs font-semibold text-amber-800">Subscription expiring soon!</p>
+                  <p className="text-xs mt-1 text-amber-700">Please select a plan below and submit your payment to continue using the service.</p>
                 </div>
               </div>
             </div>

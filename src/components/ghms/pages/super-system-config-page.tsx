@@ -996,7 +996,7 @@ function PaymentTab({
           <NumberInput
             id="latePaymentPenalty"
             value={settings.latePaymentPenalty}
-            onChange={(v) => onChange({ latePaymentPenalty: v })}
+            onChange={(v) => onPricingSave({ latePaymentPenalty: v })}
             min={0}
             max={100}
             step={0.5}

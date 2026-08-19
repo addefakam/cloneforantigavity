@@ -9,7 +9,7 @@ interface LockoutInfo {
   providerName: string;
   ownerName: string;
   phone: string;
-  status: "GRACE" | "SUSPENDED";
+  status: "EXPIRED" | "SUSPENDED";
   daysRemaining: number;
   endDate: string;
   cycle: string;
@@ -54,7 +54,7 @@ export default function SubscriptionLockoutPage({ info }: { info: LockoutInfo })
                 </p>
               ) : (
                 <p className="font-semibold text-amber-800">
-                  Grace period: <span className="text-lg">{Math.abs(info.daysRemaining)}</span> day{Math.abs(info.daysRemaining) !== 1 ? "s" : ""} remaining
+                  Expired: <span className="text-lg">{Math.abs(info.daysRemaining)}</span> day{Math.abs(info.daysRemaining) !== 1 ? "s" : ""} remaining
                 </p>
               )}
             </div>

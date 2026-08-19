@@ -149,7 +149,7 @@ export default function SubscriptionsPage() {
   const counts = {
     active: subscriptions.filter((s) => s.status === "ACTIVE").length,
     warning: subscriptions.filter((s) => s.status === "WARNING").length,
-    grace: subscriptions.filter((s) => s.status === "GRACE").length,
+    expired: subscriptions.filter((s) => s.status === "EXPIRED").length,
     suspended: subscriptions.filter((s) => s.status === "SUSPENDED").length,
     total: subscriptions.length,
   };
@@ -271,7 +271,7 @@ export default function SubscriptionsPage() {
             <SelectContent>
               <SelectItem value="ALL">All Status</SelectItem>
               <SelectItem value="WARNING">Warning (Expiring)</SelectItem>
-              <SelectItem value="GRACE">Grace Period</SelectItem>
+              <SelectItem value="EXPIRED">Expired</SelectItem>
               <SelectItem value="SUSPENDED">Suspended</SelectItem>
             </SelectContent>
           </Select>
@@ -310,7 +310,7 @@ export default function SubscriptionsPage() {
             <p className="text-xs text-rose-600 flex items-center gap-1">
               <RefreshCw className="h-3 w-3" /> Grace
             </p>
-            <p className="text-2xl font-bold text-rose-700">{counts.grace}</p>
+            <p className="text-2xl font-bold text-rose-700">{counts.expired}</p>
           </CardContent>
         </Card>
         <Card className="border-slate-300">
