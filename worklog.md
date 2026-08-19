@@ -91,3 +91,23 @@ Stage Summary:
 - Fix: extractStatements() parses DO blocks, extracts inner SQL, runs individually
 - This fixes configJson missing column AND all previous/future column migrations
 - Vercel will auto-deploy; subscription should work after redeployment
+---
+Task ID: 3
+Agent: main
+Task: Fix warm instance schema staleness on Vercel
+
+Work Log:
+- Identified that Vercel warm instances cache _initDone=true from old code
+- New deployments don’t re-run migrations on warm instances
+- Rewrote db.ts with withSchemaRetry() wrapper around all Prisma calls
+- Detects schema errors: "column does not exist", "relation does not exist", etc.
+- On schema error: resets init flag, re-runs migrations, retries query once
+- Added resetInitFlag() export to init-db.ts
+- Guard against concurrent migration runs with _migrating flag
+- Pushed as commit d73d1d6
+
+Stage Summary:
+- Root cause: _initDone=true cached in warm serverless instances
+- Fix: db.ts auto-detects schema errors and triggers migration re-run
+- Self-healing: any missing column/table gets fixed on first failed request
+- No more dependency on cold starts for schema updates
