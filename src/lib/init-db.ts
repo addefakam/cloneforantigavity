@@ -661,6 +661,14 @@ let _initDone = false;
 let _migrationsRan = false;
 let _initPromise: Promise<void> | null = null;
 
+/** Reset the init flag so ensureDatabase() will re-run on next call.
+ *  Called by db.ts when a schema error is detected at runtime. */
+export function resetInitFlag(): void {
+  _initDone = false;
+  _initPromise = null;
+  console.log("[init-db] Init flag reset — migrations will re-run.");
+}
+
 /** Execute SQL via raw pg Client */
 async function execViaPg(sql: string, params?: unknown[]): Promise<void> {
   const client = new Client({ connectionString: process.env.DATABASE_URL! });
