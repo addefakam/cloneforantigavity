@@ -111,3 +111,29 @@ Stage Summary:
 - Fix: db.ts auto-detects schema errors and triggers migration re-run
 - Self-healing: any missing column/table gets fixed on first failed request
 - No more dependency on cold starts for schema updates
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Integrate Chapa payment gateway for automated subscription payments
+
+Work Log:
+- Created .env.local with CHAPA_SECRET_KEY (test key provided by user) and NEXT_PUBLIC_APP_URL
+- Created src/lib/chapa.ts: Chapa REST API client with initializePayment(), verifyPayment(), tx_ref generator, URL builders
+- Created POST /api/my-subscription/pay/chapa/route.ts: initializes Chapa checkout, creates pending SubscriptionPayment with [CHAPA PENDING] tag, notifies superuser
+- Created POST /api/chapa/webhook/route.ts: receives Chapa webhook (charge.completed), double-verifies via API, updates payment record [CHAPA VERIFIED], extends subscription dates, notifies superuser
+- Updated my-subscription-page.tsx: added "Pay Online (Chapa)" as first payment method with Zap icon, violet color scheme; when Chapa selected, hides manual fields (ref/notes), shows redirect info box; on return from Chapa (?chapa=success), shows processing banner and re-fetches; payment history shows Chapa Pending/Verified badges
+- Updated super-system-config-page.tsx: Payment Method dropdown now shows "Manual (Offline)" and "Chapa (Online - Telebirr, CBE Birr, Cards)"
+- Updated middleware.ts: relaxed rate limit for /api/chapa/webhook (100/min) since it's called by Chapa servers
+- Updated api.ts: added apiInitiateChapaPayment() helper function
+- Wrapped MySubscriptionPage in Suspense boundary for useSearchParams compatibility
+- All Chapa files compile with zero TypeScript errors
+
+Stage Summary:
+- Chapa test key configured: CHASECK_TEST-jQ3TLojglKnKzICUO9dq5lsiy1G7mXCq
+- Payment flow: Operator clicks plan → selects "Pay Online (Chapa)" → redirected to Chapa checkout → pays via Telebirr/CBE Birr/card → Chapa webhook auto-verifies → subscription extended
+- 4 new files: chapa.ts, pay/chapa/route.ts, webhook/route.ts, .env.local
+- 4 modified files: my-subscription-page.tsx, super-system-config-page.tsx, middleware.ts, api.ts
+- Webhook is public (no JWT required) — Chapa calls it server-to-server
+- Pending payments tracked with [CHAPA PENDING] tag, verified with [CHAPA VERIFIED] tag
+- Superuser gets notification on both initiation and verification

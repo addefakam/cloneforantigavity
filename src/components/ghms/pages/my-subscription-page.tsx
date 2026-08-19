@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   apiMySubscription,
   apiSubmitPayment,
+  apiInitiateChapaPayment,
 } from "@/lib/api";
 import {
   formatDaysRemaining,
@@ -34,6 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Suspense } from "react";
 import {
   CreditCard,
   CalendarDays,
@@ -54,6 +57,8 @@ import {
   Receipt,
   Sparkles,
   Lock,
+  Zap,
+  ExternalLink,
 } from "lucide-react";
 
 // ── Types ──
@@ -100,6 +105,7 @@ interface SubData {
 }
 
 const PAYMENT_METHODS = [
+  { value: "CHAPA", label: "Pay Online (Chapa)", icon: Zap, color: "text-violet-600" },
   { value: "CASH", label: "Cash", icon: Banknote, color: "text-green-600" },
   { value: "BANK_TRANSFER", label: "Bank Transfer", icon: Landmark, color: "text-blue-600" },
   { value: "TELEBIRR", label: "Telebirr", icon: Smartphone, color: "text-cyan-600" },
@@ -132,7 +138,7 @@ function LoadingSkeleton() {
   );
 }
 
-export default function MySubscriptionPage() {
+function MySubscriptionPage() {
   const [data, setData] = useState<SubData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showPayDialog, setShowPayDialog] = useState(false);
@@ -144,7 +150,10 @@ export default function MySubscriptionPage() {
   const [payAmount, setPayAmount] = useState("");
   const [showHistory, setShowHistory] = useState(false);
 
-  const fetchData = async () => {
+  const searchParams = useSearchParams();
+  const chapaResult = searchParams.get("chapa");
+
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const res = await apiMySubscription();
@@ -155,11 +164,22 @@ export default function MySubscriptionPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
+
+  // Handle Chapa payment callback
+  useEffect(() => {
+    if (chapaResult === "success") {
+      toast.success("Payment completed via Chapa! Verifying your payment...");
+      // Clean up URL params
+      window.history.replaceState({}, "/my-subscription", "/my-subscription");
+      // Re-fetch to show updated status
+      setTimeout(() => fetchData(), 2000);
+    }
+  }, [chapaResult, fetchData]);
 
   const handleSelectPlan = (plan: SubData["plans"][0]) => {
     setSelectedPlan(plan);
@@ -170,7 +190,40 @@ export default function MySubscriptionPage() {
     setShowPayDialog(true);
   };
 
+  const isChapaMethod = payMethod === "CHAPA";
+
+  const handleChapaPayment = async () => {
+    if (!selectedPlan || !payAmount || Number(payAmount) <= 0) {
+      toast.error("Invalid payment details");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await apiInitiateChapaPayment({
+        cycle: selectedPlan.cycle,
+        amount: Number(payAmount),
+        planId: selectedPlan.id,
+      });
+      if (res.checkoutUrl) {
+        // Redirect to Chapa checkout page
+        window.location.href = res.checkoutUrl;
+      } else {
+        toast.error("Failed to get Chapa checkout URL");
+      }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to initiate Chapa payment");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleSubmitPayment = async () => {
+    // If Chapa is selected, redirect to Chapa checkout
+    if (isChapaMethod) {
+      await handleChapaPayment();
+      return;
+    }
+
     if (!selectedPlan || !payMethod || !payAmount || Number(payAmount) <= 0) {
       toast.error("Please fill in all required fields");
       return;
@@ -524,7 +577,9 @@ export default function MySubscriptionPage() {
               <div className="space-y-2">
                 {data.payments.map((payment) => {
                   const isProviderSubmitted = payment.notes.includes("[PROVIDER SUBMITTED]");
-                  const isVerified = !payment.notes.includes("[PROVIDER SUBMITTED]");
+                  const isChapaPending = payment.notes.includes("[CHAPA PENDING]");
+                  const isChapaVerified = payment.notes.includes("[CHAPA VERIFIED]");
+                  const isVerified = !isProviderSubmitted && !isChapaPending;
                   return (
                     <div
                       key={payment.id}
@@ -532,9 +587,13 @@ export default function MySubscriptionPage() {
                     >
                       <div className="flex items-center gap-3">
                         <div className={`p-1.5 rounded-full ${
+                          isChapaVerified ? "bg-emerald-100" :
+                          isChapaPending ? "bg-violet-100" :
                           isProviderSubmitted ? "bg-amber-100" : "bg-emerald-100"
                         }`}>
-                          {isProviderSubmitted ? (
+                          {isChapaPending ? (
+                            <Zap className="w-3.5 h-3.5 text-violet-600" />
+                          ) : isProviderSubmitted ? (
                             <Clock className="w-3.5 h-3.5 text-amber-600" />
                           ) : (
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
@@ -560,12 +619,14 @@ export default function MySubscriptionPage() {
                         <Badge
                           variant="outline"
                           className={`text-[10px] ${
-                            isProviderSubmitted
+                            isChapaPending
+                              ? "border-violet-200 text-violet-700"
+                              : isProviderSubmitted
                               ? "border-amber-200 text-amber-700"
                               : "border-emerald-200 text-emerald-700"
                           }`}
                         >
-                          {isProviderSubmitted ? "Pending" : "Verified"}
+                          {isChapaPending ? "Chapa Pending" : isProviderSubmitted ? "Pending" : "Verified"}
                         </Badge>
                         <p className="text-[10px] text-muted-foreground mt-1">
                           {new Date(payment.createdAt).toLocaleDateString("en-GB", {
@@ -582,17 +643,34 @@ export default function MySubscriptionPage() {
         )}
       </Card>
 
+      {/* Chapa success banner (shown after redirect back) */}
+      {chapaResult === "success" && (
+        <div className="flex items-center gap-3 p-4 rounded-xl border-2 border-emerald-300 bg-emerald-50">
+          <div className="shrink-0">
+            <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-emerald-800">Payment Processing</p>
+            <p className="text-xs text-emerald-700 mt-0.5">
+              Your Chapa payment was received. We are verifying it now — your subscription will be activated shortly.
+            </p>
+          </div>
+          <RefreshCw className="w-4 h-4 text-emerald-500 animate-spin" />
+        </div>
+      )}
+
       {/* ═══ Payment Dialog ═══ */}
       <Dialog open={showPayDialog} onOpenChange={setShowPayDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Send className="w-5 h-5" />
-              Submit Payment
+              Pay for Subscription
             </DialogTitle>
             <DialogDescription>
-              Complete your payment using any method below, then fill in the details.
-              Your subscription will be activated after verification.
+              {isChapaMethod
+                ? "You will be redirected to Chapa's secure payment page to complete payment online (Telebirr, CBE Birr, bank cards, etc.)."
+                : "Complete your payment offline, then fill in the details below. Your subscription will be activated after verification."}
             </DialogDescription>
           </DialogHeader>
 
@@ -646,44 +724,67 @@ export default function MySubscriptionPage() {
                         className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-medium transition-all ${
                           isActive
                             ? "border-primary bg-primary/5 text-primary ring-1 ring-primary/20"
+                            : m.value === "CHAPA"
+                            ? "border-violet-200 text-violet-700 hover:bg-violet-50"
                             : "border-slate-200 text-slate-600 hover:bg-slate-50"
                         }`}
                       >
-                        <Icon className={`w-4 h-4 ${isActive ? m.color : "text-slate-400"}`} />
+                        <Icon className={`w-4 h-4 ${isActive ? m.color : m.value === "CHAPA" ? "text-violet-400" : "text-slate-400"}`} />
                         {m.label}
                       </button>
                     );
                   })}
                 </div>
+                {payMethod === "CHAPA" && (
+                  <p className="text-[10px] text-violet-600 mt-1.5 flex items-center gap-1">
+                    <Zap className="w-3 h-3" />
+                    Pay securely via Telebirr, CBE Birr, bank cards, and more
+                  </p>
+                )}
               </div>
 
-              {/* Reference number */}
-              <div>
-                <Label className="text-xs font-medium">
-                  Reference / Transaction Number
-                </Label>
-                <Input
-                  value={payRef}
-                  onChange={(e) => setPayRef(e.target.value)}
-                  placeholder="e.g., TXN-123456 or receipt number"
-                  className="mt-1"
-                />
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  Enter the transaction/reference number from your payment receipt
-                </p>
-              </div>
+              {/* Manual payment fields (hidden when Chapa selected) */}
+              {!isChapaMethod && (
+                <>
+                  {/* Reference number */}
+                  <div>
+                    <Label className="text-xs font-medium">
+                      Reference / Transaction Number
+                    </Label>
+                    <Input
+                      value={payRef}
+                      onChange={(e) => setPayRef(e.target.value)}
+                      placeholder="e.g., TXN-123456 or receipt number"
+                      className="mt-1"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Enter the transaction/reference number from your payment receipt
+                    </p>
+                  </div>
 
-              {/* Notes */}
-              <div>
-                <Label className="text-xs font-medium">Additional Notes</Label>
-                <Textarea
-                  value={payNotes}
-                  onChange={(e) => setPayNotes(e.target.value)}
-                  placeholder="Any additional information (optional)"
-                  rows={2}
-                  className="mt-1"
-                />
-              </div>
+                  {/* Notes */}
+                  <div>
+                    <Label className="text-xs font-medium">Additional Notes</Label>
+                    <Textarea
+                      value={payNotes}
+                      onChange={(e) => setPayNotes(e.target.value)}
+                      placeholder="Any additional information (optional)"
+                      rows={2}
+                      className="mt-1"
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Chapa-specific info */}
+              {isChapaMethod && (
+                <div className="flex items-start gap-2 p-3 bg-violet-50 border border-violet-200 rounded-lg">
+                  <ExternalLink className="w-4 h-4 text-violet-600 mt-0.5 shrink-0" />
+                  <p className="text-xs text-violet-800 leading-relaxed">
+                    Click "Pay with Chapa" below. You'll be redirected to Chapa's secure checkout to complete your payment. After paying, you'll return here and your subscription activates automatically.
+                  </p>
+                </div>
+              )}
 
               {/* Payment instructions reminder */}
               {data.config.paymentInstructions && (
@@ -707,13 +808,22 @@ export default function MySubscriptionPage() {
                 </Button>
                 <Button
                   onClick={handleSubmitPayment}
-                  disabled={!payMethod || !payAmount || Number(payAmount) <= 0 || submitting}
-                  className="flex-1 sm:flex-none"
+                  disabled={
+                    isChapaMethod
+                      ? !payAmount || Number(payAmount) <= 0 || submitting
+                      : !payMethod || !payAmount || Number(payAmount) <= 0 || submitting
+                  }
+                  className={isChapaMethod ? "flex-1 sm:flex-none bg-violet-600 hover:bg-violet-700" : "flex-1 sm:flex-none"}
                 >
                   {submitting ? (
                     <>
                       <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      Submitting...
+                      {isChapaMethod ? "Redirecting..." : "Submitting..."}
+                    </>
+                  ) : isChapaMethod ? (
+                    <>
+                      <Zap className="w-4 h-4 mr-2" />
+                      Pay with Chapa
                     </>
                   ) : (
                     <>
@@ -728,5 +838,18 @@ export default function MySubscriptionPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// Wrap with Suspense for useSearchParams
+function MySubscriptionPageInner() {
+  return <MySubscriptionPage />;
+}
+
+export default function MySubscriptionPageWrapper() {
+  return (
+    <Suspense fallback={<LoadingSkeleton />}>
+      <MySubscriptionPageInner />
+    </Suspense>
   );
 }

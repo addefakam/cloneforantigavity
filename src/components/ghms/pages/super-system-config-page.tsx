@@ -976,7 +976,7 @@ function PaymentTab({
 
         <SettingRow
           label="Payment Method"
-          description="How subscription payments are collected"
+          description="How subscription payments are collected. Chapa enables online payment (Telebirr, CBE Birr, cards)."
         >
           <select
             id="paymentMethod"
@@ -984,8 +984,8 @@ function PaymentTab({
             onChange={(e) => onChange({ paymentMethod: e.target.value })}
             className={selectClass}
           >
-            <option value="manual">Manual</option>
-            <option value="online">Online</option>
+            <option value="manual">Manual (Offline)</option>
+            <option value="chapa">Chapa (Online - Telebirr, CBE Birr, Cards)</option>
           </select>
         </SettingRow>
 

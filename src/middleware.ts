@@ -48,6 +48,8 @@ function checkLimit(ip: string, key: string, limit: number, windowMs: number): b
 // ── Rate limit configs per route pattern ──
 function getLimitConfig(pathname: string): { limit: number; windowSeconds: number } {
   if (pathname.startsWith("/api/auth")) return { limit: 15, windowSeconds: 60 };
+  // Chapa webhook — called by Chapa servers, no strict rate limit
+  if (pathname.startsWith("/api/chapa/webhook")) return { limit: 100, windowSeconds: 60 };
   if (
     pathname.includes("/export") ||
     pathname.includes("/report")

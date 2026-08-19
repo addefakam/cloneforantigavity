@@ -343,6 +343,10 @@ export const apiMySubscription = () => req("/api/my-subscription");
 export const apiSubmitPayment = (data: Record<string, unknown>) =>
   req("/api/my-subscription", { method: "POST", body: JSON.stringify(data) });
 
+// Chapa Payment (provider side)
+export const apiInitiateChapaPayment = (data: { cycle: string; amount: number; planId: string }) =>
+  req("/api/my-subscription/pay/chapa", { method: "POST", body: JSON.stringify(data) });
+
 // Subscription Plans (SUPERUSER)
 export const apiGetPlans = () => req("/api/subscription-plans");
 export const apiCreatePlan = (data: { name: string; cycle: string; price: number }) =>
