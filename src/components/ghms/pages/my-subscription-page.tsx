@@ -144,8 +144,9 @@ export default function MySubscriptionPage() {
       setLoading(true);
       const res = await apiMySubscription();
       setData(res as SubData);
-    } catch {
-      toast.error("Failed to load subscription info");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      toast.error(`Failed to load subscription info: ${msg}`);
     } finally {
       setLoading(false);
     }

@@ -760,8 +760,15 @@ export async function ensureDatabase(): Promise<void> {
       console.log("[init-db] User table exists:", tableExists);
 
       if (tableExists) {
-        console.log("[init-db] Tables already exist, running migrations to add any missing columns...");
+        console.log("[init-db] Tables already exist, ensuring all tables & columns are up to date...");
         try {
+          // Run TABLES_SQL first — it uses CREATE TABLE IF NOT EXISTS so it's safe.
+          // This ensures any newly-added tables (e.g. Subscription, SubscriptionPayment, SubscriptionPlan)
+          // get created on existing databases.
+          await client.query(TABLES_SQL);
+          console.log("[init-db] Table existence verified.");
+          await client.query(FKS_SQL);
+          console.log("[init-db] Foreign keys verified.");
           await client.query(MIGRATIONS_SQL);
           console.log("[init-db] Migrations applied to existing tables.");
           await client.query(INDEXES_SQL);
@@ -769,6 +776,26 @@ export async function ensureDatabase(): Promise<void> {
         } catch (migrateErr) {
           console.error("[init-db] Migration on existing tables failed:", migrateErr instanceof Error ? migrateErr.message : String(migrateErr));
           // Don't throw — the tables exist, migrations are best-effort
+        }
+        // Seed SubscriptionPlans on existing DB (idempotent)
+        try {
+          await client.query(`
+            INSERT INTO "SubscriptionPlan" ("id","name","cycle","price","isActive","createdAt","updatedAt")
+            SELECT 'plan-monthly-001','Monthly','MONTHLY',500,true,NOW(),NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM "SubscriptionPlan" WHERE "id"='plan-monthly-001');
+            INSERT INTO "SubscriptionPlan" ("id","name","cycle","price","isActive","createdAt","updatedAt")
+            SELECT 'plan-quarterly-001','Quarterly','QUARTERLY',1400,true,NOW(),NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM "SubscriptionPlan" WHERE "id"='plan-quarterly-001');
+            INSERT INTO "SubscriptionPlan" ("id","name","cycle","price","isActive","createdAt","updatedAt")
+            SELECT 'plan-semi-annual-001','Semi-Annual','SEMI_ANNUAL',2600,true,NOW(),NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM "SubscriptionPlan" WHERE "id"='plan-semi-annual-001');
+            INSERT INTO "SubscriptionPlan" ("id","name","cycle","price","isActive","createdAt","updatedAt")
+            SELECT 'plan-yearly-001','Annual','YEARLY',4800,true,NOW(),NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM "SubscriptionPlan" WHERE "id"='plan-yearly-001');
+          `);
+          console.log("[init-db] SubscriptionPlans seeded.");
+        } catch (seedErr) {
+          console.error("[init-db] SubscriptionPlan seeding failed:", seedErr instanceof Error ? seedErr.message : String(seedErr));
         }
         await client.end().catch(() => {});
         _initDone = true;
@@ -857,8 +884,14 @@ export async function ensureDatabase(): Promise<void> {
           `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='User') as ok`
         );
         if (res[0]?.ok) {
-          console.log("[init-db] Tables already exist (verified via Prisma), running migrations...");
+          console.log("[init-db] Tables already exist (verified via Prisma), ensuring all tables & columns are up to date...");
           try {
+            // Run TABLES_SQL — uses CREATE TABLE IF NOT EXISTS, safe on existing DB.
+            // This creates any newly-added tables (e.g. Subscription, SubscriptionPlan).
+            await execViaPrisma(TABLES_SQL);
+            console.log("[init-db] Table existence verified via Prisma.");
+            await execViaPrisma(FKS_SQL);
+            console.log("[init-db] Foreign keys verified via Prisma.");
             await execViaPrisma(MIGRATIONS_SQL);
             console.log("[init-db] Migrations applied via Prisma.");
             await execViaPrisma(INDEXES_SQL);
