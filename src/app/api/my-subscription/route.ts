@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAuthContext, AuthError } from "@/lib/tenant";
+import { ensureInlineMigrations } from "@/lib/inline-migrate";
 import {
   calcSubscriptionStatus,
   calcNextEndDate,
@@ -12,6 +13,9 @@ import {
 
 export async function GET(req: NextRequest) {
   try {
+    // Ensure critical columns/tables exist BEFORE any Prisma query
+    await ensureInlineMigrations();
+
     const auth = await getAuthContext(req);
     if (!auth.providerId) {
       return NextResponse.json({ error: "No provider associated" }, { status: 400 });
@@ -143,6 +147,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    // Ensure critical columns/tables exist BEFORE any Prisma query
+    await ensureInlineMigrations();
+
     const auth = await getAuthContext(req);
     if (!auth.providerId) {
       return NextResponse.json({ error: "No provider associated" }, { status: 400 });
@@ -197,7 +204,7 @@ export async function POST(req: NextRequest) {
       notes || "",
     ]
       .filter(Boolean)
-    .join(" | ");
+      .join(" | ");
 
     // Update subscription + create payment in transaction
     await db.$transaction([

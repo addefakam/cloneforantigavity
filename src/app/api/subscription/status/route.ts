@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAuthContext, AuthError } from "@/lib/tenant";
+import { ensureInlineMigrations } from "@/lib/inline-migrate";
 import { calcSubscriptionStatus, TRIAL_DAYS, WARNING_DAYS, GRACE_DAYS } from "@/lib/subscription";
 
 async function getPaymentConfig() {
@@ -37,6 +38,7 @@ async function getPaymentConfig() {
 
 export async function GET(req: NextRequest) {
   try {
+    await ensureInlineMigrations();
     const auth = await getAuthContext(req);
 
     // SUPERUSER and POLICE are exempt from subscription checks
