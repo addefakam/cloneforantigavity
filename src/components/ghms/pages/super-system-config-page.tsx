@@ -135,7 +135,7 @@ const DEFAULT_PAYMENT: PaymentSettings = {
   currencySymbol: "Br",
   paymentInstructions: "Contact your administrator to arrange payment. Payments can be made via bank transfer or mobile money.",
   pricePerBedPerDay: 15,
-  pricingEnabled: true,
+  pricingEnabled: false,
 };
 
 const FULL_DEFAULTS: SystemConfig = {

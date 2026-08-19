@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
     paymentMethod: "manual",
     paymentInstructions: "",
     pricePerBedPerDay: 15,
-    pricingEnabled: true,
+    pricingEnabled: false,
   };
     if (sysSettings?.configJson && typeof sysSettings.configJson === "object") {
       const config = sysSettings.configJson as Record<string, unknown>;
