@@ -600,16 +600,17 @@ export default function MySubscriptionPage() {
               {/* Amount */}
               <div>
                 <Label className="text-xs font-medium">
-                  Amount ({cur}) <span className="text-red-500">*</span>
+                  Amount ({cur})
                 </Label>
                 <Input
                   type="number"
                   value={payAmount}
-                  onChange={(e) => setPayAmount(e.target.value)}
-                  min={0}
-                  placeholder="Enter amount"
-                  className="mt-1"
+                  readOnly
+                  className="mt-1 bg-slate-50 text-slate-700 cursor-not-allowed"
                 />
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Auto-calculated based on your total beds and selected plan
+                </p>
               </div>
 
               {/* Payment method */}
