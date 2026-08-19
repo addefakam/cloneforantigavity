@@ -71,3 +71,23 @@ Stage Summary:
 - Fix: Run all SQL blocks (TABLES, FKS, MIGRATIONS, INDEXES) since they use IF NOT EXISTS
 - Committed as 8135cff and pushed to main
 - Vercel will auto-deploy; subscription should work after redeployment
+---
+Task ID: 2
+Agent: main
+Task: Fix execViaPrisma DO block compatibility with Prisma
+
+Work Log:
+- Identified that Prisma $executeRawUnsafe cannot execute DO $$ ... END $$ PL/pgSQL blocks
+- On Vercel, pg native module fails, falling back to Prisma path
+- All ALTER TABLE ADD COLUMN/CONSTRAINT migrations used DO blocks with EXCEPTION handlers
+- These silently failed, so configJson and other columns were never added
+- Rewrote execViaPrisma with extractStatements() that unwraps DO blocks via regex
+- Inner SQL runs individually; duplicate errors caught at JS level
+- Tested regex against ENUMS, MIGRATIONS, FKS, and mixed SQL patterns
+- Pushed as commit 83adb96
+
+Stage Summary:
+- Root cause: Prisma driver cannot execute anonymous PL/pgSQL DO blocks
+- Fix: extractStatements() parses DO blocks, extracts inner SQL, runs individually
+- This fixes configJson missing column AND all previous/future column migrations
+- Vercel will auto-deploy; subscription should work after redeployment
