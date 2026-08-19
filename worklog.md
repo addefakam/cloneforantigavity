@@ -52,4 +52,22 @@ Stage Summary:
 - 4 priority levels with visual indicators (LOW/NORMAL/HIGH/URGENT)
 - Channel availability warnings shown in UI (e.g., '3 of 10 providers have Telegram configured')
 - Provider list shows contact capabilities (phone, telegram, in-app user count)
-- Broadcast history with pagination, delivery stats (sent/failed), and filter by date
+- Broadcast history with pagination, delivery stats (sent/failed), and filter by date---
+Task ID: 1
+Agent: main
+Task: Fix subscription tables not created on existing databases
+
+Work Log:
+- Identified root cause: init-db.ts skipped TABLES_SQL when User table already existed
+- Subscription, SubscriptionPayment, SubscriptionPlan tables were only in TABLES_SQL
+- On existing production DB, init-db ran only MIGRATIONS_SQL + INDEXES_SQL, skipping table creation
+- Fixed both Strategy 1 (pg) and Strategy 2 (Prisma fallback) to always run TABLES_SQL + FKS_SQL
+- Added SubscriptionPlan seeding to the existing-DB path
+- Improved error message in my-subscription-page.tsx to show actual error
+- Pushed fix to GitHub
+
+Stage Summary:
+- Root cause: init-db.ts optimization skipped new table creation on existing DBs
+- Fix: Run all SQL blocks (TABLES, FKS, MIGRATIONS, INDEXES) since they use IF NOT EXISTS
+- Committed as 8135cff and pushed to main
+- Vercel will auto-deploy; subscription should work after redeployment
