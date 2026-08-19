@@ -101,6 +101,26 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Normalize phone number for Chapa: must be 251XXXXXXXXX (no +, no spaces)
+    const rawPhone = provider?.phone || "";
+    let normalizedPhone: string | undefined;
+    if (rawPhone) {
+      // Strip all non-digits
+      const digits = rawPhone.replace(/\D/g, "");
+      if (digits.startsWith("251") && digits.length === 12) {
+        normalizedPhone = digits; // already correct: 251912345678
+      } else if (digits.startsWith("0") && digits.length === 10) {
+        normalizedPhone = "251" + digits.substring(1); // 0912... → 251912...
+      } else if (digits.length === 9) {
+        normalizedPhone = "2519" + digits; // 912... → 251912...
+      } else if (digits.length === 12 && digits.startsWith("+")) {
+        normalizedPhone = digits; // edge case
+      } else {
+        // Fallback: don't send phone if we can't normalize
+        normalizedPhone = undefined;
+      }
+    }
+
     // Initialize Chapa payment
     const chapaResponse = await initializePayment({
       amount: Number(amount),
@@ -108,7 +128,7 @@ export async function POST(req: NextRequest) {
       email: provider?.email || `${auth.userId}@ghms.et`,
       first_name: firstName,
       last_name: lastName,
-      phone_number: provider?.phone || undefined,
+      phone_number: normalizedPhone,
       tx_ref: txRef,
       callback_url: getReturnUrl(subscription.id),
       return_url: getReturnUrl(subscription.id),

@@ -108,25 +108,32 @@ export async function initializePayment(
 ): Promise<ChapaInitResponse> {
   const secretKey = getSecretKey();
 
+  // Build payload — only include phone_number if valid (Chapa rejects invalid/empty phone)
+  const payload: Record<string, unknown> = {
+    amount: params.amount,
+    currency: params.currency || "ETB",
+    email: params.email,
+    first_name: params.first_name,
+    last_name: params.last_name,
+    tx_ref: params.tx_ref,
+    callback_url: params.callback_url,
+    return_url: params.return_url,
+    webhook_url: params.webhook_url,
+  };
+  if (params.phone_number) {
+    payload.phone_number = params.phone_number;
+  }
+  if (params.custom_description) {
+    payload.custom_description = params.custom_description;
+  }
+
   const response = await fetch(`${CHAPA_BASE_URL}/transaction/initialize`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${secretKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      amount: params.amount,
-      currency: params.currency || "ETB",
-      email: params.email,
-      first_name: params.first_name,
-      last_name: params.last_name,
-      phone_number: params.phone_number,
-      tx_ref: params.tx_ref,
-      callback_url: params.callback_url,
-      return_url: params.return_url,
-      webhook_url: params.webhook_url,
-      custom_description: params.custom_description,
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
