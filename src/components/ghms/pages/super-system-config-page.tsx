@@ -790,9 +790,11 @@ function NotificationsTab({
 function PaymentTab({
   settings,
   onChange,
+  onPricingSave,
 }: {
   settings: PaymentSettings;
   onChange: (partial: Partial<PaymentSettings>) => void;
+  onPricingSave: (partial: Partial<PaymentSettings>) => void;
 }) {
   return (
     <div className="space-y-5">
@@ -884,7 +886,7 @@ function PaymentTab({
             <ToggleSwitch
               id="pricingEnabled"
               checked={settings.pricingEnabled}
-              onChange={(v) => onChange({ pricingEnabled: v })}
+              onChange={(v) => onPricingSave({ pricingEnabled: v })}
             />
             {settings.pricingEnabled ? (
               <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
@@ -907,7 +909,7 @@ function PaymentTab({
           <NumberInput
             id="pricePerBedPerDay"
             value={settings.pricePerBedPerDay}
-            onChange={(v) => onChange({ pricePerBedPerDay: v })}
+            onChange={(v) => onPricingSave({ pricePerBedPerDay: v })}
             min={1}
             step={1}
             prefix={settings.currencySymbol}
@@ -1224,6 +1226,28 @@ export default function SuperSystemConfigPage() {
     []
   );
 
+  // Auto-save pricing changes immediately (toggle + price) so they persist across reloads
+  const autoSavePricing = useCallback(
+    async (partial: Partial<PaymentSettings>) => {
+      setConfig((prev) => {
+        const updated = { ...prev, payment: { ...prev.payment, ...partial } };
+        // Fire-and-forget save in background
+        const token = localStorage.getItem("ghms_token");
+        const headers: HeadersInit = { "Content-Type": "application/json" };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        fetch("/api/settings", {
+          method: "PUT",
+          headers,
+          body: JSON.stringify(updated),
+        }).catch(() => {});
+        return updated;
+      });
+      setDirty(false);
+      toast.success("Pricing updated and saved");
+    },
+    []
+  );
+
   // ── Render ──
 
   return (
@@ -1360,6 +1384,7 @@ export default function SuperSystemConfigPage() {
             <PaymentTab
               settings={config.payment}
               onChange={updatePayment}
+              onPricingSave={autoSavePricing}
             />
           )}
         </div>
