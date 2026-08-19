@@ -101,25 +101,28 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Normalize phone number for Chapa: must be 251XXXXXXXXX (no +, no spaces)
+    // Normalize phone number for Chapa: must be +251XXXXXXXXX (12 digits after +)
     const rawPhone = provider?.phone || "";
     let normalizedPhone: string | undefined;
     if (rawPhone) {
       // Strip all non-digits
       const digits = rawPhone.replace(/\D/g, "");
       if (digits.startsWith("251") && digits.length === 12) {
-        normalizedPhone = digits; // already correct: 251912345678
+        // Already in 251912345678 format → add + prefix
+        normalizedPhone = "+" + digits;
       } else if (digits.startsWith("0") && digits.length === 10) {
-        normalizedPhone = "251" + digits.substring(1); // 0912... → 251912...
-      } else if (digits.length === 9) {
-        normalizedPhone = "2519" + digits; // 912... → 251912...
-      } else if (digits.length === 12 && digits.startsWith("+")) {
-        normalizedPhone = digits; // edge case
+        // 0912345678 → +251912345678
+        normalizedPhone = "+251" + digits.substring(1);
+      } else if (digits.length === 9 && /^[1-9]/.test(digits)) {
+        // 912345678 → +251912345678
+        normalizedPhone = "+251" + digits;
       } else {
-        // Fallback: don't send phone if we can't normalize
+        // Cannot normalize — omit phone_number entirely (Chapa will use business shortcode)
         normalizedPhone = undefined;
       }
     }
+
+    console.log("[Chapa] Phone normalization:", { rawPhone, normalizedPhone });
 
     // Initialize Chapa payment
     const chapaResponse = await initializePayment({
