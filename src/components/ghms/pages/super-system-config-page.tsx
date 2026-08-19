@@ -37,9 +37,7 @@ interface GuesthouseSettings {
   defaultCheckInTime: string;
   defaultCheckOutTime: string;
   autoApproveGuesthouses: boolean;
-  maxRoomsPerGuesthouse: number;
   requireLicenseUpload: boolean;
-  defaultTaxRate: number;
 }
 
 interface SecuritySettings {
@@ -72,6 +70,11 @@ interface PaymentSettings {
   currency: string;
   currencySymbol: string;
   paymentInstructions: string;
+  // Subscription pricing per cycle (set by superuser)
+  monthlyPrice: number;
+  quarterlyPrice: number;
+  semiAnnualPrice: number;
+  yearlyPrice: number;
 }
 
 interface SystemConfig {
@@ -99,9 +102,7 @@ const DEFAULT_GUESTHOUSE: GuesthouseSettings = {
   defaultCheckInTime: "14:00",
   defaultCheckOutTime: "10:00",
   autoApproveGuesthouses: false,
-  maxRoomsPerGuesthouse: 50,
   requireLicenseUpload: true,
-  defaultTaxRate: 15,
 };
 
 const DEFAULT_SECURITY: SecuritySettings = {
@@ -134,6 +135,10 @@ const DEFAULT_PAYMENT: PaymentSettings = {
   currency: "ETB",
   currencySymbol: "Br",
   paymentInstructions: "Contact your administrator to arrange payment. Payments can be made via bank transfer or mobile money.",
+  monthlyPrice: 500,
+  quarterlyPrice: 1400,
+  semiAnnualPrice: 2600,
+  yearlyPrice: 4800,
 };
 
 const FULL_DEFAULTS: SystemConfig = {
@@ -282,6 +287,7 @@ function NumberInput({
   max,
   step = 1,
   suffix,
+  prefix,
 }: {
   id: string;
   value: number;
@@ -290,9 +296,15 @@ function NumberInput({
   max?: number;
   step?: number;
   suffix?: string;
+  prefix?: string;
 }) {
   return (
     <div className="relative">
+      {prefix && (
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 pointer-events-none font-medium">
+          {prefix}
+        </span>
+      )}
       <input
         id={id}
         type="number"
@@ -301,7 +313,7 @@ function NumberInput({
         max={max}
         step={step}
         onChange={(e) => onChange(Number(e.target.value))}
-        className={inputClass + (suffix ? " pr-10" : "")}
+        className={inputClass + (suffix ? " pr-10" : "") + (prefix ? " pl-8" : "")}
       />
       {suffix && (
         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
@@ -542,41 +554,6 @@ function GuesthouseTab({
             id="requireLicenseUpload"
             checked={settings.requireLicenseUpload}
             onChange={(v) => onChange({ requireLicenseUpload: v })}
-          />
-        </SettingRow>
-      </SectionCard>
-
-      {/* Room & Tax Defaults */}
-      <SectionCard
-        title="Room & Tax Defaults"
-        description="Default limits and financial settings for guesthouses"
-        icon={Settings}
-      >
-        <SettingRow
-          label="Max Rooms per Guesthouse"
-          description="Maximum number of rooms allowed per guesthouse registration"
-        >
-          <NumberInput
-            id="maxRoomsPerGuesthouse"
-            value={settings.maxRoomsPerGuesthouse}
-            onChange={(v) => onChange({ maxRoomsPerGuesthouse: v })}
-            min={1}
-            max={500}
-          />
-        </SettingRow>
-
-        <SettingRow
-          label="Default Tax Rate"
-          description="Default VAT/tax percentage applied to room pricing"
-        >
-          <NumberInput
-            id="defaultTaxRate"
-            value={settings.defaultTaxRate}
-            onChange={(v) => onChange({ defaultTaxRate: v })}
-            min={0}
-            max={100}
-            step={0.5}
-            suffix="%"
           />
         </SettingRow>
       </SectionCard>
@@ -891,6 +868,137 @@ function PaymentTab({
             onChange={(v) => onChange({ enableAutoReminder: v })}
           />
         </SettingRow>
+      </SectionCard>
+
+      {/* Subscription Pricing */}
+      <SectionCard
+        title="Subscription Pricing"
+        description="Set the subscription fee for each billing cycle. Operators see these as available plans."
+        icon={CreditCard}
+      >
+        <SettingRow
+          label="Monthly Price"
+          description="Price for 1-month subscription"
+        >
+          <NumberInput
+            id="monthlyPrice"
+            value={settings.monthlyPrice}
+            onChange={(v) => onChange({ monthlyPrice: v })}
+            min={0}
+            step={50}
+            prefix={settings.currencySymbol}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label="Quarterly Price"
+          description="Price for 3-month subscription"
+        >
+          <div className="flex items-center gap-2">
+            <NumberInput
+              id="quarterlyPrice"
+              value={settings.quarterlyPrice}
+              onChange={(v) => onChange({ quarterlyPrice: v })}
+              min={0}
+              step={100}
+              prefix={settings.currencySymbol}
+            />
+            {settings.monthlyPrice > 0 && settings.quarterlyPrice > 0 && (
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                settings.quarterlyPrice < settings.monthlyPrice * 3
+                  ? "text-emerald-700 bg-emerald-50"
+                  : "text-slate-500 bg-slate-50"
+              }`}>
+                {settings.quarterlyPrice < settings.monthlyPrice * 3 ? "Save " : ""}
+                {Math.round(((settings.monthlyPrice * 3 - settings.quarterlyPrice) / (settings.monthlyPrice * 3)) * 100)}%
+              </span>
+            )}
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          label="Semi-Annual Price"
+          description="Price for 6-month subscription"
+        >
+          <div className="flex items-center gap-2">
+            <NumberInput
+              id="semiAnnualPrice"
+              value={settings.semiAnnualPrice}
+              onChange={(v) => onChange({ semiAnnualPrice: v })}
+              min={0}
+              step={200}
+              prefix={settings.currencySymbol}
+            />
+            {settings.monthlyPrice > 0 && settings.semiAnnualPrice > 0 && (
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                settings.semiAnnualPrice < settings.monthlyPrice * 6
+                  ? "text-emerald-700 bg-emerald-50"
+                  : "text-slate-500 bg-slate-50"
+              }`}>
+                {settings.semiAnnualPrice < settings.monthlyPrice * 6 ? "Save " : ""}
+                {Math.round(((settings.monthlyPrice * 6 - settings.semiAnnualPrice) / (settings.monthlyPrice * 6)) * 100)}%
+              </span>
+            )}
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          label="Yearly Price"
+          description="Price for 12-month subscription"
+        >
+          <div className="flex items-center gap-2">
+            <NumberInput
+              id="yearlyPrice"
+              value={settings.yearlyPrice}
+              onChange={(v) => onChange({ yearlyPrice: v })}
+              min={0}
+              step={500}
+              prefix={settings.currencySymbol}
+            />
+            {settings.monthlyPrice > 0 && settings.yearlyPrice > 0 && (
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                settings.yearlyPrice < settings.monthlyPrice * 12
+                  ? "text-emerald-700 bg-emerald-50"
+                  : "text-slate-500 bg-slate-50"
+              }`}>
+                {settings.yearlyPrice < settings.monthlyPrice * 12 ? "Save " : ""}
+                {Math.round(((settings.monthlyPrice * 12 - settings.yearlyPrice) / (settings.monthlyPrice * 12)) * 100)}%
+              </span>
+            )}
+          </div>
+        </SettingRow>
+
+        {/* Per-month comparison table */}
+        <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-2">Per-Month Comparison</p>
+          <div className="grid grid-cols-4 gap-2 text-center">
+            {[
+              { label: "Monthly", price: settings.monthlyPrice, months: 1 },
+              { label: "Quarterly", price: settings.quarterlyPrice, months: 3 },
+              { label: "Semi-Annual", price: settings.semiAnnualPrice, months: 6 },
+              { label: "Yearly", price: settings.yearlyPrice, months: 12 },
+            ].map((item) => {
+              const perMonth = item.months > 0 ? Math.round((item.price / item.months) * 100) / 100 : 0;
+              const isCheapest = perMonth > 0 && perMonth === Math.min(
+                ...[
+                  settings.monthlyPrice,
+                  settings.quarterlyPrice / 3,
+                  settings.semiAnnualPrice / 6,
+                  settings.yearlyPrice / 12,
+                ].filter((p) => p > 0)
+              );
+              return (
+                <div key={item.label} className={`p-2 rounded-lg ${isCheapest ? "bg-emerald-50 border border-emerald-200" : ""}`}> 
+                  <p className="text-[10px] text-muted-foreground">{item.label}</p>
+                  <p className={`text-sm font-bold ${isCheapest ? "text-emerald-700" : ""}`}>
+                    {perMonth > 0 ? perMonth.toLocaleString() : "—"}
+                  </p>
+                  <p className="text-[9px] text-muted-foreground">{settings.currencySymbol}/mo</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </SectionCard>
 
       {/* Default Subscription */}

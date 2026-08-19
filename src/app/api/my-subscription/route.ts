@@ -41,15 +41,19 @@ export async function GET(req: NextRequest) {
       db.settings.findFirst({ where: { providerId: null } }),
     ]);
 
-    // Extract payment config
+    // Extract payment config including pricing
     let paymentConfig = {
-      trialDays: TRIAL_DAYS,
-      warningDays: WARNING_DAYS,
-      graceDays: GRACE_DAYS,
-      currencySymbol: "Br",
-      paymentMethod: "manual",
-      paymentInstructions: "",
-    };
+    trialDays: TRIAL_DAYS,
+    warningDays: WARNING_DAYS,
+    graceDays: GRACE_DAYS,
+    currencySymbol: "Br",
+    paymentMethod: "manual",
+    paymentInstructions: "",
+    monthlyPrice: 500,
+    quarterlyPrice: 1400,
+    semiAnnualPrice: 2600,
+    yearlyPrice: 4800,
+  };
     if (sysSettings?.configJson && typeof sysSettings.configJson === "object") {
       const config = sysSettings.configJson as Record<string, unknown>;
       const payment = config.payment;
@@ -62,6 +66,10 @@ export async function GET(req: NextRequest) {
           currencySymbol: (p.currencySymbol as string) ?? "Br",
           paymentMethod: (p.paymentMethod as string) ?? "manual",
           paymentInstructions: (p.paymentInstructions as string) ?? "",
+          monthlyPrice: (p.monthlyPrice as number) ?? 500,
+          quarterlyPrice: (p.quarterlyPrice as number) ?? 1400,
+          semiAnnualPrice: (p.semiAnnualPrice as number) ?? 2600,
+          yearlyPrice: (p.yearlyPrice as number) ?? 4800,
         };
       }
     }
@@ -96,19 +104,31 @@ export async function GET(req: NextRequest) {
       graceDays: paymentConfig.graceDays,
     });
 
-    // Enrich plans
-    const enrichedPlans = plans.map((p) => {
-      const days = CYCLE_DAYS[p.cycle] || 30;
-      const months = days / 30;
+    // Build plans: use system config pricing as source of truth.
+    // If DB plans exist, merge their subscriber counts.
+    const planSubscriberCounts: Record<string, number> = {};
+    for (const p of plans) {
+      planSubscriberCounts[p.cycle] = (planSubscriberCounts[p.cycle] || 0) + p._count.subscriptions;
+    }
+
+    const configPlans = [
+      { id: plans.find(p => p.cycle === "MONTHLY")?.id || "cfg-monthly", name: "Monthly", cycle: "MONTHLY", price: paymentConfig.monthlyPrice, days: 30 },
+      { id: plans.find(p => p.cycle === "QUARTERLY")?.id || "cfg-quarterly", name: "Quarterly", cycle: "QUARTERLY", price: paymentConfig.quarterlyPrice, days: 90 },
+      { id: plans.find(p => p.cycle === "SEMI_ANNUAL")?.id || "cfg-semi-annual", name: "Semi-Annual", cycle: "SEMI_ANNUAL", price: paymentConfig.semiAnnualPrice, days: 180 },
+      { id: plans.find(p => p.cycle === "YEARLY")?.id || "cfg-yearly", name: "Annual", cycle: "YEARLY", price: paymentConfig.yearlyPrice, days: 365 },
+    ];
+
+    const enrichedPlans = configPlans.map((p) => {
+      const months = p.days / 30;
       return {
         id: p.id,
         name: p.name,
         cycle: p.cycle,
         price: p.price,
-        days,
+        days: p.days,
         months,
         perMonth: months > 0 ? Math.round((p.price / months) * 100) / 100 : p.price,
-        subscribers: p._count.subscriptions,
+        subscribers: planSubscriberCounts[p.cycle] || 0,
       };
     });
 
