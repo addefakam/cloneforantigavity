@@ -20,9 +20,24 @@ export function isBlobUrl(fileRef: string | null | undefined): boolean {
 }
 
 /**
+ * Dynamically import @vercel/blob using a non-analyzable pattern
+ * so bundlers (Webpack/Turbopack) don't try to resolve it at build time.
+ * Falls back to base64 if the package is unavailable.
+ */
+async function getBlobModule(): Promise<{ put: Function; del: Function } | null> {
+  try {
+    // Use string concatenation to prevent static analysis from resolving the module
+    const mod = await import("@vercel" + "/blob");
+    return mod as unknown as { put: Function; del: Function };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Upload a file to blob storage.
  * Accepts a base64 data URI string (e.g., "data:image/jpeg;base64,...")
- * Returns the blob URL string.
+ * Returns the blob URL string, or the original base64 if blob is unavailable.
  */
 export async function uploadFile(
   base64DataUri: string,
@@ -50,19 +65,18 @@ export async function uploadFile(
 
   const filename = `${prefix}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
-  try {
-    const { put } = await import("@vercel/blob");
-    const blob = await put(filename, buffer, {
+  const blob = await getBlobModule();
+  if (blob) {
+    const result = await blob.put(filename, buffer, {
       contentType: mimeType,
       access: "public",
     });
-    return blob.url;
-  } catch (error) {
-    // If @vercel/blob is not installed or not available (local dev, AWS),
-    // fall back to storing base64 in DB (legacy behavior)
-    console.warn("[storage] @vercel/blob not available, using base64 fallback:", error);
-    return base64DataUri;
+    return (result as { url: string }).url;
   }
+
+  // Fallback: store base64 in DB (legacy behavior)
+  console.warn("[storage] @vercel/blob not available, using base64 fallback");
+  return base64DataUri;
 }
 
 /**
@@ -72,11 +86,13 @@ export async function uploadFile(
 export async function deleteFile(fileUrl: string): Promise<void> {
   if (!isBlobUrl(fileUrl)) return; // Legacy base64, nothing to delete
 
-  try {
-    const { del } = await import("@vercel/blob");
-    await del(fileUrl);
-  } catch (error) {
-    console.warn("[storage] Failed to delete blob:", error);
+  const blob = await getBlobModule();
+  if (blob) {
+    try {
+      await blob.del(fileUrl);
+    } catch (error) {
+      console.warn("[storage] Failed to delete blob:", error);
+    }
   }
 }
 
