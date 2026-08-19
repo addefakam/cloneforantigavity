@@ -591,8 +591,10 @@ export default function SubscriptionsPage() {
               <p className="py-8 text-center text-sm text-slate-400">No payments recorded.</p>
             ) : (
               <div className="space-y-2">
-                {payments.map((p: any) => (
-                  <div key={p.id} className="rounded-lg border p-3">
+                {payments.map((p: any) => {
+                  const isPending = p.notes && p.notes.includes("[PROVIDER SUBMITTED]");
+                  return (
+                  <div key={p.id} className={`rounded-lg border p-3 ${isPending ? 'border-amber-200 bg-amber-50/50' : ''}`}>
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-semibold text-slate-900">
@@ -605,8 +607,15 @@ export default function SubscriptionsPage() {
                         </p>
                       </div>
                       <div className="text-right">
-                        <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">
-                          Paid
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] ${
+                            isPending
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          }`}
+                        >
+                          {isPending ? "Pending Verification" : "Paid"}
                         </Badge>
                         <p className="mt-1 text-[10px] text-slate-400">
                           {new Date(p.createdAt).toLocaleString()}
@@ -617,7 +626,8 @@ export default function SubscriptionsPage() {
                       <p className="mt-1.5 text-xs text-slate-500 italic">{p.notes}</p>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

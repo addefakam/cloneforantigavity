@@ -87,6 +87,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { page: "group-bookings", label: "Group Bookings", icon: Users },
   { page: "guest-communication", label: "Messages", icon: MessageSquare },
   { page: "staff-logs", label: "Staff Activity", icon: ScrollText },
+  { page: "my-subscription", label: "Subscription", icon: CreditCard },
   { page: "settings", label: "Settings", icon: Settings },
 ];
 

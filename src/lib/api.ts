@@ -339,6 +339,9 @@ export const apiGetSubscriptionPayments = (subscriptionId: string) =>
 
 // Subscription status (provider side)
 export const apiSubscriptionStatus = () => req("/api/subscription/status");
+export const apiMySubscription = () => req("/api/my-subscription");
+export const apiSubmitPayment = (data: Record<string, unknown>) =>
+  req("/api/my-subscription", { method: "POST", body: JSON.stringify(data) });
 
 // Subscription Plans (SUPERUSER)
 export const apiGetPlans = () => req("/api/subscription-plans");
