@@ -675,34 +675,75 @@ async function execViaPg(sql: string, params?: unknown[]): Promise<void> {
 /** Execute DDL via Prisma $executeRawUnsafe — splits multi-statement SQL
  *  because Prisma's driver does NOT support multiple statements per call. */
 async function execViaPrisma(sql: string): Promise<void> {
-  // Split on `DO $$` blocks and standalone statements
-  // Each `DO $$ ... END $$;` is one executable unit
-  const statements = sql
-    .split(/(?=DO \$\$)/)
-    .map(s => s.trim())
-    .filter(s => s.length > 0);
-
-  // If no DO blocks found, split by semicolons (for CREATE INDEX etc.)
-  const parts = statements.length > 1
-    ? statements
-    : sql.split(';').map(s => s.trim()).filter(s => s.length > 0);
-
-  const prisma = new PrismaClient({
-    log: ["warn", "error"],
-  });
+  const prisma = new PrismaClient({ log: ["warn", "error"] });
   try {
-    for (const part of parts) {
-      const stmt = part.endsWith(';') ? part : part + ';';
+    // Extract individual executable statements.
+    // Prisma $executeRawUnsafe cannot run DO $$ ... END $$ blocks,
+    // so we unwrap them and run the inner SQL, catching duplicate errors in JS.
+    const stmts = extractStatements(sql);
+
+    for (const stmt of stmts) {
+      const s = stmt.endsWith(';') ? stmt : stmt + ';';
       try {
-        await prisma.$executeRawUnsafe(stmt);
+        await prisma.$executeRawUnsafe(s);
       } catch (err) {
-        // Individual statement might fail (e.g. duplicate_object) — log but continue
-        console.error("[execViaPrisma] Statement failed (continuing):", stmt.slice(0, 80), err instanceof Error ? err.message : String(err));
+        // Ignore duplicate column / duplicate object / relation already exists errors
+        const msg = err instanceof Error ? err.message : String(err);
+        const ignorable =
+          /duplicate_column/i.test(msg) ||
+          /duplicate_object/i.test(msg) ||
+          /already exists/i.test(msg) ||
+          /relation .* already exists/i.test(msg);
+        if (!ignorable) {
+          console.error("[execViaPrisma] Statement failed (continuing):", s.slice(0, 100), msg);
+        }
       }
     }
   } finally {
     await prisma.$disconnect().catch(() => {});
   }
+}
+
+/**
+ * Parse a SQL blob into individual executable statements.
+ * Handles:
+ *  - DO $$ BEGIN <stmt> EXCEPTION WHEN ... THEN null; END $$;  →  <stmt>
+ *  - Plain statements separated by ;
+ */
+function extractStatements(sql: string): string[] {
+  const results: string[] = [];
+
+  // 1. Extract inner statements from DO $$ blocks
+  //    Pattern: DO $$ BEGIN ... EXCEPTION WHEN <type> THEN null; END $$;
+  const doBlockRe = /DO\s+\$\$\s*BEGIN\s*([\s\S]*?)\s*EXCEPTION\s+WHEN\s+\w+\s+THEN\s+null;\s*END\s+\$\$/gi;
+  let remaining = sql;
+  let match: RegExpExecArray | null;
+
+  while ((match = doBlockRe.exec(remaining)) !== null) {
+    const inner = match[1].trim();
+    if (inner) {
+      // Inner content may have multiple statements separated by ;
+      const innerStmts = inner
+        .split(';')
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+      results.push(...innerStmts);
+    }
+  }
+
+  // 2. Remove DO blocks from remaining SQL
+  remaining = remaining.replace(doBlockRe, '');
+
+  // 3. Extract remaining plain statements (CREATE INDEX, CREATE TABLE, INSERT, etc.)
+  if (remaining.trim()) {
+    const plain = remaining
+      .split(';')
+      .map(s => s.trim())
+      .filter(s => s.length > 0 && !s.startsWith('--'));
+    results.push(...plain);
+  }
+
+  return results;
 }
 
 /**
