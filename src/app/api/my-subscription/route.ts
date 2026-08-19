@@ -49,10 +49,8 @@ export async function GET(req: NextRequest) {
     currencySymbol: "Br",
     paymentMethod: "manual",
     paymentInstructions: "",
-    monthlyPrice: 500,
-    quarterlyPrice: 1400,
-    semiAnnualPrice: 2600,
-    yearlyPrice: 4800,
+    pricePerBedPerDay: 15,
+    pricingEnabled: true,
   };
     if (sysSettings?.configJson && typeof sysSettings.configJson === "object") {
       const config = sysSettings.configJson as Record<string, unknown>;
@@ -66,13 +64,18 @@ export async function GET(req: NextRequest) {
           currencySymbol: (p.currencySymbol as string) ?? "Br",
           paymentMethod: (p.paymentMethod as string) ?? "manual",
           paymentInstructions: (p.paymentInstructions as string) ?? "",
-          monthlyPrice: (p.monthlyPrice as number) ?? 500,
-          quarterlyPrice: (p.quarterlyPrice as number) ?? 1400,
-          semiAnnualPrice: (p.semiAnnualPrice as number) ?? 2600,
-          yearlyPrice: (p.yearlyPrice as number) ?? 4800,
+          pricePerBedPerDay: (p.pricePerBedPerDay as number) ?? 15,
+          pricingEnabled: (p.pricingEnabled as boolean) ?? true,
         };
       }
     }
+
+    // Get operator's total bed count (sum of all room capacities)
+    const rooms = await db.room.findMany({
+      where: { providerId: auth.providerId },
+      select: { capacity: true },
+    });
+    const totalBeds = rooms.reduce((sum, r) => sum + (r.capacity || 0), 0);
 
     // Auto-create trial if needed
     let finalSub = subscription;
@@ -104,19 +107,29 @@ export async function GET(req: NextRequest) {
       graceDays: paymentConfig.graceDays,
     });
 
-    // Build plans: use system config pricing as source of truth.
-    // If DB plans exist, merge their subscriber counts.
+    // Build plans: calculate from per-bed-per-day rate x total beds x cycle days
     const planSubscriberCounts: Record<string, number> = {};
     for (const p of plans) {
       planSubscriberCounts[p.cycle] = (planSubscriberCounts[p.cycle] || 0) + p._count.subscriptions;
     }
 
-    const configPlans = [
-      { id: plans.find(p => p.cycle === "MONTHLY")?.id || "cfg-monthly", name: "Monthly", cycle: "MONTHLY", price: paymentConfig.monthlyPrice, days: 30 },
-      { id: plans.find(p => p.cycle === "QUARTERLY")?.id || "cfg-quarterly", name: "Quarterly", cycle: "QUARTERLY", price: paymentConfig.quarterlyPrice, days: 90 },
-      { id: plans.find(p => p.cycle === "SEMI_ANNUAL")?.id || "cfg-semi-annual", name: "Semi-Annual", cycle: "SEMI_ANNUAL", price: paymentConfig.semiAnnualPrice, days: 180 },
-      { id: plans.find(p => p.cycle === "YEARLY")?.id || "cfg-yearly", name: "Annual", cycle: "YEARLY", price: paymentConfig.yearlyPrice, days: 365 },
+    const CYCLE_DEFINITIONS = [
+      { name: "Monthly", cycle: "MONTHLY", days: 30 },
+      { name: "Quarterly", cycle: "QUARTERLY", days: 90 },
+      { name: "Semi-Annual", cycle: "SEMI_ANNUAL", days: 180 },
+      { name: "Annual", cycle: "YEARLY", days: 365 },
     ];
+
+    const configPlans = CYCLE_DEFINITIONS.map((def) => {
+      const price = paymentConfig.pricePerBedPerDay * totalBeds * def.days;
+      return {
+        id: plans.find((p) => p.cycle === def.cycle)?.id || `cfg-${def.cycle}`,
+        name: def.name,
+        cycle: def.cycle,
+        price,
+        days: def.days,
+      };
+    });
 
     const enrichedPlans = configPlans.map((p) => {
       const months = p.days / 30;
@@ -155,6 +168,7 @@ export async function GET(req: NextRequest) {
         createdAt: p.createdAt.toISOString(),
       })),
       config: paymentConfig,
+      totalBeds,
     });
   } catch (error: unknown) {
     if (error instanceof AuthError) {

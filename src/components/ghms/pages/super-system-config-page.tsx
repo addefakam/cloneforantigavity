@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   Loader2,
   CreditCard,
+  CheckCircle2,
 } from "lucide-react";
 
 // ── Types ──
@@ -70,11 +71,9 @@ interface PaymentSettings {
   currency: string;
   currencySymbol: string;
   paymentInstructions: string;
-  // Subscription pricing per cycle (set by superuser)
-  monthlyPrice: number;
-  quarterlyPrice: number;
-  semiAnnualPrice: number;
-  yearlyPrice: number;
+  // Per-bed-per-day pricing model
+  pricePerBedPerDay: number;
+  pricingEnabled: boolean;
 }
 
 interface SystemConfig {
@@ -135,10 +134,8 @@ const DEFAULT_PAYMENT: PaymentSettings = {
   currency: "ETB",
   currencySymbol: "Br",
   paymentInstructions: "Contact your administrator to arrange payment. Payments can be made via bank transfer or mobile money.",
-  monthlyPrice: 500,
-  quarterlyPrice: 1400,
-  semiAnnualPrice: 2600,
-  yearlyPrice: 4800,
+  pricePerBedPerDay: 15,
+  pricingEnabled: true,
 };
 
 const FULL_DEFAULTS: SystemConfig = {
@@ -288,6 +285,7 @@ function NumberInput({
   step = 1,
   suffix,
   prefix,
+  disabled = false,
 }: {
   id: string;
   value: number;
@@ -297,6 +295,7 @@ function NumberInput({
   step?: number;
   suffix?: string;
   prefix?: string;
+  disabled?: boolean;
 }) {
   return (
     <div className="relative">
@@ -312,6 +311,7 @@ function NumberInput({
         min={min}
         max={max}
         step={step}
+        disabled={disabled}
         onChange={(e) => onChange(Number(e.target.value))}
         className={inputClass + (suffix ? " pr-10" : "") + (prefix ? " pl-8" : "")}
       />
@@ -873,127 +873,75 @@ function PaymentTab({
       {/* Subscription Pricing */}
       <SectionCard
         title="Subscription Pricing"
-        description="Set the subscription fee for each billing cycle. Operators see these as available plans."
+        description="Set the daily rate per bed. Operator cost is auto-calculated based on their total beds."
         icon={CreditCard}
       >
         <SettingRow
-          label="Monthly Price"
-          description="Price for 1-month subscription"
+          label="Price Adjustment"
+          description="Enable or disable pricing changes. When disabled, operators see locked current rates."
+        >
+          <div className="flex items-center gap-3">
+            <ToggleSwitch
+              id="pricingEnabled"
+              checked={settings.pricingEnabled}
+              onChange={(v) => onChange({ pricingEnabled: v })}
+            />
+            {settings.pricingEnabled ? (
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                <CheckCircle2 className="w-3 h-3" />
+                Editable
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
+                <Lock className="w-3 h-3" />
+                Locked
+              </span>
+            )}
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          label="Price per Bed per Day"
+          description="Daily subscription rate multiplied by the operator's total number of beds"
         >
           <NumberInput
-            id="monthlyPrice"
-            value={settings.monthlyPrice}
-            onChange={(v) => onChange({ monthlyPrice: v })}
-            min={0}
-            step={50}
+            id="pricePerBedPerDay"
+            value={settings.pricePerBedPerDay}
+            onChange={(v) => onChange({ pricePerBedPerDay: v })}
+            min={1}
+            step={1}
             prefix={settings.currencySymbol}
+            disabled={!settings.pricingEnabled}
           />
         </SettingRow>
 
-        <SettingRow
-          label="Quarterly Price"
-          description="Price for 3-month subscription"
-        >
-          <div className="flex items-center gap-2">
-            <NumberInput
-              id="quarterlyPrice"
-              value={settings.quarterlyPrice}
-              onChange={(v) => onChange({ quarterlyPrice: v })}
-              min={0}
-              step={100}
-              prefix={settings.currencySymbol}
-            />
-            {settings.monthlyPrice > 0 && settings.quarterlyPrice > 0 && (
-              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-                settings.quarterlyPrice < settings.monthlyPrice * 3
-                  ? "text-emerald-700 bg-emerald-50"
-                  : "text-slate-500 bg-slate-50"
-              }`}>
-                {settings.quarterlyPrice < settings.monthlyPrice * 3 ? "Save " : ""}
-                {Math.round(((settings.monthlyPrice * 3 - settings.quarterlyPrice) / (settings.monthlyPrice * 3)) * 100)}%
-              </span>
-            )}
-          </div>
-        </SettingRow>
-
-        <SettingRow
-          label="Semi-Annual Price"
-          description="Price for 6-month subscription"
-        >
-          <div className="flex items-center gap-2">
-            <NumberInput
-              id="semiAnnualPrice"
-              value={settings.semiAnnualPrice}
-              onChange={(v) => onChange({ semiAnnualPrice: v })}
-              min={0}
-              step={200}
-              prefix={settings.currencySymbol}
-            />
-            {settings.monthlyPrice > 0 && settings.semiAnnualPrice > 0 && (
-              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-                settings.semiAnnualPrice < settings.monthlyPrice * 6
-                  ? "text-emerald-700 bg-emerald-50"
-                  : "text-slate-500 bg-slate-50"
-              }`}>
-                {settings.semiAnnualPrice < settings.monthlyPrice * 6 ? "Save " : ""}
-                {Math.round(((settings.monthlyPrice * 6 - settings.semiAnnualPrice) / (settings.monthlyPrice * 6)) * 100)}%
-              </span>
-            )}
-          </div>
-        </SettingRow>
-
-        <SettingRow
-          label="Yearly Price"
-          description="Price for 12-month subscription"
-        >
-          <div className="flex items-center gap-2">
-            <NumberInput
-              id="yearlyPrice"
-              value={settings.yearlyPrice}
-              onChange={(v) => onChange({ yearlyPrice: v })}
-              min={0}
-              step={500}
-              prefix={settings.currencySymbol}
-            />
-            {settings.monthlyPrice > 0 && settings.yearlyPrice > 0 && (
-              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-                settings.yearlyPrice < settings.monthlyPrice * 12
-                  ? "text-emerald-700 bg-emerald-50"
-                  : "text-slate-500 bg-slate-50"
-              }`}>
-                {settings.yearlyPrice < settings.monthlyPrice * 12 ? "Save " : ""}
-                {Math.round(((settings.monthlyPrice * 12 - settings.yearlyPrice) / (settings.monthlyPrice * 12)) * 100)}%
-              </span>
-            )}
-          </div>
-        </SettingRow>
-
-        {/* Per-month comparison table */}
+        {/* Per-cycle preview table based on per-bed-per-day */}
         <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-2">Per-Month Comparison</p>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-1">
+            Cycle Price Preview (per bed)
+          </p>
+          <p className="text-[10px] text-muted-foreground mb-2">
+            Total = {settings.currencySymbol}{settings.pricePerBedPerDay} x [beds] x [days in cycle]
+          </p>
           <div className="grid grid-cols-4 gap-2 text-center">
             {[
-              { label: "Monthly", price: settings.monthlyPrice, months: 1 },
-              { label: "Quarterly", price: settings.quarterlyPrice, months: 3 },
-              { label: "Semi-Annual", price: settings.semiAnnualPrice, months: 6 },
-              { label: "Yearly", price: settings.yearlyPrice, months: 12 },
+              { label: "Monthly", days: 30 },
+              { label: "Quarterly", days: 90 },
+              { label: "Semi-Annual", days: 180 },
+              { label: "Annual", days: 365 },
             ].map((item) => {
-              const perMonth = item.months > 0 ? Math.round((item.price / item.months) * 100) / 100 : 0;
-              const isCheapest = perMonth > 0 && perMonth === Math.min(
-                ...[
-                  settings.monthlyPrice,
-                  settings.quarterlyPrice / 3,
-                  settings.semiAnnualPrice / 6,
-                  settings.yearlyPrice / 12,
-                ].filter((p) => p > 0)
-              );
+              const total = settings.pricePerBedPerDay * item.days;
+              const perMonth = item.days > 0 ? Math.round((total / (item.days / 30)) * 100) / 100 : 0;
               return (
-                <div key={item.label} className={`p-2 rounded-lg ${isCheapest ? "bg-emerald-50 border border-emerald-200" : ""}`}> 
+                <div key={item.label} className="p-2 rounded-lg bg-white border border-slate-200">
                   <p className="text-[10px] text-muted-foreground">{item.label}</p>
-                  <p className={`text-sm font-bold ${isCheapest ? "text-emerald-700" : ""}`}>
-                    {perMonth > 0 ? perMonth.toLocaleString() : "—"}
+                  <p className="text-sm font-bold text-slate-800">
+                    {settings.pricePerBedPerDay} x {item.days}
                   </p>
-                  <p className="text-[9px] text-muted-foreground">{settings.currencySymbol}/mo</p>
+                  <p className="text-xs font-semibold text-primary">
+                    {total.toLocaleString()} {settings.currencySymbol}
+                  </p>
+                  <p className="text-[9px] text-muted-foreground">per bed/cycle</p>
                 </div>
               );
             })}

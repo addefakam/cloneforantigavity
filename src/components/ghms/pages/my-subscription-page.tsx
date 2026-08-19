@@ -53,6 +53,7 @@ import {
   Landmark,
   Receipt,
   Sparkles,
+  Lock,
 } from "lucide-react";
 
 // ── Types ──
@@ -91,7 +92,10 @@ interface SubData {
     currencySymbol: string;
     paymentMethod: string;
     paymentInstructions: string;
+    pricePerBedPerDay: number;
+    pricingEnabled: boolean;
   };
+  totalBeds: number;
 }
 
 const PAYMENT_METHODS = [
@@ -192,6 +196,9 @@ export default function MySubscriptionPage() {
 
   const sub = data?.subscription;
   const cur = data?.config.currencySymbol || "Br";
+  const totalBeds = data?.totalBeds || 0;
+  const pricePerBed = data?.config.pricePerBedPerDay || 0;
+  const pricingLocked = data?.config.pricingEnabled === false;
 
   if (loading) return <LoadingSkeleton />;
   if (!data || !sub) {
@@ -226,6 +233,29 @@ export default function MySubscriptionPage() {
           <RefreshCw className="mr-1 h-3 w-3" />
           Refresh
         </Button>
+      </div>
+
+      {/* Pricing Info Banner */}
+      <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
+        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-100 shrink-0">
+          <Building2 className="w-4 h-4 text-blue-600" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium text-slate-700">
+            {cur}{pricePerBed} per bed/day x <span className="font-bold text-slate-900">{totalBeds} bed{totalBeds !== 1 ? "s" : ""}</span> = <span className="font-bold text-primary">{cur}{(pricePerBed * totalBeds).toLocaleString()}/day</span>
+          </p>
+          <p className="text-[10px] text-muted-foreground">
+            {totalBeds === 0
+              ? "No rooms configured yet. Add rooms to see your subscription pricing."
+              : `Your subscription is calculated based on ${totalBeds} total bed${totalBeds !== 1 ? "s" : ""} across all your rooms.`}
+          </p>
+        </div>
+        {pricingLocked && (
+          <Badge variant="outline" className="text-[10px] border-slate-300 text-slate-500 bg-slate-100 shrink-0">
+            <Lock className="w-3 h-3 mr-1" />
+            Rates Locked
+          </Badge>
+        )}
       </div>
 
       {/* ═══ Current Status Card ═══ */}
@@ -412,6 +442,11 @@ export default function MySubscriptionPage() {
                           {Number(plan.price).toLocaleString()}
                           <span className="text-xs font-normal text-muted-foreground ml-1">{cur}</span>
                         </p>
+                        {totalBeds > 0 && pricePerBed > 0 && (
+                          <p className="text-[10px] text-muted-foreground">
+                            {cur}{pricePerBed} x {totalBeds} beds x {plan.days} days
+                          </p>
+                        )}
                         {plan.months > 1 && (
                           <p className="text-[10px] text-muted-foreground">
                             ~{plan.perMonth.toLocaleString()} {cur}/month
