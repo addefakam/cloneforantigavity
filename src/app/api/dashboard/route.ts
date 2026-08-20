@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { sql } from "@prisma/client";
 import { getAuthContext, getProviderFilter, AuthError } from "@/lib/tenant";
 import { calcSubscriptionStatus, TRIAL_DAYS } from "@/lib/subscription";
 
@@ -18,6 +19,11 @@ export async function GET(req: NextRequest) {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
+    // Last 7 days boundary (start of day 6 days ago)
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
     // ── All queries in a single Promise.all ──
     const [
       roomStatusCounts,
@@ -26,6 +32,7 @@ export async function GET(req: NextRequest) {
       todayCheckouts,
       revenueResult,
       activityLogs,
+      revenueLast7DaysRaw,
       // Subscription + provider (combined for OPERATOR/STAFF, null otherwise)
       subResult,
     ] = await Promise.all([
@@ -41,7 +48,7 @@ export async function GET(req: NextRequest) {
       // 4. Today check-outs
       db.reservation.count({ where: { ...where, status: "ACTIVE", checkOut: today } }),
 
-      // 5. Revenue aggregate
+      // 5. Revenue aggregate (monthly)
       db.reservation.aggregate({
         _sum: { paidAmount: true },
         where: { ...where, status: "COMPLETED", actualCheckOut: { gte: monthStart, lte: monthEnd } },
@@ -54,8 +61,26 @@ export async function GET(req: NextRequest) {
         take: 15,
       }),
 
-      // 7+8. Subscription + Provider info (OPERATOR/STAFF only)
-      // Both fetched in parallel — no sequential .then() chains
+      // 7. Revenue last 7 days — actual payments from Payment table
+      db.$queryRaw<{ date: string; amount: number }[]>(
+        filter.isPolice
+          ? sql`
+              SELECT DATE("createdAt")::text AS date, COALESCE(SUM("amount"), 0)::float AS amount
+              FROM "Payment"
+              WHERE "createdAt" >= ${sevenDaysAgo.toISOString()}
+              GROUP BY DATE("createdAt")
+              ORDER BY date ASC
+            `
+          : sql`
+              SELECT DATE("createdAt")::text AS date, COALESCE(SUM("amount"), 0)::float AS amount
+              FROM "Payment"
+              WHERE "providerId" = ${filter.providerId} AND "createdAt" >= ${sevenDaysAgo.toISOString()}
+              GROUP BY DATE("createdAt")
+              ORDER BY date ASC
+            `
+      ),
+
+      // 8+9. Subscription + Provider info (OPERATOR/STAFF only)
       (auth.role !== "SUPERUSER" && auth.role !== "POLICE" && auth.providerId)
         ? (async () => {
             const [sub, prov] = await Promise.all([
@@ -93,6 +118,24 @@ export async function GET(req: NextRequest) {
     const occupancyRate = totalRooms > 0
       ? Math.round((roomsByStatus.OCCUPIED / totalRooms) * 100) : 0;
 
+    // Build last 7 days revenue array — fill missing days with 0
+    const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const revenueByDate: Record<string, number> = {};
+    for (const row of revenueLast7DaysRaw) {
+      revenueByDate[row.date] = row.amount;
+    }
+    const revenueLast7Days: { day: string; date: string; amount: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split("T")[0];
+      revenueLast7Days.push({
+        day: DAY_NAMES[d.getDay()],
+        date: dateStr,
+        amount: revenueByDate[dateStr] || 0,
+      });
+    }
+
     // Build subscription response
     let subscriptionData = null as Record<string, unknown> | null;
     const subscription = subResult?.subscription;
@@ -123,6 +166,7 @@ export async function GET(req: NextRequest) {
       occupancyRate,
       activity: activityLogs,
       subscription: subscriptionData,
+      revenueLast7Days,
     });
   } catch (error) {
     if (error instanceof AuthError) {

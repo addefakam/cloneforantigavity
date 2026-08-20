@@ -32,6 +32,7 @@ interface DashboardData {
   todayCheckouts: number;
   totalRevenue: number;
   occupancyRate: number;
+  revenueLast7Days?: { day: string; date: string; amount: number }[];
 }
 
 interface ActivityLog {
@@ -92,16 +93,11 @@ export default function DashboardPage() {
     fetchData();
   }, [fetchData, refreshKey]);
 
-  const revenueData = [
-    { day: "Mon", value: 2800 },
-    { day: "Tue", value: 3200 },
-    { day: "Wed", value: 1900 },
-    { day: "Thu", value: 4100 },
-    { day: "Fri", value: 3600 },
-    { day: "Sat", value: 4800 },
-    { day: "Sun", value: 2500 },
-  ];
-  const maxRevenue = Math.max(...revenueData.map((d) => d.value));
+  // Revenue last 7 days from API (real payment data)
+  const revenueData: { day: string; value: number }[] = data?.revenueLast7Days
+    ? data.revenueLast7Days.map((r) => ({ day: r.day, value: r.amount }))
+    : [];
+  const maxRevenue = revenueData.length > 0 ? Math.max(...revenueData.map((d) => d.value)) : 1;
 
   const occupancySegments = data
     ? Object.entries(data.roomsByStatus || {})
@@ -224,25 +220,31 @@ export default function DashboardPage() {
               <DollarSign className="h-4 w-4 text-amber-500" />
               Revenue (Last 7 Days)
             </CardTitle>
-            <CardDescription>Estimated daily revenue</CardDescription>
+            <CardDescription>Daily payment totals from last 7 days</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-end justify-between gap-2" style={{ height: 180 }}>
-              {revenueData.map((item) => (
-                <div key={item.day} className="flex flex-1 flex-col items-center gap-1">
-                  <span className="text-xs font-medium text-gray-500">
-                    {formatCurrency(item.value).replace("ETB", "")}
-                  </span>
-                  <div
-                    className="w-full max-w-[48px] rounded-t-md bg-gradient-to-t from-amber-500 to-amber-300 transition-all duration-500 hover:from-amber-600 hover:to-amber-400"
-                    style={{
-                      height: `${Math.max(8, (item.value / maxRevenue) * 140)}px`,
-                    }}
-                  />
-                  <span className="text-xs text-gray-500">{item.day}</span>
-                </div>
-              ))}
-            </div>
+            {revenueData.length === 0 || revenueData.every((d) => d.value === 0) ? (
+              <div className="flex items-center justify-center h-[180px] text-sm text-gray-400">
+                No payments recorded in the last 7 days
+              </div>
+            ) : (
+              <div className="flex items-end justify-between gap-2" style={{ height: 180 }}>
+                {revenueData.map((item) => (
+                  <div key={item.day} className="flex flex-1 flex-col items-center gap-1">
+                    <span className="text-xs font-medium text-gray-500">
+                      {formatCurrency(item.value).replace("ETB", "")}
+                    </span>
+                    <div
+                      className="w-full max-w-[48px] rounded-t-md bg-gradient-to-t from-amber-500 to-amber-300 transition-all duration-500 hover:from-amber-600 hover:to-amber-400"
+                      style={{
+                        height: `${Math.max(8, (item.value / maxRevenue) * 140)}px`,
+                      }}
+                    />
+                    <span className="text-xs text-gray-500">{item.day}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
