@@ -277,8 +277,8 @@ export async function POST(req: NextRequest) {
       .join(" | ");
 
     // Update subscription + create payment in transaction
-    await db.$transaction([
-      db.subscription.update({
+    await db.$transaction(async (tx) => {
+      await tx.subscription.update({
         where: { id: subscription.id },
         data: {
           startDate: periodStart,
@@ -287,8 +287,8 @@ export async function POST(req: NextRequest) {
           price: Number(amount),
           ...(resolvedPlanId ? { planId: resolvedPlanId } : {}),
         },
-      }),
-      db.subscriptionPayment.create({
+      });
+      await tx.subscriptionPayment.create({
         data: {
           subscriptionId: subscription.id,
           amount: Number(amount),
@@ -298,8 +298,8 @@ export async function POST(req: NextRequest) {
           markedBy: auth.userId,
           notes: paymentNotes,
         },
-      }),
-    ]);
+      });
+    });
 
     // Fetch provider for notification
     const provider = await db.provider.findFirst({
