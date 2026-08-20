@@ -1,0 +1,1226 @@
+   170→
+   171→const selectClass =
+   172→  "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-slate-50 appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2394a3b8%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-[length:18px] bg-[right_10px_center] bg-no-repeat pr-9";
+   173→
+   174→function FormLabel({
+   175→  htmlFor,
+   176→  children,
+   177→}: {
+   178→  htmlFor?: string;
+   179→  children: React.ReactNode;
+   180→}) {
+   181→  return (
+   182→    <label
+   183→      htmlFor={htmlFor}
+   184→      className="block text-sm font-medium text-slate-700 mb-1.5"
+   185→    >
+   186→      {children}
+   187→    </label>
+   188→  );
+   189→}
+   190→
+   191→function ToggleSwitch({
+   192→  id,
+   193→  checked,
+   194→  onChange,
+   195→  disabled = false,
+   196→}: {
+   197→  id: string;
+   198→  checked: boolean;
+   199→  onChange: (value: boolean) => void;
+   200→  disabled?: boolean;
+   201→}) {
+   202→  return (
+   203→    <button
+   204→      id={id}
+   205→      type="button"
+   206→      role="switch"
+   207→      aria-checked={checked}
+   208→      disabled={disabled}
+   209→      onClick={() => onChange(!checked)}
+   210→      className={
+   211→        `relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 ` +
+   212→        (checked
+   213→          ? "bg-primary"
+   214→          : "bg-slate-300") +
+   215→        (disabled ? " opacity-50 cursor-not-allowed" : "")
+   216→      }
+   217→    >
+   218→      <span
+   219→        className={
+   220→          `pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition-transform duration-200 ease-in-out ` +
+   221→          (checked ? "translate-x-6" : "translate-x-1")
+   222→        }
+   223→      />
+   224→    </button>
+   225→  );
+   226→}
+   227→
+   228→function SettingRow({
+   229→  label,
+   230→  description,
+   231→  children,
+   232→}: {
+   233→  label: string;
+   234→  description?: string;
+   235→  children: React.ReactNode;
+   236→}) {
+   237→  return (
+   238→    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 py-4">
+   239→      <div className="flex-1 min-w-0 sm:pr-4">
+   240→        <p className="text-sm font-medium text-slate-800">{label}</p>
+   241→        {description && (
+   242→          <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+   243→            {description}
+   244→          </p>
+   245→        )}
+   246→      </div>
+   247→      <div className="sm:w-64 shrink-0">{children}</div>
+   248→    </div>
+   249→  );
+   250→}
+   251→
+   252→function SectionCard({
+   253→  title,
+   254→  description,
+   255→  icon: Icon,
+   256→  children,
+   257→}: {
+   258→  title: string;
+   259→  description: string;
+   260→  icon: React.ElementType;
+   261→  children: React.ReactNode;
+   262→}) {
+   263→  return (
+   264→    <div className="rounded-xl border border-slate-200 bg-white p-5">
+   265→      <div className="flex items-start gap-3 mb-1">
+   266→        <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-100 shrink-0">
+   267→          <Icon className="w-4.5 h-4.5 text-slate-600" />
+   268→        </div>
+   269→        <div>
+   270→          <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
+   271→          <p className="text-xs text-slate-500 mt-0.5">{description}</p>
+   272→        </div>
+   273→      </div>
+   274→      <div className="mt-4 divide-y divide-slate-100">{children}</div>
+   275→    </div>
+   276→  );
+   277→}
+   278→
+   279→function NumberInput({
+   280→  id,
+   281→  value,
+   282→  onChange,
+   283→  min,
+   284→  max,
+   285→  step = 1,
+   286→  suffix,
+   287→  prefix,
+   288→  disabled = false,
+   289→}: {
+   290→  id: string;
+   291→  value: number;
+   292→  onChange: (v: number) => void;
+   293→  min?: number;
+   294→  max?: number;
+   295→  step?: number;
+   296→  suffix?: string;
+   297→  prefix?: string;
+   298→  disabled?: boolean;
+   299→}) {
+   300→  return (
+   301→    <div className="relative">
+   302→      {prefix && (
+   303→        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 pointer-events-none font-medium">
+   304→          {prefix}
+   305→        </span>
+   306→      )}
+   307→      <input
+   308→        id={id}
+   309→        type="number"
+   310→        value={value}
+   311→        min={min}
+   312→        max={max}
+   313→        step={step}
+   314→        disabled={disabled}
+   315→        onChange={(e) => onChange(Number(e.target.value))}
+   316→        className={inputClass + (suffix ? " pr-10" : "") + (prefix ? " pl-8" : "")}
+   317→      />
+   318→      {suffix && (
+   319→        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
+   320→          {suffix}
+   321→        </span>
+   322→      )}
+   323→    </div>
+   324→  );
+   325→}
+   326→
+   327→// ── Tab Panels ──
+   328→
+   329→function GeneralTab({
+   330→  settings,
+   331→  onChange,
+   332→}: {
+   333→  settings: GeneralSettings;
+   334→  onChange: (partial: Partial<GeneralSettings>) => void;
+   335→}) {
+   336→  return (
+   337→    <div className="space-y-5">
+   338→      {/* Basic Information */}
+   339→      <SectionCard
+   340→        title="Basic Information"
+   341→        description="Core system identity and branding settings"
+   342→        icon={Info}
+   343→      >
+   344→        <div className="py-4 space-y-4">
+   345→          <div>
+   346→            <FormLabel htmlFor="systemName">System Name</FormLabel>
+   347→            <input
+   348→              id="systemName"
+   349→              type="text"
+   350→              value={settings.systemName}
+   351→              onChange={(e) => onChange({ systemName: e.target.value })}
+   352→              className={inputClass}
+   353→              placeholder="Enter system name"
+   354→            />
+   355→          </div>
+   356→          <div>
+   357→            <FormLabel htmlFor="systemDescription">System Description</FormLabel>
+   358→            <textarea
+   359→              id="systemDescription"
+   360→              value={settings.systemDescription}
+   361→              onChange={(e) =>
+   362→                onChange({ systemDescription: e.target.value })
+   363→              }
+   364→              className={textareaClass}
+   365→              rows={3}
+   366→              placeholder="Describe the system purpose and scope"
+   367→            />
+   368→          </div>
+   369→        </div>
+   370→      </SectionCard>
+   371→
+   372→      {/* Locale & Regional */}
+   373→      <SectionCard
+   374→        title="Locale & Regional"
+   375→        description="Language, currency, and timezone preferences"
+   376→        icon={Globe}
+   377→      >
+   378→        <SettingRow
+   379→          label="Default Language"
+   380→          description="Primary language for the system interface"
+   381→        >
+   382→          <select
+   383→            id="defaultLanguage"
+   384→            value={settings.defaultLanguage}
+   385→            onChange={(e) =>
+   386→              onChange({ defaultLanguage: e.target.value })
+   387→            }
+   388→            className={selectClass}
+   389→          >
+   390→            <option value="en">English</option>
+   391→            <option value="am">Amharic</option>
+   392→          </select>
+   393→        </SettingRow>
+   394→
+   395→        <SettingRow
+   396→          label="Default Currency"
+   397→          description="Default currency for financial transactions"
+   398→        >
+   399→          <select
+   400→            id="defaultCurrency"
+   401→            value={settings.defaultCurrency}
+   402→            onChange={(e) =>
+   403→              onChange({ defaultCurrency: e.target.value })
+   404→            }
+   405→            className={selectClass}
+   406→          >
+   407→            <option value="ETB">ETB — Ethiopian Birr</option>
+   408→            <option value="USD">USD — US Dollar</option>
+   409→            <option value="EUR">EUR — Euro</option>
+   410→          </select>
+   411→        </SettingRow>
+   412→
+   413→        <SettingRow
+   414→          label="Timezone"
+   415→          description="System-wide timezone for scheduling and reports"
+   416→        >
+   417→          <select
+   418→            id="timezone"
+   419→            value={settings.timezone}
+   420→            onChange={(e) => onChange({ timezone: e.target.value })}
+   421→            className={selectClass}
+   422→          >
+   423→            <option value="Africa/Addis_Ababa">Africa/Addis_Ababa (EAT, UTC+3)</option>
+   424→            <option value="Africa/Nairobi">Africa/Nairobi (EAT, UTC+3)</option>
+   425→            <option value="Africa/Cairo">Africa/Cairo (EET, UTC+2)</option>
+   426→            <option value="Africa/Lagos">Africa/Lagos (WAT, UTC+1)</option>
+   427→            <option value="Africa/Johannesburg">
+   428→              Africa/Johannesburg (SAST, UTC+2)
+   429→            </option>
+   430→            <option value="UTC">UTC (Coordinated Universal Time)</option>
+   431→            <option value="Europe/London">Europe/London (GMT/BST)</option>
+   432→            <option value="America/New_York">America/New_York (EST/EDT)</option>
+   433→          </select>
+   434→        </SettingRow>
+   435→      </SectionCard>
+   436→
+   437→      {/* System Operations */}
+   438→      <SectionCard
+   439→        title="System Operations"
+   440→        description="Operational modes and system information"
+   441→        icon={Settings}
+   442→      >
+   443→        <SettingRow
+   444→          label="Maintenance Mode"
+   445→          description="When enabled, the system enters read-only mode for non-admin users"
+   446→        >
+   447→          <div className="flex items-center gap-3">
+   448→            <ToggleSwitch
+   449→              id="maintenanceMode"
+   450→              checked={settings.maintenanceMode}
+   451→              onChange={(v) => onChange({ maintenanceMode: v })}
+   452→            />
+   453→            {settings.maintenanceMode && (
+   454→              <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+   455→                <AlertTriangle className="w-3 h-3" />
+   456→                Active
+   457→              </span>
+   458→            )}
+   459→          </div>
+   460→        </SettingRow>
+   461→
+   462→        <SettingRow
+   463→          label="System Version"
+   464→          description="Currently installed version — read-only"
+   465→        >
+   466→          <input
+   467→            type="text"
+   468→            value={SYSTEM_VERSION}
+   469→            readOnly
+   470→            className={inputClass + " bg-slate-50 text-slate-500 cursor-not-allowed"}
+   471→          />
+   472→        </SettingRow>
+   473→      </SectionCard>
+   474→    </div>
+   475→  );
+   476→}
+   477→
+   478→function GuesthouseTab({
+   479→  settings,
+   480→  onChange,
+   481→}: {
+   482→  settings: GuesthouseSettings;
+   483→  onChange: (partial: Partial<GuesthouseSettings>) => void;
+   484→}) {
+   485→  return (
+   486→    <div className="space-y-5">
+   487→      {/* Check-in & Check-out */}
+   488→      <SectionCard
+   489→        title="Check-in & Check-out"
+   490→        description="Default scheduling for guest arrivals and departures"
+   491→        icon={Clock}
+   492→      >
+   493→        <SettingRow
+   494→          label="Default Check-in Time"
+   495→          description="Standard check-in time shown on all guesthouses"
+   496→        >
+   497→          <input
+   498→            id="defaultCheckInTime"
+   499→            type="time"
+   500→            value={settings.defaultCheckInTime}
+   501→            onChange={(e) =>
+   502→              onChange({ defaultCheckInTime: e.target.value })
+   503→            }
+   504→            className={inputClass}
+   505→          />
+   506→        </SettingRow>
+   507→
+   508→        <SettingRow
+   509→          label="Default Check-out Time"
+   510→          description="Standard check-out time shown on all guesthouses"
+   511→        >
+   512→          <input
+   513→            id="defaultCheckOutTime"
+   514→            type="time"
+   515→            value={settings.defaultCheckOutTime}
+   516→            onChange={(e) =>
+   517→              onChange({ defaultCheckOutTime: e.target.value })
+   518→            }
+   519→            className={inputClass}
+   520→          />
+   521→        </SettingRow>
+   522→      </SectionCard>
+   523→
+   524→      {/* Registration & Compliance */}
+   525→      <SectionCard
+   526→        title="Registration & Compliance"
+   527→        description="Policies for new guesthouse onboarding"
+   528→        icon={Building2}
+   529→      >
+   530→        <SettingRow
+   531→          label="Auto-approve Guesthouses"
+   532→          description="Automatically approve newly registered guesthouses without manual review"
+   533→        >
+   534→          <div className="flex items-center gap-3">
+   535→            <ToggleSwitch
+   536→              id="autoApproveGuesthouses"
+   537→              checked={settings.autoApproveGuesthouses}
+   538→              onChange={(v) => onChange({ autoApproveGuesthouses: v })}
+   539→            />
+   540→            {settings.autoApproveGuesthouses && (
+   541→              <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+   542→                <AlertTriangle className="w-3 h-3" />
+   543→                Bypasses review
+   544→              </span>
+   545→            )}
+   546→          </div>
+   547→        </SettingRow>
+   548→
+   549→        <SettingRow
+   550→          label="Require License Upload"
+   551→          description="Require operators to upload a valid business license during registration"
+   552→        >
+   553→          <ToggleSwitch
+   554→            id="requireLicenseUpload"
+   555→            checked={settings.requireLicenseUpload}
+   556→            onChange={(v) => onChange({ requireLicenseUpload: v })}
+   557→          />
+   558→        </SettingRow>
+   559→      </SectionCard>
+   560→    </div>
+   561→  );
+   562→}
+   563→
+   564→function SecurityTab({
+   565→  settings,
+   566→  onChange,
+   567→}: {
+   568→  settings: SecuritySettings;
+   569→  onChange: (partial: Partial<SecuritySettings>) => void;
+   570→}) {
+   571→  return (
+   572→    <div className="space-y-5">
+   573→      {/* Authentication */}
+   574→      <SectionCard
+   575→        title="Authentication"
+   576→        description="Password policies and login session management"
+   577→        icon={Lock}
+   578→      >
+   579→        <SettingRow
+   580→          label="Password Minimum Length"
+   581→          description="Minimum number of characters required for user passwords"
+   582→        >
+   583→          <NumberInput
+   584→            id="passwordMinLength"
+   585→            value={settings.passwordMinLength}
+   586→            onChange={(v) => onChange({ passwordMinLength: v })}
+   587→            min={6}
+   588→            max={128}
+   589→          />
+   590→        </SettingRow>
+   591→
+   592→        <SettingRow
+   593→          label="Max Login Attempts"
+   594→          description="Number of failed attempts before the account is temporarily locked"
+   595→        >
+   596→          <NumberInput
+   597→            id="maxLoginAttempts"
+   598→            value={settings.maxLoginAttempts}
+   599→            onChange={(v) => onChange({ maxLoginAttempts: v })}
+   600→            min={1}
+   601→            max={20}
+   602→          />
+   603→        </SettingRow>
+   604→
+   605→        <SettingRow
+   606→          label="Session Timeout"
+   607→          description="Duration in hours before an inactive session expires"
+   608→        >
+   609→          <NumberInput
+   610→            id="sessionTimeoutHours"
+   611→            value={settings.sessionTimeoutHours}
+   612→            onChange={(v) => onChange({ sessionTimeoutHours: v })}
+   613→            min={1}
+   614→            max={720}
+   615→            suffix="hrs"
+   616→          />
+   617→        </SettingRow>
+   618→      </SectionCard>
+   619→
+   620→      {/* Registration Policies */}
+   621→      <SectionCard
+   622→        title="Registration Policies"
+   623→        description="Controls for user self-registration and verification"
+   624→        icon={Shield}
+   625→      >
+   626→        <SettingRow
+   627→          label="Allow Self-Registration"
+   628→          description="Permit new users to create accounts without an admin invitation"
+   629→        >
+   630→          <ToggleSwitch
+   631→            id="allowSelfRegistration"
+   632→            checked={settings.allowSelfRegistration}
+   633→            onChange={(v) => onChange({ allowSelfRegistration: v })}
+   634→          />
+   635→        </SettingRow>
+   636→
+   637→        <SettingRow
+   638→          label="Require Email Verification"
+   639→          description="Users must verify their email address before accessing the system"
+   640→        >
+   641→          <ToggleSwitch
+   642→            id="requireEmailVerification"
+   643→            checked={settings.requireEmailVerification}
+   644→            onChange={(v) => onChange({ requireEmailVerification: v })}
+   645→          />
+   646→        </SettingRow>
+   647→      </SectionCard>
+   648→
+   649→      {/* Network Access */}
+   650→      <SectionCard
+   651→        title="Network Access"
+   652→        description="IP-based access control for the system"
+   653→        icon={Shield}
+   654→      >
+   655→        <div className="py-4 space-y-4">
+   656→          <div>
+   657→            <FormLabel htmlFor="ipWhitelist">IP Whitelist</FormLabel>
+   658→            <p className="text-xs text-slate-500 mb-2">
+   659→              Comma-separated list of allowed IP addresses or CIDR ranges.
+   660→              Leave empty to allow all IPs.
+   661→            </p>
+   662→            <textarea
+   663→              id="ipWhitelist"
+   664→              value={settings.ipWhitelist}
+   665→              onChange={(e) => onChange({ ipWhitelist: e.target.value })}
+   666→              className={textareaClass}
+   667→              rows={3}
+   668→              placeholder="e.g. 192.168.1.0/24, 10.0.0.1"
+   669→            />
+   670→          </div>
+   671→        </div>
+   672→      </SectionCard>
+   673→    </div>
+   674→  );
+   675→}
+   676→
+   677→function NotificationsTab({
+   678→  settings,
+   679→  onChange,
+   680→}: {
+   681→  settings: NotificationSettings;
+   682→  onChange: (partial: Partial<NotificationSettings>) => void;
+   683→}) {
+   684→  return (
+   685→    <div className="space-y-5">
+   686→      {/* Notification Channels */}
+   687→      <SectionCard
+   688→        title="Notification Channels"
+   689→        description="Enable or disable notification delivery methods"
+   690→        icon={MessageSquare}
+   691→      >
+   692→        <SettingRow
+   693→          label="Email Notifications"
+   694→          description="Send system alerts and updates via email"
+   695→        >
+   696→          <ToggleSwitch
+   697→            id="emailNotifications"
+   698→            checked={settings.emailNotifications}
+   699→            onChange={(v) => onChange({ emailNotifications: v })}
+   700→          />
+   701→        </SettingRow>
+   702→
+   703→        <SettingRow
+   704→          label="SMS Notifications"
+   705→          description="Send urgent alerts and verification codes via SMS"
+   706→        >
+   707→          <ToggleSwitch
+   708→            id="smsNotifications"
+   709→            checked={settings.smsNotifications}
+   710→            onChange={(v) => onChange({ smsNotifications: v })}
+   711→          />
+   712→        </SettingRow>
+   713→      </SectionCard>
+   714→
+   715→      {/* Alert Configuration */}
+   716→      <SectionCard
+   717→        title="Alert Configuration"
+   718→        description="Configure how and when alerts are escalated"
+   719→        icon={AlertTriangle}
+   720→      >
+   721→        <SettingRow
+   722→          label="Alert Escalation Delay"
+   723→          description="Minutes before an unacknowledged alert is escalated to the next level"
+   724→        >
+   725→          <NumberInput
+   726→            id="alertEscalationDelay"
+   727→            value={settings.alertEscalationDelay}
+   728→            onChange={(v) => onChange({ alertEscalationDelay: v })}
+   729→            min={1}
+   730→            max={1440}
+   731→            suffix="min"
+   732→          />
+   733→        </SettingRow>
+   734→
+   735→        <SettingRow
+   736→          label="Critical Alerts Immediate"
+   737→          description="Bypass escalation delay and immediately send critical alerts to all channels"
+   738→        >
+   739→          <ToggleSwitch
+   740→            id="criticalAlertsImmediate"
+   741→            checked={settings.criticalAlertsImmediate}
+   742→            onChange={(v) => onChange({ criticalAlertsImmediate: v })}
+   743→          />
+   744→        </SettingRow>
+   745→
+   746→        <SettingRow
+   747→          label="Anomaly Detection Enabled"
+   748→          description="Automatically detect and alert on suspicious guesthouse activity patterns"
+   749→        >
+   750→          <ToggleSwitch
+   751→            id="anomalyDetectionEnabled"
+   752→            checked={settings.anomalyDetectionEnabled}
+   753→            onChange={(v) => onChange({ anomalyDetectionEnabled: v })}
+   754→          />
+   755→        </SettingRow>
+   756→      </SectionCard>
+   757→
+   758→      {/* Recipients */}
+   759→      <SectionCard
+   760→        title="Notification Recipients"
+   761→        description="Email addresses that receive system-level notifications"
+   762→        icon={Mail}
+   763→      >
+   764→        <div className="py-4 space-y-4">
+   765→          <div>
+   766→            <FormLabel htmlFor="notificationEmailRecipients">
+   767→              Email Recipients
+   768→            </FormLabel>
+   769→            <p className="text-xs text-slate-500 mb-2">
+   770→              Comma-separated list of email addresses that receive system
+   771→              notifications and alerts.
+   772→            </p>
+   773→            <textarea
+   774→              id="notificationEmailRecipients"
+   775→              value={settings.notificationEmailRecipients}
+   776→              onChange={(e) =>
+   777→                onChange({ notificationEmailRecipients: e.target.value })
+   778→              }
+   779→              className={textareaClass}
+   780→              rows={3}
+   781→              placeholder="e.g. admin@ghms.et, ops@ghms.et, security@ghms.et"
+   782→            />
+   783→          </div>
+   784→        </div>
+   785→      </SectionCard>
+   786→    </div>
+   787→  );
+   788→}
+   789→
+   790→function PaymentTab({
+   791→  settings,
+   792→  onChange,
+   793→  onPricingSave,
+   794→}: {
+   795→  settings: PaymentSettings;
+   796→  onChange: (partial: Partial<PaymentSettings>) => void;
+   797→  onPricingSave: (partial: Partial<PaymentSettings>) => void;
+   798→}) {
+   799→  return (
+   800→    <div className="space-y-5">
+   801→      {/* Subscription Timing */}
+   802→      <SectionCard
+   803→        title="Subscription Timing"
+   804→        description="Control trial, warning, grace, and reminder periods"
+   805→        icon={Clock}
+   806→      >
+   807→        <SettingRow
+   808→          label="Trial Period"
+   809→          description="Free trial days for newly approved guesthouses"
+   810→        >
+   811→          <NumberInput
+   812→            id="trialDays"
+   813→            value={settings.trialDays}
+   814→            onChange={(v) => onChange({ trialDays: v })}
+   815→            min={0}
+   816→            max={90}
+   817→            suffix="days"
+   818→          />
+   819→        </SettingRow>
+   820→
+   821→        <SettingRow
+   822→          label="Warning Period"
+   823→          description="Days before subscription expiry to show warning banner"
+   824→        >
+   825→          <NumberInput
+   826→            id="warningDays"
+   827→            value={settings.warningDays}
+   828→            onChange={(v) => onChange({ warningDays: v })}
+   829→            min={1}
+   830→            max={30}
+   831→            suffix="days"
+   832→          />
+   833→        </SettingRow>
+   834→
+   835→        <SettingRow
+   836→          label="Grace Period"
+   837→          description="Days after expiry before service is suspended"
+   838→        >
+   839→          <NumberInput
+   840→            id="graceDays"
+   841→            value={settings.graceDays}
+   842→            onChange={(v) => onChange({ graceDays: v })}
+   843→            min={0}
+   844→            max={14}
+   845→            suffix="days"
+   846→          />
+   847→        </SettingRow>
+   848→
+   849→        <SettingRow
+   850→          label="Reminder Before Expiry"
+   851→          description="Send payment reminder this many days before expiry"
+   852→        >
+   853→          <NumberInput
+   854→            id="reminderDaysBefore"
+   855→            value={settings.reminderDaysBefore}
+   856→            onChange={(v) => onChange({ reminderDaysBefore: v })}
+   857→            min={1}
+   858→            max={30}
+   859→            suffix="days"
+   860→          />
+   861→        </SettingRow>
+   862→
+   863→        <SettingRow
+   864→          label="Enable Auto Reminder"
+   865→          description="Automatically send payment reminders to providers"
+   866→        >
+   867→          <ToggleSwitch
+   868→            id="enableAutoReminder"
+   869→            checked={settings.enableAutoReminder}
+   870→            onChange={(v) => onChange({ enableAutoReminder: v })}
+   871→          />
+   872→        </SettingRow>
+   873→      </SectionCard>
+   874→
+   875→      {/* Subscription Pricing */}
+   876→      <SectionCard
+   877→        title="Subscription Pricing"
+   878→        description="Set the daily rate per bed. Operator cost is auto-calculated based on their total beds."
+   879→        icon={CreditCard}
+   880→      >
+   881→        <SettingRow
+   882→          label="Price Adjustment"
+   883→          description="Enable or disable pricing changes. When disabled, operators see locked current rates."
+   884→        >
+   885→          <div className="flex items-center gap-3">
+   886→            <ToggleSwitch
+   887→              id="pricingEnabled"
+   888→              checked={settings.pricingEnabled}
+   889→              onChange={(v) => onPricingSave({ pricingEnabled: v })}
+   890→            />
+   891→            {settings.pricingEnabled ? (
+   892→              <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+   893→                <CheckCircle2 className="w-3 h-3" />
+   894→                Editable
+   895→              </span>
+   896→            ) : (
+   897→              <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
+   898→                <Lock className="w-3 h-3" />
+   899→                Locked
+   900→              </span>
+   901→            )}
+   902→          </div>
+   903→        </SettingRow>
+   904→
+   905→        <SettingRow
+   906→          label="Price per Bed per Day"
+   907→          description="Daily subscription rate multiplied by the operator's total number of beds"
+   908→        >
+   909→          <NumberInput
+   910→            id="pricePerBedPerDay"
+   911→            value={settings.pricePerBedPerDay}
+   912→            onChange={(v) => onPricingSave({ pricePerBedPerDay: v })}
+   913→            min={1}
+   914→            step={1}
+   915→            prefix={settings.currencySymbol}
+   916→            disabled={!settings.pricingEnabled}
+   917→          />
+   918→        </SettingRow>
+   919→
+   920→        {/* Per-cycle preview table based on per-bed-per-day */}
+   921→        <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+   922→          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-1">
+   923→            Cycle Price Preview (per bed)
+   924→          </p>
+   925→          <p className="text-[10px] text-muted-foreground mb-2">
+   926→            Total = {settings.currencySymbol}{settings.pricePerBedPerDay} x [beds] x [days in cycle]
+   927→          </p>
+   928→          <div className="grid grid-cols-4 gap-2 text-center">
+   929→            {[
+   930→              { label: "Monthly", days: 30 },
+   931→              { label: "Quarterly", days: 90 },
+   932→              { label: "Semi-Annual", days: 180 },
+   933→              { label: "Annual", days: 365 },
+   934→            ].map((item) => {
+   935→              const total = settings.pricePerBedPerDay * item.days;
+   936→              const perMonth = item.days > 0 ? Math.round((total / (item.days / 30)) * 100) / 100 : 0;
+   937→              return (
+   938→                <div key={item.label} className="p-2 rounded-lg bg-white border border-slate-200">
+   939→                  <p className="text-[10px] text-muted-foreground">{item.label}</p>
+   940→                  <p className="text-sm font-bold text-slate-800">
+   941→                    {settings.pricePerBedPerDay} x {item.days}
+   942→                  </p>
+   943→                  <p className="text-xs font-semibold text-primary">
+   944→                    {total.toLocaleString()} {settings.currencySymbol}
+   945→                  </p>
+   946→                  <p className="text-[9px] text-muted-foreground">per bed/cycle</p>
+   947→                </div>
+   948→              );
+   949→            })}
+   950→          </div>
+   951→        </div>
+   952→      </SectionCard>
+   953→
+   954→      {/* Default Subscription */}
+   955→      <SectionCard
+   956→        title="Default Subscription"
+   957→        description="Default billing cycle and payment settings for new subscriptions"
+   958→        icon={CreditCard}
+   959→      >
+   960→        <SettingRow
+   961→          label="Default Cycle"
+   962→          description="Default billing cycle when creating new subscriptions"
+   963→        >
+   964→          <select
+   965→            id="defaultCycle"
+   966→            value={settings.defaultCycle}
+   967→            onChange={(e) => onChange({ defaultCycle: e.target.value })}
+   968→            className={selectClass}
+   969→          >
+   970→            <option value="MONTHLY">Monthly</option>
+   971→            <option value="QUARTERLY">Quarterly</option>
+   972→            <option value="SEMI_ANNUAL">Semi-Annual</option>
+   973→            <option value="YEARLY">Yearly</option>
+   974→          </select>
+   975→        </SettingRow>
+   976→
+   977→        <SettingRow
+   978→          label="Payment Method"
+   979→          description="How subscription payments are collected. Chapa enables online payment (Telebirr, CBE Birr, cards)."
+   980→        >
+   981→          <select
+   982→            id="paymentMethod"
+   983→            value={settings.paymentMethod}
+   984→            onChange={(e) => onChange({ paymentMethod: e.target.value })}
+   985→            className={selectClass}
+   986→          >
+   987→            <option value="manual">Manual (Offline)</option>
+   988→            <option value="chapa">Chapa (Online - Telebirr, CBE Birr, Cards)</option>
+   989→          </select>
+   990→        </SettingRow>
+   991→
+   992→        <SettingRow
+   993→          label="Late Payment Penalty"
+   994→          description="Penalty percentage applied for late subscription renewals"
+   995→        >
+   996→          <NumberInput
+   997→            id="latePaymentPenalty"
+   998→            value={settings.latePaymentPenalty}
+   999→            onChange={(v) => onPricingSave({ latePaymentPenalty: v })}
+  1000→            min={0}
+  1001→            max={100}
+  1002→            step={0.5}
+  1003→            suffix="%"
+  1004→          />
+  1005→        </SettingRow>
+  1006→      </SectionCard>
+  1007→
+  1008→      {/* Currency & Payment Info */}
+  1009→      <SectionCard
+  1010→        title="Currency & Payment Info"
+  1011→        description="Currency display and payment instructions shown to providers"
+  1012→        icon={Globe}
+  1013→      >
+  1014→        <SettingRow
+  1015→          label="Currency"
+  1016→          description="Currency used for subscription pricing"
+  1017→        >
+  1018→          <select
+  1019→            id="currency"
+  1020→            value={settings.currency}
+  1021→            onChange={(e) => {
+  1022→              const symbolMap: Record<string, string> = {
+  1023→                ETB: "Br",
+  1024→                USD: "$",
+  1025→                EUR: "€",
+  1026→              };
+  1027→              onChange({
+  1028→                currency: e.target.value,
+  1029→                currencySymbol: symbolMap[e.target.value] || e.target.value,
+  1030→              });
+  1031→            }}
+  1032→            className={selectClass}
+  1033→          >
+  1034→            <option value="ETB">ETB — Ethiopian Birr</option>
+  1035→            <option value="USD">USD — US Dollar</option>
+  1036→            <option value="EUR">EUR — Euro</option>
+  1037→          </select>
+  1038→        </SettingRow>
+  1039→
+  1040→        <SettingRow
+  1041→          label="Currency Symbol"
+  1042→          description="Symbol displayed next to amounts"
+  1043→        >
+  1044→          <input
+  1045→            id="currencySymbol"
+  1046→            type="text"
+  1047→            value={settings.currencySymbol}
+  1048→            onChange={(e) => onChange({ currencySymbol: e.target.value })}
+  1049→            className={inputClass}
+  1050→          />
+  1051→        </SettingRow>
+  1052→
+  1053→        <div className="py-4 space-y-4">
+  1054→          <div>
+  1055→            <FormLabel htmlFor="paymentInstructions">
+  1056→              Payment Instructions
+  1057→            </FormLabel>
+  1058→            <p className="text-xs text-slate-500 mb-2">
+  1059→              Instructions shown to providers on the subscription page.
+  1060→            </p>
+  1061→            <textarea
+  1062→              id="paymentInstructions"
+  1063→              value={settings.paymentInstructions}
+  1064→              onChange={(e) =>
+  1065→                onChange({ paymentInstructions: e.target.value })
+  1066→              }
+  1067→              className={textareaClass}
+  1068→              rows={3}
+  1069→              placeholder="e.g. Contact your administrator to arrange payment."
+  1070→            />
+  1071→          </div>
+  1072→        </div>
+  1073→      </SectionCard>
+  1074→    </div>
+  1075→  );
+  1076→}
+  1077→
+  1078→// ── Main Page Component ──
+  1079→
+  1080→export default function SuperSystemConfigPage() {
+  1081→  const [activeTab, setActiveTab] = useState<TabKey>("general");
+  1082→  const [loading, setLoading] = useState(true);
+  1083→  const [saving, setSaving] = useState(false);
+  1084→  const [dirty, setDirty] = useState(false);
+  1085→
+  1086→  const [config, setConfig] = useState<SystemConfig>(FULL_DEFAULTS);
+  1087→
+  1088→  // ── Fetch settings on mount ──
+  1089→
+  1090→  const fetchSettings = useCallback(async () => {
+  1091→    setLoading(true);
+  1092→    try {
+  1093→      const token = localStorage.getItem("ghms_token");
+  1094→      const headers: HeadersInit = { "Content-Type": "application/json" };
+  1095→      if (token) {
+  1096→        headers["Authorization"] = `Bearer ${token}`;
+  1097→      }
+  1098→
+  1099→      const res = await fetch("/api/settings", { headers });
+  1100→
+  1101→      if (!res.ok) {
+  1102→        throw new Error(`Failed to fetch settings (${res.status})`);
+  1103→      }
+  1104→
+  1105→      const data = await res.json();
+  1106→
+  1107→      // Merge fetched data with defaults to ensure all keys exist
+  1108→      setConfig({
+  1109→        general: { ...DEFAULT_GENERAL, ...data.general },
+  1110→        guesthouse: { ...DEFAULT_GUESTHOUSE, ...data.guesthouse },
+  1111→        security: { ...DEFAULT_SECURITY, ...data.security },
+  1112→        notifications: { ...DEFAULT_NOTIFICATIONS, ...data.notifications },
+  1113→      payment: { ...DEFAULT_PAYMENT, ...data.payment },
+  1114→      });
+  1115→    } catch (err) {
+  1116→      // API may not support this shape yet — use defaults
+  1117→      console.warn("Could not load system config, using defaults:", err);
+  1118→      setConfig(FULL_DEFAULTS);
+  1119→    } finally {
+  1120→      setLoading(false);
+  1121→    }
+  1122→  }, []);
+  1123→
+  1124→  useEffect(() => {
+  1125→    fetchSettings();
+  1126→  }, [fetchSettings]);
+  1127→
+  1128→  // ── Save settings ──
+  1129→
+  1130→  const handleSave = async () => {
+  1131→    setSaving(true);
+  1132→    try {
+  1133→      const token = localStorage.getItem("ghms_token");
+  1134→      const headers: HeadersInit = { "Content-Type": "application/json" };
+  1135→      if (token) {
+  1136→        headers["Authorization"] = `Bearer ${token}`;
+  1137→      }
+  1138→
+  1139→      const res = await fetch("/api/settings", {
+  1140→        method: "PUT",
+  1141→        headers,
+  1142→        body: JSON.stringify(config),
+  1143→      });
+  1144→
+  1145→      if (!res.ok) {
+  1146→        // Fallback to POST if PUT not supported
+  1147→        const resPost = await fetch("/api/settings", {
+  1148→          method: "POST",
+  1149→          headers,
+  1150→          body: JSON.stringify(config),
+  1151→        });
+  1152→        if (!resPost.ok) {
+  1153→          throw new Error(`Failed to save settings (${resPost.status})`);
+  1154→        }
+  1155→      }
+  1156→
+  1157→      setDirty(false);
+  1158→      toast.success("System configuration saved successfully");
+  1159→    } catch (err) {
+  1160→      console.error("Save failed:", err);
+  1161→      toast.error("Failed to save configuration. Please try again.");
+  1162→    } finally {
+  1163→      setSaving(false);
+  1164→    }
+  1165→  };
+  1166→
+  1167→  // ── Reset to defaults ──
+  1168→
+  1169→  const handleReset = () => {
+  1170→    setConfig(FULL_DEFAULTS);
+  1171→    setDirty(true);
+  1172→    toast.info("All settings reset to defaults. Save to apply.");
+  1173→  };
+  1174→
+  1175→  // ── Updaters ──
+  1176→
+  1177→  const updateGeneral = useCallback(
+  1178→    (partial: Partial<GeneralSettings>) => {
+  1179→      setConfig((prev) => ({ ...prev, general: { ...prev.general, ...partial } }));
+  1180→      setDirty(true);
+  1181→    },
+  1182→    []
+  1183→  );
+  1184→
+  1185→  const updateGuesthouse = useCallback(
+  1186→    (partial: Partial<GuesthouseSettings>) => {
+  1187→      setConfig((prev) => ({
+  1188→        ...prev,
+  1189→        guesthouse: { ...prev.guesthouse, ...partial },
+  1190→      }));
+  1191→      setDirty(true);
+  1192→    },
+  1193→    []
+  1194→  );
+  1195→
+  1196→  const updateSecurity = useCallback(
+  1197→    (partial: Partial<SecuritySettings>) => {
+  1198→      setConfig((prev) => ({
+  1199→        ...prev,
+  1200→        security: { ...prev.security, ...partial },
+  1201→      }));
+  1202→      setDirty(true);
+  1203→    },
+  1204→    []
+  1205→  );
+  1206→
+  1207→  const updateNotifications = useCallback(
+  1208→    (partial: Partial<NotificationSettings>) => {
+  1209→      setConfig((prev) => ({
+  1210→        ...prev,
+  1211→        notifications: { ...prev.notifications, ...partial },
+  1212→      }));
+  1213→      setDirty(true);
+  1214→    },
+  1215→    []
+  1216→  );
+  1217→
+  1218→  const updatePayment = useCallback(
+  1219→    (partial: Partial<PaymentSettings>) => {
+  1220→      setConfig((prev) => ({
+  1221→        ...prev,
+  1222→        payment: { ...prev.payment, ...partial },
+  1223→      }));
+  1224→      setDirty(true);
+  1225→    },
+  1226→    []
+  1227→  );
+  1228→
+  1229→  // Auto-save pricing changes immediately (toggle + price) so they persist across reloads
+  1230→  const autoSavePricing = useCallback(
+  1231→    async (partial: Partial<PaymentSettings>) => {
+  1232→      setConfig((prev) => {
+  1233→        const updated = { ...prev, payment: { ...prev.payment, ...partial } };
+  1234→        // Fire-and-forget save in background
+  1235→        const token = localStorage.getItem("ghms_token");
+  1236→        const headers: HeadersInit = { "Content-Type": "application/json" };
+  1237→        if (token) headers["Authorization"] = `Bearer ${token}`;
+  1238→        fetch("/api/settings", {
+  1239→          method: "PUT",
+  1240→          headers,
+  1241→          body: JSON.stringify(updated),
+  1242→        }).catch(() => {});
+  1243→        return updated;
+  1244→      });
+  1245→      setDirty(false);
+  1246→      toast.success("Pricing updated and saved");
+  1247→    },
+  1248→    []
+  1249→  );
+  1250→
+  1251→  // ── Render ──
+  1252→
+  1253→  return (
+  1254→    <div className="p-6 max-w-5xl mx-auto">
+  1255→      {/* ── Header ── */}
+  1256→      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+  1257→        <div className="flex items-start gap-3">
+  1258→          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-slate-100 shrink-0">
+  1259→            <Settings className="w-5 h-5 text-slate-600" />
+  1260→          </div>
+  1261→          <div>
+  1262→            <h1 className="text-xl font-bold text-slate-900">
+  1263→              System Configuration
+  1264→            </h1>
+  1265→            <p className="text-sm text-slate-500 mt-0.5">
+  1266→              Configure Guest House Management System settings and preferences
+  1267→            </p>
+  1268→          </div>
+  1269→        </div>
+  1270→
+  1271→        <div className="flex items-center gap-2 shrink-0">
+  1272→          <button
+  1273→            type="button"
+  1274→            onClick={handleReset}
+  1275→            disabled={saving}
+  1276→            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+  1277→          >
+  1278→            <RotateCcw className="w-4 h-4" />
+  1279→            Reset Defaults
+  1280→          </button>
+  1281→          <button
+  1282→            type="button"
+  1283→            onClick={handleSave}
+  1284→            disabled={saving || !dirty}
+  1285→            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+  1286→          >
+  1287→            {saving ? (
+  1288→              <Loader2 className="w-4 h-4 animate-spin" />
+  1289→            ) : (
+  1290→              <Save className="w-4 h-4" />
+  1291→            )}
+  1292→            Save Changes
+  1293→          </button>
+  1294→        </div>
+  1295→      </div>
+  1296→
+  1297→      {/* ── Tab Bar ── */}
+  1298→      <div className="border-b border-slate-200 mb-6 overflow-x-auto scrollbar-none">
+  1299→        <nav className="flex gap-0 min-w-max" role="tablist" aria-label="Configuration sections">
+  1300→          {TABS.map((tab) => {
+  1301→            const Icon = tab.icon;
+  1302→            const isActive = activeTab === tab.key;
+  1303→            return (
+  1304→              <button
+  1305→                key={tab.key}
+  1306→                type="button"
+  1307→                role="tab"
+  1308→                aria-selected={isActive}
+  1309→                aria-controls={`panel-${tab.key}`}
+  1310→                onClick={() => setActiveTab(tab.key)}
+  1311→                className={
+  1312→                  `relative inline-flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors focus:outline-none ` +
+  1313→                  (isActive
+  1314→                    ? "text-primary border-b-2 border-primary"
+  1315→                    : "text-slate-500 hover:text-slate-700 border-b-2 border-transparent")
+  1316→                }
+  1317→              >
+  1318→                <Icon className="w-4 h-4" />
+  1319→                {tab.label}
+  1320→              </button>
+  1321→            );
+  1322→          })}
+  1323→        </nav>
+  1324→      </div>
+  1325→
+  1326→      {/* ── Tab Content ── */}
+  1327→      {loading ? (
+  1328→        <div className="space-y-5">
+  1329→          {[1, 2, 3].map((i) => (
+  1330→            <div
+  1331→              key={i}
+  1332→              className="rounded-xl border border-slate-200 bg-white p-5 animate-pulse"
+  1333→            >
+  1334→              <div className="flex items-start gap-3 mb-6">
+  1335→                <div className="w-9 h-9 rounded-lg bg-slate-100" />
+  1336→                <div className="space-y-2 flex-1">
+  1337→                  <div className="h-4 w-40 rounded bg-slate-100" />
+  1338→                  <div className="h-3 w-56 rounded bg-slate-50" />
+  1339→                </div>
+  1340→              </div>
+  1341→              <div className="space-y-4">
+  1342→                <div className="flex justify-between py-3">
+  1343→                  <div className="space-y-2 flex-1 pr-4">
+  1344→                    <div className="h-4 w-36 rounded bg-slate-100" />
+  1345→                    <div className="h-3 w-48 rounded bg-slate-50" />
+  1346→                  </div>
+  1347→                  <div className="h-9 w-56 rounded-lg bg-slate-100" />
+  1348→                </div>
+  1349→                <div className="flex justify-between py-3">
+  1350→                  <div className="space-y-2 flex-1 pr-4">
+  1351→                    <div className="h-4 w-32 rounded bg-slate-100" />
+  1352→                    <div className="h-3 w-52 rounded bg-slate-50" />
+  1353→                  </div>
+  1354→                  <div className="h-9 w-56 rounded-lg bg-slate-100" />
+  1355→                </div>
+  1356→              </div>
+  1357→            </div>
+  1358→          ))}
+  1359→        </div>
+  1360→      ) : (
+  1361→        <div role="tabpanel" id={`panel-${activeTab}`}>
+  1362→          {activeTab === "general" && (
+  1363→            <GeneralTab settings={config.general} onChange={updateGeneral} />
+  1364→          )}
+  1365→          {activeTab === "guesthouse" && (
+  1366→            <GuesthouseTab
+  1367→              settings={config.guesthouse}
+  1368→              onChange={updateGuesthouse}
+  1369→            />
+  1370→          )}
+  1371→          {activeTab === "security" && (
+  1372→            <SecurityTab
+  1373→              settings={config.security}
+  1374→              onChange={updateSecurity}
+  1375→            />
+  1376→          )}
+  1377→          {activeTab === "notifications" && (
+  1378→            <NotificationsTab
+  1379→              settings={config.notifications}
+  1380→              onChange={updateNotifications}
+  1381→            />
+  1382→          )}
+  1383→          {activeTab === "payment" && (
+  1384→            <PaymentTab
+  1385→              settings={config.payment}
+  1386→              onChange={updatePayment}
+  1387→              onPricingSave={autoSavePricing}
+  1388→            />
+  1389→          )}
+  1390→        </div>
+  1391→      )}
+  1392→    </div>
+  1393→  );
+  1394→}
+  1395→
