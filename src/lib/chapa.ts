@@ -181,7 +181,7 @@ export async function verifyPayment(
  * Build the callback/return URL for Chapa redirect after payment.
  */
 export function getReturnUrl(subscriptionId: string): string {
-  return `${getAppUrl()}/?chapa=success&sub=${subscriptionId.substring(0, 8)}`;
+  return `${getAppUrl()}/my-subscription?chapa=success&sub=${subscriptionId.substring(0, 8)}`;
 }
 
 /**
