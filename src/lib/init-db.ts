@@ -377,6 +377,21 @@ CREATE TABLE IF NOT EXISTS "PoliceAlertConfig" (
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS "NotificationBroadcast" (
+  "id"            TEXT NOT NULL PRIMARY KEY,
+  "title"         TEXT NOT NULL,
+  "message"       TEXT NOT NULL,
+  "channel"       TEXT NOT NULL DEFAULT 'IN_APP',
+  "priority"      TEXT NOT NULL DEFAULT 'NORMAL',
+  "targetType"    TEXT NOT NULL DEFAULT 'ALL_PROVIDERS',
+  "targetIds"     TEXT NOT NULL DEFAULT '[]',
+  "sentBy"        TEXT NOT NULL DEFAULT '',
+  "sentByName"    TEXT NOT NULL DEFAULT '',
+  "totalSent"     INTEGER NOT NULL DEFAULT 0,
+  "totalFailed"   INTEGER NOT NULL DEFAULT 0,
+  "status"        TEXT NOT NULL DEFAULT 'COMPLETED',
+  "createdAt"     TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 `;
 
 // ─── Foreign Keys ──────────────────────────────────────────────────────────
@@ -515,6 +530,10 @@ EXCEPTION WHEN duplicate_column THEN null;
 END $$;
 DO $$ BEGIN
   ALTER TABLE "Reservation" ADD COLUMN "exceptionReason" TEXT NOT NULL DEFAULT '';
+EXCEPTION WHEN duplicate_column THEN null;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "Provider" ADD COLUMN "telegramChatId" TEXT;
 EXCEPTION WHEN duplicate_column THEN null;
 END $$;
 CREATE TABLE IF NOT EXISTS "GroupBooking" (
@@ -680,6 +699,8 @@ CREATE INDEX IF NOT EXISTS "MessageLog_createdAt_idx" ON "MessageLog" ("createdA
 CREATE INDEX IF NOT EXISTS "Reservation_groupBookingId_idx" ON "Reservation" ("groupBookingId");
 CREATE INDEX IF NOT EXISTS "StaffLog_providerId_createdAt_idx" ON "StaffLog" ("providerId", "createdAt" DESC);
 CREATE INDEX IF NOT EXISTS "MessageLog_providerId_createdAt_idx" ON "MessageLog" ("providerId", "createdAt" DESC);
+CREATE INDEX IF NOT EXISTS "NotificationBroadcast_createdAt_idx" ON "NotificationBroadcast" ("createdAt");
+CREATE INDEX IF NOT EXISTS "NotificationBroadcast_sentBy_idx" ON "NotificationBroadcast" ("sentBy");
 `;
 
 let _initDone = false;
