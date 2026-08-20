@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  serverExternalPackages: ["@prisma/client", "bcryptjs"],
+  serverExternalPackages: ["@prisma/client", "bcryptjs", "@vercel/blob", "pg", "sharp"],
   experimental: {
     optimizePackageImports: ["lucide-react", "date-fns", "@radix-ui/react-icons"],
   },

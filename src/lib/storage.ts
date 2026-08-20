@@ -20,14 +20,14 @@ export function isBlobUrl(fileRef: string | null | undefined): boolean {
 }
 
 /**
- * Dynamically import @vercel/blob using a non-analyzable pattern
- * so bundlers (Webpack/Turbopack) don't try to resolve it at build time.
- * Falls back to base64 if the package is unavailable.
+ * Dynamically import @vercel/blob.
+ * Listed in serverExternalPackages in next.config.ts so Turbopack won't bundle it.
+ * Falls back to base64 if the package is unavailable at runtime.
  */
 async function getBlobModule(): Promise<{ put: Function; del: Function } | null> {
   try {
-    // Use string concatenation to prevent static analysis from resolving the module
-    const mod = await import("@vercel" + "/blob");
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-new-func
+    const mod = await new Function('m', 'return import(m)')('@vercel/blob');
     return mod as unknown as { put: Function; del: Function };
   } catch {
     return null;
