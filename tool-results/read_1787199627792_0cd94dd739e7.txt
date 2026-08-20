@@ -1,0 +1,671 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect, useCallback } from "react";
+     4→import {
+     5→  CreditCard,
+     6→  AlertTriangle,
+     7→  CheckCircle2,
+     8→  XCircle,
+     9→  RefreshCw,
+    10→  History,
+    11→  Loader2,
+    12→  Phone,
+    13→  CalendarDays,
+    14→  Filter,
+    15→  Tag,
+    16→  Clock,
+    17→  Eye,
+    18→} from "lucide-react";
+    19→import { toast } from "sonner";
+    20→
+    21→import {
+    22→  formatCycle,
+    23→  formatDaysRemaining,
+    24→  getStatusBadgeClasses,
+    25→  CYCLE_DAYS,
+    26→  type SubscriptionStatus,
+    27→} from "@/lib/subscription";
+    28→import {
+    29→  apiGetSubscriptions,
+    30→  apiUpdateSubscription,
+    31→  apiMarkPayment,
+    32→  apiGetSubscriptionPayments,
+    33→  apiGetPlans,
+    34→} from "@/lib/api";
+    35→
+    36→import { Button } from "@/components/ui/button";
+    37→import { Badge } from "@/components/ui/badge";
+    38→import { Input } from "@/components/ui/input";
+    39→import { Label } from "@/components/ui/label";
+    40→import { Card, CardContent } from "@/components/ui/card";
+    41→import {
+    42→  Select,
+    43→  SelectContent,
+    44→  SelectItem,
+    45→  SelectTrigger,
+    46→  SelectValue,
+    47→} from "@/components/ui/select";
+    48→import {
+    49→  Dialog,
+    50→  DialogContent,
+    51→  DialogHeader,
+    52→  DialogTitle,
+    53→  DialogDescription,
+    54→  DialogFooter,
+    55→} from "@/components/ui/dialog";
+    56→import {
+    57→  AlertDialog,
+    58→  AlertDialogContent,
+    59→  AlertDialogHeader,
+    60→  AlertDialogTitle,
+    61→  AlertDialogDescription,
+    62→  AlertDialogFooter,
+    63→  AlertDialogAction,
+    64→  AlertDialogCancel,
+    65→} from "@/components/ui/alert-dialog";
+    66→
+    67→interface SubRow {
+    68→  providerId: string;
+    69→  providerName: string;
+    70→  ownerName: string;
+    71→  phone: string;
+    72→  email: string;
+    73→  subscriptionId: string;
+    74→  cycle: string;
+    75→  price: number;
+    76→  planId: string | null;
+    77→  planName: string | null;
+    78→  status: SubscriptionStatus;
+    79→  daysRemaining: number;
+    80→  startDate: string;
+    81→  endDate: string;
+    82→  totalPayments: number;
+    83→  hasPendingVerification: boolean;
+    84→}
+    85→
+    86→interface PlanOption {
+    87→  id: string;
+    88→  name: string;
+    89→  cycle: string;
+    90→  price: number;
+    91→  isActive: boolean;
+    92→}
+    93→
+    94→export default function SubscriptionsPage() {
+    95→  const [subscriptions, setSubscriptions] = useState<SubRow[]>([]);
+    96→  const [allSubscriptions, setAllSubscriptions] = useState<SubRow[]>([]);
+    97→  const [loading, setLoading] = useState(true);
+    98→  const [statusFilter, setStatusFilter] = useState("ALL");
+    99→  const [plans, setPlans] = useState<PlanOption[]>([]);
+   100→
+   101→  // Edit dialog
+   102→  const [editOpen, setEditOpen] = useState(false);
+   103→  const [editRow, setEditRow] = useState<SubRow | null>(null);
+   104→  const [editPrice, setEditPrice] = useState("");
+   105→  const [editCycle, setEditCycle] = useState("");
+   106→  const [editSaving, setEditSaving] = useState(false);
+   107→
+   108→  // Payment dialog
+   109→  const [payOpen, setPayOpen] = useState(false);
+   110→  const [payRow, setPayRow] = useState<SubRow | null>(null);
+   111→  const [payAmount, setPayAmount] = useState("");
+   112→  const [payCycle, setPayCycle] = useState("");
+   113→  const [payNotes, setPayNotes] = useState("");
+   114→  const [payPlanId, setPayPlanId] = useState("");
+   115→  const [paySaving, setPaySaving] = useState(false);
+   116→
+   117→  // History dialog
+   118→  const [historyOpen, setHistoryOpen] = useState(false);
+   119→  const [historySubId, setHistorySubId] = useState("");
+   120→  const [historyProviderName, setHistoryProviderName] = useState("");
+   121→  const [payments, setPayments] = useState<any[]>([]);
+   122→  const [historyLoading, setHistoryLoading] = useState(false);
+   123→
+   124→  const fetchSubscriptions = useCallback(async () => {
+   125→    try {
+   126→      setLoading(true);
+   127→      const data = await apiGetSubscriptions();
+   128→      const list = Array.isArray(data) ? data : [];
+   129→      setAllSubscriptions(list);
+   130→    } catch (err: unknown) {
+   131→      const msg = err instanceof Error ? err.message : "Failed to load";
+   132→      toast.error(msg);
+   133→    } finally {
+   134→      setLoading(false);
+   135→    }
+   136→  }, []);
+   137→
+   138→  const fetchPlans = useCallback(async () => {
+   139→    try {
+   140→      const data = await apiGetPlans();
+   141→      setPlans(Array.isArray(data) ? data.filter((p: PlanOption) => p.isActive) : []);
+   142→    } catch {
+   143→      // Non-critical — plans are optional for the payment flow
+   144→    }
+   145→  }, []);
+   146→
+   147→  useEffect(() => {
+   148→    fetchSubscriptions();
+   149→    fetchPlans();
+   150→  }, [fetchSubscriptions, fetchPlans]);
+   151→
+   152→  // Summary counts (always from full list, not filtered)
+   153→  const counts = {
+   154→    active: allSubscriptions.filter((s) => s.status === "ACTIVE").length,
+   155→    warning: allSubscriptions.filter((s) => s.status === "WARNING").length,
+   156→    expired: allSubscriptions.filter((s) => s.status === "EXPIRED").length,
+   157→    suspended: allSubscriptions.filter((s) => s.status === "SUSPENDED").length,
+   158→    total: allSubscriptions.length,
+   159→  };
+   160→
+   161→  // Filter client-side so summary stays accurate
+   162→  const filtered = statusFilter === "ALL"
+   163→    ? allSubscriptions
+   164→    : allSubscriptions.filter((s) => s.status === statusFilter);
+   165→
+   166→  // ── Edit handlers ──
+   167→  function openEdit(row: SubRow) {
+   168→    setEditRow(row);
+   169→    setEditPrice(String(row.price));
+   170→    setEditCycle(row.cycle);
+   171→    setEditOpen(true);
+   172→  }
+   173→
+   174→  async function handleEditSave() {
+   175→    if (!editRow || !editPrice.trim()) return;
+   176→    setEditSaving(true);
+   177→    try {
+   178→      await apiUpdateSubscription(editRow.subscriptionId, {
+   179→        price: parseFloat(editPrice),
+   180→        cycle: editCycle,
+   181→      });
+   182→      toast.success(`Updated subscription for ${editRow.providerName}`);
+   183→      setEditOpen(false);
+   184→      fetchSubscriptions();
+   185→    } catch (err: unknown) {
+   186→      toast.error(err instanceof Error ? err.message : "Failed to update");
+   187→    } finally {
+   188→      setEditSaving(false);
+   189→    }
+   190→  }
+   191→
+   192→  // ── Payment handlers ──
+   193→  function openPay(row: SubRow) {
+   194→    setPayRow(row);
+   195→    setPayAmount(String(row.price || ""));
+   196→    setPayCycle(row.cycle);
+   197→    setPayNotes("");
+   198→    setPayPlanId("");
+   199→    setPayOpen(true);
+   200→  }
+   201→
+   202→  // When a plan is selected in the payment dialog, auto-fill amount and cycle
+   203→  function handlePayPlanChange(planId: string) {
+   204→    setPayPlanId(planId);
+   205→    if (planId) {
+   206→      const plan = plans.find((p) => p.id === planId);
+   207→      if (plan) {
+   208→        setPayAmount(String(plan.price));
+   209→        setPayCycle(plan.cycle);
+   210→      }
+   211→    }
+   212→  }
+   213→
+   214→  async function handlePaymentConfirm() {
+   215→    if (!payRow || !payAmount.trim()) return;
+   216→    setPaySaving(true);
+   217→    try {
+   218→      const payload: Record<string, unknown> = {
+   219→        amount: parseFloat(payAmount),
+   220→        cycle: payCycle,
+   221→        notes: payNotes,
+   222→      };
+   223→      if (payPlanId) {
+   224→        payload.planId = payPlanId;
+   225→      }
+   226→      await apiMarkPayment(payRow.subscriptionId, payload);
+   227→      toast.success(`Payment recorded for ${payRow.providerName}`);
+   228→      setPayOpen(false);
+   229→      fetchSubscriptions();
+   230→    } catch (err: unknown) {
+   231→      toast.error(err instanceof Error ? err.message : "Failed to record payment");
+   232→    } finally {
+   233→      setPaySaving(false);
+   234→    }
+   235→  }
+   236→
+   237→  // ── History handler ──
+   238→  async function openHistory(row: SubRow) {
+   239→    setHistorySubId(row.subscriptionId);
+   240→    setHistoryProviderName(row.providerName);
+   241→    setHistoryOpen(true);
+   242→    setHistoryLoading(true);
+   243→    try {
+   244→      const data = await apiGetSubscriptionPayments(row.subscriptionId);
+   245→      setPayments(data);
+   246→    } catch {
+   247→      toast.error("Failed to load payment history");
+   248→    } finally {
+   249→      setHistoryLoading(false);
+   250→    }
+   251→  }
+   252→
+   253→  if (loading) {
+   254→    return (
+   255→      <div className="flex h-full min-h-[60vh] items-center justify-center">
+   256→        <Loader2 className="size-8 animate-spin text-primary/60" />
+   257→      </div>
+   258→    );
+   259→  }
+   260→
+   261→  return (
+   262→    <div className="space-y-6 p-4 md:p-6">
+   263→      {/* Header */}
+   264→      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+   265→        <div>
+   266→          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+   267→            <CreditCard className="h-6 w-6 text-blue-600" />
+   268→            Subscriptions
+   269→          </h1>
+   270→          <p className="mt-1 text-sm text-slate-500">
+   271→            Manage provider subscriptions, payments, and service access.
+   272→          </p>
+   273→        </div>
+   274→        <div className="flex items-center gap-2">
+   275→          <Select value={statusFilter} onValueChange={setStatusFilter}>
+   276→            <SelectTrigger className="w-[160px]">
+   277→              <Filter className="mr-2 h-4 w-4" />
+   278→              <SelectValue />
+   279→            </SelectTrigger>
+   280→            <SelectContent>
+   281→              <SelectItem value="ALL">All Status</SelectItem>
+   282→              <SelectItem value="ACTIVE">Active</SelectItem>
+   283→              <SelectItem value="WARNING">Warning (Expiring)</SelectItem>
+   284→              <SelectItem value="EXPIRED">Expired</SelectItem>
+   285→              <SelectItem value="SUSPENDED">Suspended</SelectItem>
+   286→            </SelectContent>
+   287→          </Select>
+   288→          <Button variant="outline" size="icon" onClick={fetchSubscriptions} title="Refresh">
+   289→            <RefreshCw className="h-4 w-4" />
+   290→          </Button>
+   291→        </div>
+   292→      </div>
+   293→
+   294→      {/* Summary Cards */}
+   295→      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+   296→        <Card className={`cursor-pointer transition-shadow hover:shadow-md ${statusFilter === 'ALL' ? 'ring-2 ring-primary' : ''}`} onClick={() => setStatusFilter('ALL')}>
+   297→          <CardContent className="p-3">
+   298→            <p className="text-xs text-slate-500">Total</p>
+   299→            <p className="text-2xl font-bold text-slate-900">{counts.total}</p>
+   300→          </CardContent>
+   301→        </Card>
+   302→        <Card className={`cursor-pointer transition-shadow hover:shadow-md border-emerald-200 ${statusFilter === 'ACTIVE' ? 'ring-2 ring-emerald-500' : ''}`} onClick={() => setStatusFilter(statusFilter === 'ACTIVE' ? 'ALL' : 'ACTIVE')}>
+   303→          <CardContent className="p-3">
+   304→            <p className="text-xs text-emerald-600 flex items-center gap-1">
+   305→              <CheckCircle2 className="h-3 w-3" /> Active
+   306→            </p>
+   307→            <p className="text-2xl font-bold text-emerald-700">{counts.active}</p>
+   308→          </CardContent>
+   309→        </Card>
+   310→        <Card className={`cursor-pointer transition-shadow hover:shadow-md border-amber-200 ${statusFilter === 'WARNING' ? 'ring-2 ring-amber-500' : ''}`} onClick={() => setStatusFilter(statusFilter === 'WARNING' ? 'ALL' : 'WARNING')}>
+   311→          <CardContent className="p-3">
+   312→            <p className="text-xs text-amber-600 flex items-center gap-1">
+   313→              <AlertTriangle className="h-3 w-3" /> Warning
+   314→            </p>
+   315→            <p className="text-2xl font-bold text-amber-700">{counts.warning}</p>
+   316→          </CardContent>
+   317→        </Card>
+   318→        <Card className={`cursor-pointer transition-shadow hover:shadow-md border-rose-200 ${statusFilter === 'EXPIRED' ? 'ring-2 ring-rose-500' : ''}`} onClick={() => setStatusFilter(statusFilter === 'EXPIRED' ? 'ALL' : 'EXPIRED')}>
+   319→          <CardContent className="p-3">
+   320→            <p className="text-xs text-rose-600 flex items-center gap-1">
+   321→              <RefreshCw className="h-3 w-3" /> Grace
+   322→            </p>
+   323→            <p className="text-2xl font-bold text-rose-700">{counts.expired}</p>
+   324→          </CardContent>
+   325→        </Card>
+   326→        <Card className={`cursor-pointer transition-shadow hover:shadow-md border-slate-300 ${statusFilter === 'SUSPENDED' ? 'ring-2 ring-slate-500' : ''}`} onClick={() => setStatusFilter(statusFilter === 'SUSPENDED' ? 'ALL' : 'SUSPENDED')}>
+   327→          <CardContent className="p-3">
+   328→            <p className="text-xs text-slate-500 flex items-center gap-1">
+   329→              <XCircle className="h-3 w-3" /> Suspended
+   330→            </p>
+   331→            <p className="text-2xl font-bold text-slate-700">{counts.suspended}</p>
+   332→          </CardContent>
+   333→        </Card>
+   334→      </div>
+   335→
+   336→      {/* Subscriptions Table */}
+   337→      <Card>
+   338→        <CardContent className="p-0">
+   339→          <div className="overflow-x-auto">
+   340→            <table className="w-full text-sm">
+   341→              <thead className="bg-slate-50 border-b">
+   342→                <tr>
+   343→                  <th className="px-4 py-2.5 text-left font-medium text-slate-600">Provider</th>
+   344→                  <th className="px-4 py-2.5 text-left font-medium text-slate-600">Owner</th>
+   345→                  <th className="px-4 py-2.5 text-left font-medium text-slate-600">Phone</th>
+   346→                  <th className="px-4 py-2.5 text-left font-medium text-slate-600">Plan</th>
+   347→                  <th className="px-4 py-2.5 text-left font-medium text-slate-600">Cycle</th>
+   348→                  <th className="px-4 py-2.5 text-left font-medium text-slate-600">Price</th>
+   349→                  <th className="px-4 py-2.5 text-left font-medium text-slate-600">Status</th>
+   350→                  <th className="px-4 py-2.5 text-left font-medium text-slate-600">Ends</th>
+   351→                  <th className="px-4 py-2.5 text-left font-medium text-slate-600">Payments</th>
+   352→                  <th className="px-4 py-2.5 text-right font-medium text-slate-600">Actions</th>
+   353→                </tr>
+   354→              </thead>
+   355→              <tbody>
+   356→                {filtered.length === 0 ? (
+   357→                  <tr>
+   358→                    <td colSpan={10} className="px-4 py-8 text-center text-slate-400">
+   359→                      {allSubscriptions.length === 0
+   360→                        ? "No providers found."
+   361→                        : `No ${statusFilter === "ALL" ? "" : statusFilter + " "}subscriptions found.`}
+   362→                    </td>
+   363→                  </tr>
+   364→                ) : (
+   365→                  filtered.map((row) => (
+   366→                    <tr
+   367→                      key={row.subscriptionId}
+   368→                      className={`border-b transition-colors ${
+   369→                        row.hasPendingVerification
+   370→                          ? "bg-orange-50 hover:bg-orange-100/70 border-l-4 border-l-orange-400"
+   371→                          : row.status === "SUSPENDED"
+   372→                          ? "bg-slate-50 hover:bg-slate-100"
+   373→                          : "hover:bg-slate-50"
+   374→                      }`}
+   375→                    >
+   376→                      <td className="px-4 py-2.5">
+   377→                        <div className="flex items-center gap-2">
+   378→                          <span className="font-medium text-slate-900">{row.providerName}</span>
+   379→                          {row.hasPendingVerification && (
+   380→                            <Badge className="bg-orange-500 hover:bg-orange-600 text-white border-0 text-[10px] font-semibold gap-1 shrink-0">
+   381→                              <Eye className="w-3 h-3" />
+   382→                              Pending Approval
+   383→                            </Badge>
+   384→                          )}
+   385→                        </div>
+   386→                      </td>
+   387→                      <td className="px-4 py-2.5 text-slate-600">{row.ownerName}</td>
+   388→                      <td className="px-4 py-2.5 text-slate-500">
+   389→                        <span className="inline-flex items-center gap-1">
+   390→                          <Phone className="h-3 w-3" />
+   391→                          {row.phone}
+   392→                        </span>
+   393→                      </td>
+   394→                      <td className="px-4 py-2.5">
+   395→                        {row.planName ? (
+   396→                          <Badge
+   397→                            variant="outline"
+   398→                            className="border-emerald-200 bg-emerald-50 text-[10px] font-semibold text-emerald-700"
+   399→                          >
+   400→                            <Tag className="mr-1 size-3" />
+   401→                            {row.planName}
+   402→                          </Badge>
+   403→                        ) : (
+   404→                          <span className="text-xs text-slate-400">No plan</span>
+   405→                        )}
+   406→                      </td>
+   407→                      <td className="px-4 py-2.5 text-slate-600">
+   408→                        {formatCycle(row.cycle)}
+   409→                      </td>
+   410→                      <td className="px-4 py-2.5 font-medium text-slate-900">
+   411→                        {row.price > 0 ? `${row.price.toLocaleString()} ETB` : "Trial"}
+   412→                      </td>
+   413→                      <td className="px-4 py-2.5">
+   414→                        <Badge
+   415→                          variant="outline"
+   416→                          className={`text-[10px] font-semibold ${getStatusBadgeClasses(row.status)}`}
+   417→                        >
+   418→                          {row.status}
+   419→                        </Badge>
+   420→                        <p className="mt-0.5 text-[11px] text-slate-500">
+   421→                          {formatDaysRemaining(row.daysRemaining)}
+   422→                        </p>
+   423→                      </td>
+   424→                      <td className="px-4 py-2.5 text-slate-600">
+   425→                        <span className="inline-flex items-center gap-1 text-[12px]">
+   426→                          <CalendarDays className="h-3 w-3" />
+   427→                          {new Date(row.endDate).toLocaleDateString()}
+   428→                        </span>
+   429→                      </td>
+   430→                      <td className="px-4 py-2.5 text-slate-500">{row.totalPayments}</td>
+   431→                      <td className="px-4 py-2.5 text-right">
+   432→                        <div className="flex items-center justify-end gap-1">
+   433→                          <Button
+   434→                            variant="ghost"
+   435→                            size="sm"
+   436→                            onClick={() => openHistory(row)}
+   437→                            title="Payment history"
+   438→                          >
+   439→                            <History className="h-3.5 w-3.5" />
+   440→                          </Button>
+   441→                          <Button
+   442→                            variant="ghost"
+   443→                            size="sm"
+   444→                            onClick={() => openEdit(row)}
+   445→                            title="Edit price/cycle"
+   446→                          >
+   447→                            <CreditCard className="h-3.5 w-3.5" />
+   448→                          </Button>
+   449→                          <Button
+   450→                            variant="ghost"
+   451→                            size="sm"
+   452→                            className="text-emerald-600 hover:text-emerald-700"
+   453→                            onClick={() => openPay(row)}
+   454→                            title="Mark payment"
+   455→                          >
+   456→                            <CheckCircle2 className="h-3.5 w-3.5" />
+   457→                          </Button>
+   458→                        </div>
+   459→                      </td>
+   460→                    </tr>
+   461→                  ))
+   462→                )}
+   463→              </tbody>
+   464→            </table>
+   465→          </div>
+   466→        </CardContent>
+   467→      </Card>
+   468→
+   469→      {/* ── Edit Price/Cycle Dialog ── */}
+   470→      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+   471→        <DialogContent className="sm:max-w-md">
+   472→          <DialogHeader>
+   473→            <DialogTitle>Edit Subscription</DialogTitle>
+   474→            <DialogDescription>
+   475→              Update price and billing cycle for <strong>{editRow?.providerName}</strong>
+   476→            </DialogDescription>
+   477→          </DialogHeader>
+   478→          <div className="grid gap-4 py-2">
+   479→            <div className="grid gap-2">
+   480→              <Label>Price per Cycle (ETB)</Label>
+   481→              <Input
+   482→                type="number"
+   483→                min="0"
+   484→                step="0.01"
+   485→                value={editPrice}
+   486→                onChange={(e) => setEditPrice(e.target.value)}
+   487→                placeholder="Enter price"
+   488→              />
+   489→            </div>
+   490→            <div className="grid gap-2">
+   491→              <Label>Billing Cycle</Label>
+   492→              <Select value={editCycle} onValueChange={setEditCycle}>
+   493→                <SelectTrigger>
+   494→                  <SelectValue />
+   495→                </SelectTrigger>
+   496→                <SelectContent>
+   497→                  <SelectItem value="MONTHLY">Monthly (30 days)</SelectItem>
+   498→                  <SelectItem value="QUARTERLY">Quarterly (90 days)</SelectItem>
+   499→                  <SelectItem value="SEMI_ANNUAL">Semi-Annual (180 days)</SelectItem>
+   500→                  <SelectItem value="YEARLY">Yearly (365 days)</SelectItem>
+   501→                </SelectContent>
+   502→              </Select>
+   503→            </div>
+   504→          </div>
+   505→          <DialogFooter>
+   506→            <Button variant="outline" onClick={() => setEditOpen(false)} disabled={editSaving}>
+   507→              Cancel
+   508→            </Button>
+   509→            <Button onClick={handleEditSave} disabled={editSaving}>
+   510→              {editSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+   511→              Save Changes
+   512→            </Button>
+   513→          </DialogFooter>
+   514→        </DialogContent>
+   515→      </Dialog>
+   516→
+   517→      {/* ── Mark Payment Dialog ── */}
+   518→      <AlertDialog open={payOpen} onOpenChange={setPayOpen}>
+   519→        <AlertDialogContent>
+   520→          <AlertDialogHeader>
+   521→            <AlertDialogTitle>Record Payment</AlertDialogTitle>
+   522→            <AlertDialogDescription>
+   523→              Confirm payment for <strong>{payRow?.providerName}</strong>.
+   524→              This will extend their subscription by one{" "}
+   525→              <strong>{payRow ? formatCycle(payCycle || payRow.cycle) : ""}</strong> cycle.
+   526→            </AlertDialogDescription>
+   527→          </AlertDialogHeader>
+   528→          <div className="grid gap-4 py-2">
+   529→            {/* Plan selector */}
+   530→            {plans.length > 0 && (
+   531→              <div className="grid gap-2">
+   532→                <Label>Select Plan (optional)</Label>
+   533→                <Select value={payPlanId} onValueChange={handlePayPlanChange}>
+   534→                  <SelectTrigger>
+   535→                    <SelectValue placeholder="Choose a plan to auto-fill" />
+   536→                  </SelectTrigger>
+   537→                  <SelectContent>
+   538→                    <SelectItem value="_none">No plan (manual entry)</SelectItem>
+   539→                    {plans.map((plan) => (
+   540→                      <SelectItem key={plan.id} value={plan.id}>
+   541→                        {plan.name} — {plan.price.toLocaleString()} ETB ({formatCycle(plan.cycle)})
+   542→                      </SelectItem>
+   543→                    ))}
+   544→                  </SelectContent>
+   545→                </Select>
+   546→              </div>
+   547→            )}
+   548→            <div className="grid gap-2">
+   549→              <Label>Amount (ETB)</Label>
+   550→              <Input
+   551→                type="number"
+   552→                min="0"
+   553→                step="0.01"
+   554→                value={payAmount}
+   555→                onChange={(e) => setPayAmount(e.target.value)}
+   556→                placeholder="Payment amount"
+   557→              />
+   558→            </div>
+   559→            <div className="grid gap-2">
+   560→              <Label>Cycle</Label>
+   561→              <Select value={payCycle} onValueChange={setPayCycle}>
+   562→                <SelectTrigger>
+   563→                  <SelectValue />
+   564→                </SelectTrigger>
+   565→                <SelectContent>
+   566→                  <SelectItem value="MONTHLY">Monthly (30 days)</SelectItem>
+   567→                  <SelectItem value="QUARTERLY">Quarterly (90 days)</SelectItem>
+   568→                  <SelectItem value="SEMI_ANNUAL">Semi-Annual (180 days)</SelectItem>
+   569→                  <SelectItem value="YEARLY">Yearly (365 days)</SelectItem>
+   570→                </SelectContent>
+   571→              </Select>
+   572→            </div>
+   573→            <div className="grid gap-2">
+   574→              <Label>Notes (optional)</Label>
+   575→              <Input
+   576→                value={payNotes}
+   577→                onChange={(e) => setPayNotes(e.target.value)}
+   578→                placeholder="e.g., Cash payment received"
+   579→              />
+   580→            </div>
+   581→          </div>
+   582→          <AlertDialogFooter>
+   583→            <AlertDialogCancel disabled={paySaving}>Cancel</AlertDialogCancel>
+   584→            <AlertDialogAction
+   585→              onClick={handlePaymentConfirm}
+   586→              disabled={paySaving || !payAmount.trim()}
+   587→              className="bg-emerald-600 hover:bg-emerald-700"
+   588→            >
+   589→              {paySaving ? (
+   590→                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+   591→              ) : (
+   592→                <CheckCircle2 className="mr-2 h-4 w-4" />
+   593→              )}
+   594→              Confirm Payment
+   595→            </AlertDialogAction>
+   596→          </AlertDialogFooter>
+   597→        </AlertDialogContent>
+   598→      </AlertDialog>
+   599→
+   600→      {/* ── Payment History Dialog ── */}
+   601→      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+   602→        <DialogContent className="sm:max-w-lg">
+   603→          <DialogHeader>
+   604→            <DialogTitle>Payment History</DialogTitle>
+   605→            <DialogDescription>
+   606→              All payments for <strong>{historyProviderName}</strong>
+   607→            </DialogDescription>
+   608→          </DialogHeader>
+   609→          <div className="max-h-[400px] overflow-y-auto">
+   610→            {historyLoading ? (
+   611→              <div className="flex items-center justify-center py-8">
+   612→                <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+   613→              </div>
+   614→            ) : payments.length === 0 ? (
+   615→              <p className="py-8 text-center text-sm text-slate-400">No payments recorded.</p>
+   616→            ) : (
+   617→              <div className="space-y-2">
+   618→                {payments.map((p: any) => {
+   619→                  const isPending = p.notes && p.notes.includes("[PROVIDER SUBMITTED]");
+   620→                  const isOverdue = p.notes && p.notes.includes("[PAYMENT_OVERDUE]");
+   621→                  return (
+   622→                  <div key={p.id} className={`rounded-lg border p-3 ${isOverdue ? 'border-rose-200 bg-rose-50/50' : isPending ? 'border-amber-200 bg-amber-50/50' : ''}`}>
+   623→                    <div className="flex items-center justify-between">
+   624→                      <div>
+   625→                        <p className="text-sm font-semibold text-slate-900">
+   626→                          {p.amount.toLocaleString()} ETB
+   627→                        </p>
+   628→                        <p className="text-xs text-slate-500">
+   629→                          {formatCycle(p.cycle)} &middot;{" "}
+   630→                          {new Date(p.periodStart).toLocaleDateString()} →{" "}
+   631→                          {new Date(p.periodEnd).toLocaleDateString()}
+   632→                        </p>
+   633→                      </div>
+   634→                      <div className="text-right">
+   635→                        <Badge
+   636→                          variant="outline"
+   637→                          className={`text-[10px] ${
+   638→                            isOverdue
+   639→                              ? "bg-rose-50 text-rose-700 border-rose-200"
+   640→                              : isPending
+   641→                              ? "bg-amber-50 text-amber-700 border-amber-200"
+   642→                              : "bg-emerald-50 text-emerald-700 border-emerald-200"
+   643→                          }`}
+   644→                        >
+   645→                          {isOverdue ? "Payment Overdue" : isPending ? "Pending Verification" : "Paid"}
+   646→                        </Badge>
+   647→                        <p className="mt-1 text-[10px] text-slate-400">
+   648→                          {new Date(p.createdAt).toLocaleString()}
+   649→                        </p>
+   650→                      </div>
+   651→                    </div>
+   652→                    {p.notes && (
+   653→                      <p className="mt-1.5 text-xs text-slate-500 italic">{p.notes}</p>
+   654→                    )}
+   655→                  </div>
+   656→                  );
+   657→                })}
+   658→              </div>
+   659→            )}
+   660→          </div>
+   661→          <DialogFooter>
+   662→            <Button variant="outline" onClick={() => setHistoryOpen(false)}>
+   663→              Close
+   664→            </Button>
+   665→          </DialogFooter>
+   666→        </DialogContent>
+   667→      </Dialog>
+   668→    </div>
+   669→  );
+   670→}
+   671→
