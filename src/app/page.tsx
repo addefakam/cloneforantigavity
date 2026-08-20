@@ -20,24 +20,34 @@ export default function Home() {
   const [urgentNotifs, setUrgentNotifs] = useState<UrgentNotif[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // ── Handle Chapa payment redirect from /my-subscription?chapa=success bridge page ──
+  // ── Handle Chapa payment redirect: /?chapa=success&sub=XXX ──
+  // Chapa redirects here after payment. We detect via URL params (no useSearchParams
+  // needed — just read window.location.search directly to avoid Suspense issues).
   useEffect(() => {
-    const raw = sessionStorage.getItem("chapa_callback");
-    if (!raw) return;
-    try {
-      const data = JSON.parse(raw);
-      // Only process if less than 5 minutes old
-      if (Date.now() - (data.timestamp || 0) < 5 * 60 * 1000) {
-        // Store the params for MySubscriptionPage to pick up via sessionStorage
-        // (it already checks sessionStorage as fallback after useSearchParams)
-        sessionStorage.setItem("chapa_result", data.chapa);
-        sessionStorage.setItem("chapa_sub", data.sub || "");
-        setCurrentPage("my-subscription");
-      }
-    } catch {
-      // Invalid JSON, ignore
+    const params = new URLSearchParams(window.location.search);
+    const chapa = params.get("chapa");
+    const sub = params.get("sub");
+
+    // Also check sessionStorage (legacy bridge page approach)
+    const sessionRaw = sessionStorage.getItem("chapa_callback");
+    let sessionData: { chapa?: string; sub?: string } | null = null;
+    if (sessionRaw) {
+      try { sessionData = JSON.parse(sessionRaw); } catch { /* ignore */ }
+      sessionStorage.removeItem("chapa_callback");
     }
-    sessionStorage.removeItem("chapa_callback");
+
+    const chapaValue = chapa || sessionData?.chapa;
+    const subValue = sub || sessionData?.sub;
+
+    if (chapaValue === "success") {
+      // Store for MySubscriptionPage to pick up
+      sessionStorage.setItem("chapa_result", "success");
+      sessionStorage.setItem("chapa_sub", subValue || "");
+      sessionStorage.setItem("chapa_timestamp", String(Date.now()));
+      setCurrentPage("my-subscription");
+      // Clean the URL
+      window.history.replaceState({}, "/", "/");
+    }
   }, [setCurrentPage]);
 
   const fetchNotifData = useCallback(async () => {

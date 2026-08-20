@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
 import {
   apiMySubscription,
   apiSubmitPayment,
@@ -37,7 +36,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Suspense } from "react";
 import {
   CreditCard,
   CalendarDays,
@@ -139,7 +137,7 @@ function LoadingSkeleton() {
   );
 }
 
-function MySubscriptionPage() {
+export default function MySubscriptionPage() {
   const [data, setData] = useState<SubData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showPayDialog, setShowPayDialog] = useState(false);
@@ -153,22 +151,18 @@ function MySubscriptionPage() {
   const [chapaVerifying, setChapaVerifying] = useState(false);
   const [chapaVerifyResult, setChapaVerifyResult] = useState<string | null>(null);
 
-  const searchParams = useSearchParams();
-  const urlChapaResult = searchParams.get("chapa");
-
-  // Check sessionStorage for chapa result (set by bridge page redirect)
-  const [sessionChapaResult, setSessionChapaResult] = useState<string | null>(null);
+  // Chapa result is passed via sessionStorage by the main page.tsx
+  // (which reads URL params from Chapa redirect and stores them here)
+  const [chapaResult, setChapaResult] = useState<string | null>(null);
   useEffect(() => {
     const stored = sessionStorage.getItem("chapa_result");
     if (stored) {
-      setSessionChapaResult(stored);
+      setChapaResult(stored);
       sessionStorage.removeItem("chapa_result");
       sessionStorage.removeItem("chapa_sub");
+      sessionStorage.removeItem("chapa_timestamp");
     }
   }, []);
-
-  // Use sessionStorage result if URL params aren't present
-  const chapaResult = urlChapaResult || sessionChapaResult;
 
   const fetchData = useCallback(async () => {
     try {
@@ -190,10 +184,6 @@ function MySubscriptionPage() {
   // Handle Chapa payment callback — actively verify with Chapa API
   useEffect(() => {
     if (chapaResult === "success") {
-      // Clean up URL params if they're in the URL (direct access)
-      if (urlChapaResult) {
-        window.history.replaceState({}, "/", "/");
-      }
       toast.success("Chapa payment completed! Verifying your payment...");
       setChapaVerifying(true);
       setChapaVerifyResult(null);
@@ -222,7 +212,7 @@ function MySubscriptionPage() {
 
       return () => clearTimeout(timer);
     }
-  }, [chapaResult, fetchData, urlChapaResult]);
+  }, [chapaResult, fetchData]);
 
   const handleSelectPlan = (plan: SubData["plans"][0]) => {
     setSelectedPlan(plan);
@@ -940,18 +930,5 @@ function MySubscriptionPage() {
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-// Wrap with Suspense for useSearchParams
-function MySubscriptionPageInner() {
-  return <MySubscriptionPage />;
-}
-
-export default function MySubscriptionPageWrapper() {
-  return (
-    <Suspense fallback={<LoadingSkeleton />}>
-      <MySubscriptionPageInner />
-    </Suspense>
   );
 }
