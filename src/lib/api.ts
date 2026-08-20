@@ -336,6 +336,8 @@ export const apiMarkPayment = (id: string, data: Record<string, unknown>) =>
   req(`/api/subscriptions/${id}/pay`, { method: "POST", body: JSON.stringify(data) });
 export const apiGetSubscriptionPayments = (subscriptionId: string) =>
   req(`/api/subscriptions/payments?subscriptionId=${subscriptionId}`);
+export const apiVerifyPayment = (paymentId: string, data: { action: "approve" | "reject"; reason?: string }) =>
+  req(`/api/subscriptions/payments/${paymentId}/verify`, { method: "POST", body: JSON.stringify(data) });
 
 // Subscription status (provider side)
 export const apiSubscriptionStatus = () => req("/api/subscription/status");

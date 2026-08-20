@@ -15,6 +15,8 @@ import {
   Tag,
   Clock,
   Eye,
+  ShieldCheck,
+  Ban,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -30,6 +32,7 @@ import {
   apiUpdateSubscription,
   apiMarkPayment,
   apiGetSubscriptionPayments,
+  apiVerifyPayment,
   apiGetPlans,
 } from "@/lib/api";
 
@@ -114,6 +117,14 @@ export default function SubscriptionsPage() {
   const [payPlanId, setPayPlanId] = useState("");
   const [paySaving, setPaySaving] = useState(false);
 
+  // Pending verification dialog
+  const [verifyOpen, setVerifyOpen] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyAction, setVerifyAction] = useState<"approve" | "reject" | null>(null);
+  const [verifyReason, setVerifyReason] = useState("");
+  const [pendingPayments, setPendingPayments] = useState<any[]>([]);
+  const [pendingRow, setPendingRow] = useState<SubRow | null>(null);
+
   // History dialog
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historySubId, setHistorySubId] = useState("");
@@ -162,6 +173,47 @@ export default function SubscriptionsPage() {
   const filtered = statusFilter === "ALL"
     ? allSubscriptions
     : allSubscriptions.filter((s) => s.status === statusFilter);
+
+  // ── Pending verification handlers ──
+  async function openVerifyDialog(row: SubRow) {
+    setPendingRow(row);
+    setVerifyOpen(true);
+    setVerifyLoading(true);
+    setVerifyAction(null);
+    setVerifyReason("");
+    try {
+      const data = await apiGetSubscriptionPayments(row.subscriptionId);
+      const list = Array.isArray(data) ? data : [];
+      // Only show payments with [PROVIDER SUBMITTED] tag
+      setPendingPayments(list.filter((p: any) => p.notes && p.notes.includes("[PROVIDER SUBMITTED]")));
+    } catch {
+      toast.error("Failed to load pending payments");
+      setPendingPayments([]);
+    } finally {
+      setVerifyLoading(false);
+    }
+  }
+
+  async function handleVerifyAction(action: "approve" | "reject") {
+    if (!pendingPayments.length) return;
+    setVerifyAction(action);
+    try {
+      for (const p of pendingPayments) {
+        await apiVerifyPayment(p.id, { action, reason: verifyReason || undefined });
+      }
+      toast.success(
+        action === "approve"
+          ? `${pendingPayments.length} payment(s) verified for ${pendingRow?.providerName}`
+          : `${pendingPayments.length} payment(s) rejected for ${pendingRow?.providerName}`
+      );
+      setVerifyOpen(false);
+      fetchSubscriptions();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : `Failed to ${action} payment`);
+    } finally {
+      setVerifyAction(null);
+    }
+  }
 
   // ── Edit handlers ──
   function openEdit(row: SubRow) {
@@ -367,19 +419,23 @@ export default function SubscriptionsPage() {
                       key={row.subscriptionId}
                       className={`border-b transition-colors ${
                         row.hasPendingVerification
-                          ? "bg-orange-50 hover:bg-orange-100/70 border-l-4 border-l-orange-400"
+                          ? "bg-orange-50 hover:bg-orange-100/70 border-l-4 border-l-orange-400 cursor-pointer"
                           : row.status === "SUSPENDED"
                           ? "bg-slate-50 hover:bg-slate-100"
                           : "hover:bg-slate-50"
                       }`}
+                      onClick={row.hasPendingVerification ? () => openVerifyDialog(row) : undefined}
                     >
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-slate-900">{row.providerName}</span>
                           {row.hasPendingVerification && (
-                            <Badge className="bg-orange-500 hover:bg-orange-600 text-white border-0 text-[10px] font-semibold gap-1 shrink-0">
+                            <Badge
+                              className="bg-orange-500 hover:bg-orange-600 text-white border-0 text-[10px] font-semibold gap-1 shrink-0 cursor-pointer"
+                              onClick={(e) => { e.stopPropagation(); openVerifyDialog(row); }}
+                            >
                               <Eye className="w-3 h-3" />
-                              Pending Approval
+                              Pending Approval — Click to verify
                             </Badge>
                           )}
                         </div>
@@ -433,7 +489,7 @@ export default function SubscriptionsPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => openHistory(row)}
+                            onClick={(e) => { e.stopPropagation(); openHistory(row); }}
                             title="Payment history"
                           >
                             <History className="h-3.5 w-3.5" />
@@ -441,7 +497,7 @@ export default function SubscriptionsPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => openEdit(row)}
+                            onClick={(e) => { e.stopPropagation(); openEdit(row); }}
                             title="Edit price/cycle"
                           >
                             <CreditCard className="h-3.5 w-3.5" />
@@ -450,7 +506,7 @@ export default function SubscriptionsPage() {
                             variant="ghost"
                             size="sm"
                             className="text-emerald-600 hover:text-emerald-700"
-                            onClick={() => openPay(row)}
+                            onClick={(e) => { e.stopPropagation(); openPay(row); }}
                             title="Mark payment"
                           >
                             <CheckCircle2 className="h-3.5 w-3.5" />
@@ -596,6 +652,122 @@ export default function SubscriptionsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ── Pending Payment Verification Dialog ── */}
+      <Dialog open={verifyOpen} onOpenChange={setVerifyOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5 text-orange-500" />
+              Verify Payment — {pendingRow?.providerName}
+            </DialogTitle>
+            <DialogDescription>
+              Review the submitted payment details and approve or reject.
+            </DialogDescription>
+          </DialogHeader>
+
+          {verifyLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+            </div>
+          ) : pendingPayments.length === 0 ? (
+            <p className="py-8 text-center text-sm text-slate-400">No pending payments found.</p>
+          ) : (
+            <div className="space-y-3 max-h-[350px] overflow-y-auto">
+              {pendingPayments.map((p: any) => {
+                // Parse payment details from notes
+                const noteParts = (p.notes || "").split(" | ").filter(Boolean);
+                const methodPart = noteParts.find((n: string) => n.startsWith("Method:"));
+                const refPart = noteParts.find((n: string) => n.startsWith("Ref:"));
+                const overduePart = noteParts.find((n: string) => n.startsWith("Subscription was expired"));
+                return (
+                  <div key={p.id} className="rounded-lg border border-orange-200 bg-orange-50/50 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-lg font-bold text-slate-900">
+                        {p.amount.toLocaleString()} ETB
+                      </p>
+                      <Badge className="bg-orange-500 text-white border-0 text-[10px]">Pending</Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <p className="text-xs text-slate-500">Cycle</p>
+                        <p className="font-medium text-slate-700">{formatCycle(p.cycle)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Submitted</p>
+                        <p className="font-medium text-slate-700">{new Date(p.createdAt).toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Period Start</p>
+                        <p className="font-medium text-slate-700">{new Date(p.periodStart).toLocaleDateString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Period End</p>
+                        <p className="font-medium text-slate-700">{new Date(p.periodEnd).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                    {methodPart && (
+                      <div className="text-sm">
+                        <span className="text-slate-500">Payment Method: </span>
+                        <span className="font-medium text-slate-700">{methodPart.replace("Method: ", "")}</span>
+                      </div>
+                    )}
+                    {refPart && (
+                      <div className="text-sm">
+                        <span className="text-slate-500">Reference: </span>
+                        <span className="font-mono font-medium text-slate-900">{refPart.replace("Ref: ", "")}</span>
+                      </div>
+                    )}
+                    {overduePart && (
+                      <div className="rounded bg-amber-100 px-2 py-1 text-xs text-amber-700 font-medium">
+                        {overduePart}
+                      </div>
+                    )}
+                    {p.notes && (
+                      <p className="text-xs text-slate-500 italic leading-relaxed">{p.notes}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Reason input */}
+          {!verifyLoading && pendingPayments.length > 0 && (
+            <div className="grid gap-2">
+              <Label>Reason / Note (optional)</Label>
+              <Input
+                placeholder="e.g., Verified via bank statement"
+                value={verifyReason}
+                onChange={(e) => setVerifyReason(e.target.value)}
+              />
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setVerifyOpen(false)} disabled={!!verifyAction}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => handleVerifyAction("reject")}
+              disabled={!!verifyAction || pendingPayments.length === 0}
+              className="gap-1"
+            >
+              {verifyAction === "reject" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
+              Reject
+            </Button>
+            <Button
+              onClick={() => handleVerifyAction("approve")}
+              disabled={!!verifyAction || pendingPayments.length === 0}
+              className="gap-1 bg-emerald-600 hover:bg-emerald-700"
+            >
+              {verifyAction === "approve" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+              Approve
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Payment History Dialog ── */}
       <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
