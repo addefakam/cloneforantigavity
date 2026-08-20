@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { sql } from "@prisma/client";
 import { getAuthContext, requirePolice, AuthError } from "@/lib/tenant";
 
 export async function GET(req: NextRequest) {
@@ -9,14 +8,7 @@ export async function GET(req: NextRequest) {
     requirePolice(auth);
 
     // Single $queryRaw for all city-wide stats — 1 round-trip instead of 6
-    const stats = await db.$queryRaw<[
-      { count: bigint },
-      { count: bigint },
-      { count: bigint },
-      { count: bigint },
-      { total: number | null },
-      { total: number | null },
-    ]>(sql`
+    const stats = await db.$queryRawUnsafe<Array<{ count?: bigint; total?: number | null }>>(`
       SELECT COUNT(*)::bigint AS count FROM "Provider"
       UNION ALL
       SELECT COUNT(*)::bigint AS count FROM "Room"
@@ -39,11 +31,11 @@ export async function GET(req: NextRequest) {
     const revenue = reservationRevenue + daytimeRevenue;
 
     // Per-provider breakdown — single $queryRaw instead of 3 groupBy round-trips
-    const providerBreakdown = await db.$queryRaw<{
+    const providerBreakdown = await db.$queryRawUnsafe<{
       id: string; name: string; status: string;
       rooms: number; guests: number; totalReservations: number;
       activeReservations: number; revenue: number;
-    }[]>(sql`
+    }[]>(`
       SELECT
         p."id", p."name", p."status",
         COALESCE(r.c, 0)::int AS "rooms",

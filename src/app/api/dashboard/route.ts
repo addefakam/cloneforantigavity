@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { sql } from "@prisma/client";
 import { getAuthContext, getProviderFilter, AuthError } from "@/lib/tenant";
 import { calcSubscriptionStatus, TRIAL_DAYS } from "@/lib/subscription";
 
@@ -62,23 +61,15 @@ export async function GET(req: NextRequest) {
       }),
 
       // 7. Revenue last 7 days — actual payments from Payment table
-      db.$queryRaw<{ date: string; amount: number }[]>(
-        filter.isPolice
-          ? sql`
-              SELECT DATE("createdAt")::text AS date, COALESCE(SUM("amount"), 0)::float AS amount
-              FROM "Payment"
-              WHERE "createdAt" >= ${sevenDaysAgo.toISOString()}
-              GROUP BY DATE("createdAt")
-              ORDER BY date ASC
-            `
-          : sql`
-              SELECT DATE("createdAt")::text AS date, COALESCE(SUM("amount"), 0)::float AS amount
-              FROM "Payment"
-              WHERE "providerId" = ${filter.providerId} AND "createdAt" >= ${sevenDaysAgo.toISOString()}
-              GROUP BY DATE("createdAt")
-              ORDER BY date ASC
-            `
-      ),
+      filter.isPolice
+        ? db.$queryRawUnsafe<{ date: string; amount: number }[]>(
+            `SELECT DATE("createdAt")::text AS date, COALESCE(SUM("amount"), 0)::float AS amount FROM "Payment" WHERE "createdAt" >= $1 GROUP BY DATE("createdAt") ORDER BY date ASC`,
+            sevenDaysAgo.toISOString()
+          )
+        : db.$queryRawUnsafe<{ date: string; amount: number }[]>(
+            `SELECT DATE("createdAt")::text AS date, COALESCE(SUM("amount"), 0)::float AS amount FROM "Payment" WHERE "providerId" = $1 AND "createdAt" >= $2 GROUP BY DATE("createdAt") ORDER BY date ASC`,
+            filter.providerId, sevenDaysAgo.toISOString()
+          ),
 
       // 8+9. Subscription + Provider info (OPERATOR/STAFF only)
       (auth.role !== "SUPERUSER" && auth.role !== "POLICE" && auth.providerId)
@@ -172,9 +163,10 @@ export async function GET(req: NextRequest) {
     if (error instanceof AuthError) {
       return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }
-    console.error("Dashboard error:", error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("[dashboard] Error:", msg, error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Internal server error", debug: msg },
       { status: 500 }
     );
   }

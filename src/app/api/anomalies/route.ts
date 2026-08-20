@@ -4,7 +4,6 @@ import { getAuthContext, requirePolice, AuthError } from "@/lib/tenant";
 import { requirePoliceMinRank } from "@/lib/police-permissions";
 import { logAudit } from "@/lib/audit";
 import { runSystemWideScan, getAnomalyStats, isAnomalyDetectionEnabled, invalidateAnomalyToggleCache } from "@/lib/anomaly-engine";
-import { sql } from "@prisma/client";
 
 export async function GET(req: NextRequest) {
   try {
@@ -19,21 +18,24 @@ export async function GET(req: NextRequest) {
     const pageSize = Math.min(100, Math.max(10, parseInt(searchParams.get("pageSize") || "50", 10)));
 
     const offset = (page - 1) * pageSize;
+    const reviewedBool = reviewed === "true";
 
     const [anomalies, countResult, stats, enabled] = await Promise.all([
-      db.$queryRaw<Record<string, unknown>[]>(
-        sql`SELECT * FROM "AnomalyRecord"
-          WHERE (${type} = '' OR "type" = ${type})
-            AND (${severity} = '' OR "severity" = ${severity})
-            AND (${reviewed === null}::boolean OR "isReviewed" = ${reviewed === "true"}::boolean)
+      db.$queryRawUnsafe<Record<string, unknown>[]>(
+        `SELECT * FROM "AnomalyRecord"
+          WHERE ($1 = '' OR "type" = $1)
+            AND ($2 = '' OR "severity" = $2)
+            AND ($3::boolean IS NULL OR "isReviewed" = $3)
           ORDER BY "riskScore" DESC, "createdAt" DESC
-          LIMIT ${pageSize} OFFSET ${offset}`
+          LIMIT $4 OFFSET $5`,
+        type, severity, reviewed ? reviewedBool : null, pageSize, offset
       ),
-      db.$queryRaw<{ c: bigint }[]>(
-        sql`SELECT COUNT(*)::bigint as c FROM "AnomalyRecord"
-          WHERE (${type} = '' OR "type" = ${type})
-            AND (${severity} = '' OR "severity" = ${severity})
-            AND (${reviewed === null}::boolean OR "isReviewed" = ${reviewed === "true"}::boolean)`
+      db.$queryRawUnsafe<{ c: bigint }[]>(
+        `SELECT COUNT(*)::bigint as c FROM "AnomalyRecord"
+          WHERE ($1 = '' OR "type" = $1)
+            AND ($2 = '' OR "severity" = $2)
+            AND ($3::boolean IS NULL OR "isReviewed" = $3)`,
+        type, severity, reviewed ? reviewedBool : null
       ),
       getAnomalyStats(),
       isAnomalyDetectionEnabled(),
@@ -93,9 +95,10 @@ export async function POST(req: NextRequest) {
       }
 
       if (ids.length > 0) {
-        const idList = sql.join(ids.map(id => sql`${id}`), sql`, `);
-        await db.$executeRaw(
-          sql`UPDATE "AnomalyRecord" SET "isReviewed" = true WHERE "id" IN (${idList})`
+        const placeholders = ids.map((_, i) => `$${i + 1}`).join(", ");
+        await db.$executeRawUnsafe(
+          `UPDATE "AnomalyRecord" SET "isReviewed" = true WHERE "id" IN (${placeholders})`,
+          ...ids
         );
       }
 
