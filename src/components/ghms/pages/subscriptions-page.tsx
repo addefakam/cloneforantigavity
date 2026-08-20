@@ -657,17 +657,33 @@ export default function SubscriptionsPage() {
       </AlertDialog>
 
       {/* ── Pending Payment Verification Dialog ── */}
-      <Dialog open={verifyOpen} onOpenChange={setVerifyOpen}>
+      <Dialog open={verifyOpen} onOpenChange={(open) => { setVerifyOpen(open); if (!open) { setVerifyDeclineMode(false); setVerifyReason(""); } }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Eye className="h-5 w-5 text-orange-500" />
-              Verify Payment — {pendingRow?.providerName}
+              Verify Payment
             </DialogTitle>
             <DialogDescription>
-              Review the submitted payment details and approve or reject.
+              Review the submitted payment and approve or decline.
             </DialogDescription>
           </DialogHeader>
+
+          {/* Provider info card */}
+          {pendingRow && (
+            <div className="flex items-center gap-3 rounded-lg border bg-slate-50 p-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600 font-bold text-sm">
+                {(pendingRow.providerName || "?")[0].toUpperCase()}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-slate-900 truncate">{pendingRow.providerName}</p>
+                <p className="text-xs text-slate-500">{pendingRow.ownerName} &middot; {pendingRow.phone}</p>
+              </div>
+              <Badge className={pendingRow.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700 border-emerald-200" : pendingRow.status === "EXPIRED" ? "bg-rose-100 text-rose-700 border-rose-200" : "bg-slate-100 text-slate-600 border-slate-200"} variant="outline">
+                {pendingRow.status}
+              </Badge>
+            </div>
+          )}
 
           {verifyLoading ? (
             <div className="flex items-center justify-center py-8">
