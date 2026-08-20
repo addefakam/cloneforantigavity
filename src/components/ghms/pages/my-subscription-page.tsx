@@ -6,6 +6,7 @@ import {
   apiMySubscription,
   apiSubmitPayment,
   apiInitiateChapaPayment,
+  apiChapaClientVerify,
 } from "@/lib/api";
 import {
   formatDaysRemaining,
@@ -149,6 +150,8 @@ function MySubscriptionPage() {
   const [payNotes, setPayNotes] = useState("");
   const [payAmount, setPayAmount] = useState("");
   const [showHistory, setShowHistory] = useState(false);
+  const [chapaVerifying, setChapaVerifying] = useState(false);
+  const [chapaVerifyResult, setChapaVerifyResult] = useState<string | null>(null);
 
   const searchParams = useSearchParams();
   const chapaResult = searchParams.get("chapa");
@@ -170,14 +173,38 @@ function MySubscriptionPage() {
     fetchData();
   }, [fetchData]);
 
-  // Handle Chapa payment callback
+  // Handle Chapa payment callback — actively verify with Chapa API
   useEffect(() => {
     if (chapaResult === "success") {
-      toast.success("Payment completed via Chapa! Verifying your payment...");
-      // Clean up URL params
+      // Clean up URL params immediately
       window.history.replaceState({}, "/my-subscription", "/my-subscription");
-      // Re-fetch to show updated status
-      setTimeout(() => fetchData(), 2000);
+      toast.success("Chapa payment completed! Verifying your payment...");
+      setChapaVerifying(true);
+      setChapaVerifyResult(null);
+
+      // Wait a moment for Chapa to process, then actively verify
+      const timer = setTimeout(async () => {
+        try {
+          const res = await apiChapaClientVerify() as any;
+          if (res.verified > 0) {
+            setChapaVerifyResult("success");
+            toast.success(`Payment verified! ${res.results?.[0] || "Your subscription is now active."}`);
+          } else if (res.alreadyVerified) {
+            setChapaVerifyResult("success");
+          } else {
+            setChapaVerifyResult("pending");
+            toast.info(res.results?.[0] || "Payment not yet confirmed by Chapa. We'll keep checking.");
+          }
+        } catch (err) {
+          setChapaVerifyResult("error");
+          toast.error(err instanceof Error ? err.message : "Verification failed. The webhook will process it shortly.");
+        } finally {
+          setChapaVerifying(false);
+          fetchData();
+        }
+      }, 3000);
+
+      return () => clearTimeout(timer);
     }
   }, [chapaResult, fetchData]);
 
@@ -656,18 +683,65 @@ function MySubscriptionPage() {
       </Card>
 
       {/* Chapa success banner (shown after redirect back) */}
-      {chapaResult === "success" && (
-        <div className="flex items-center gap-3 p-4 rounded-xl border-2 border-emerald-300 bg-emerald-50">
+      {(chapaResult === "success" || chapaVerifying || chapaVerifyResult) && (
+        <div className={`flex items-center gap-3 p-4 rounded-xl border-2 ${
+          chapaVerifyResult === "success"
+            ? "border-emerald-400 bg-emerald-50"
+            : chapaVerifyResult === "error"
+            ? "border-amber-400 bg-amber-50"
+            : "border-blue-300 bg-blue-50"
+        }`}>
           <div className="shrink-0">
-            <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+            {chapaVerifying ? (
+              <RefreshCw className="w-6 h-6 text-blue-600 animate-spin" />
+            ) : chapaVerifyResult === "success" ? (
+              <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+            ) : chapaVerifyResult === "error" ? (
+              <AlertTriangle className="w-6 h-6 text-amber-600" />
+            ) : (
+              <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+            )}
           </div>
           <div className="flex-1">
-            <p className="text-sm font-bold text-emerald-800">Payment Processing</p>
-            <p className="text-xs text-emerald-700 mt-0.5">
-              Your Chapa payment was received. We are verifying it now — your subscription will be activated shortly.
-            </p>
+            {chapaVerifying ? (
+              <>
+                <p className="text-sm font-bold text-blue-800">Verifying Payment with Chapa...</p>
+                <p className="text-xs text-blue-700 mt-0.5">
+                  Please wait while we confirm your payment with Chapa. This takes a few seconds.
+                </p>
+              </>
+            ) : chapaVerifyResult === "success" ? (
+              <>
+                <p className="text-sm font-bold text-emerald-800">Payment Verified &amp; Active</p>
+                <p className="text-xs text-emerald-700 mt-0.5">
+                  Your Chapa payment has been confirmed. Your subscription is now active!
+                </p>
+              </>
+            ) : chapaVerifyResult === "error" ? (
+              <>
+                <p className="text-sm font-bold text-amber-800">Verification Delayed</p>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Could not verify immediately. Don't worry — the payment will be confirmed automatically via our backend. No action needed.
+                </p>
+              </>
+            ) : chapaVerifyResult === "pending" ? (
+              <>
+                <p className="text-sm font-bold text-blue-800">Payment Not Yet Confirmed</p>
+                <p className="text-xs text-blue-700 mt-0.5">
+                  Chapa hasn't confirmed the payment yet. It will be verified automatically once confirmed.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-bold text-emerald-800">Payment Processing</p>
+                <p className="text-xs text-emerald-700 mt-0.5">
+                  Your Chapa payment was received. We are verifying it now — your subscription will be activated shortly.
+                </p>
+              </>
+            )}
           </div>
-          <RefreshCw className="w-4 h-4 text-emerald-500 animate-spin" />
+          {chapaVerifying && <RefreshCw className="w-4 h-4 text-blue-500 animate-spin" />}
+          {!chapaVerifying && chapaVerifyResult === "success" && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
         </div>
       )}
 
