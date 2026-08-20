@@ -90,6 +90,7 @@ interface PlanOption {
 
 export default function SubscriptionsPage() {
   const [subscriptions, setSubscriptions] = useState<SubRow[]>([]);
+  const [allSubscriptions, setAllSubscriptions] = useState<SubRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [plans, setPlans] = useState<PlanOption[]>([]);
@@ -120,16 +121,16 @@ export default function SubscriptionsPage() {
   const fetchSubscriptions = useCallback(async () => {
     try {
       setLoading(true);
-      const filterParam = statusFilter === "ALL" ? undefined : statusFilter;
-      const data = await apiGetSubscriptions(filterParam);
-      setSubscriptions(Array.isArray(data) ? data : []);
+      const data = await apiGetSubscriptions();
+      const list = Array.isArray(data) ? data : [];
+      setAllSubscriptions(list);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to load";
       toast.error(msg);
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, []);
 
   const fetchPlans = useCallback(async () => {
     try {
@@ -145,14 +146,19 @@ export default function SubscriptionsPage() {
     fetchPlans();
   }, [fetchSubscriptions, fetchPlans]);
 
-  // Summary counts
+  // Summary counts (always from full list, not filtered)
   const counts = {
-    active: subscriptions.filter((s) => s.status === "ACTIVE").length,
-    warning: subscriptions.filter((s) => s.status === "WARNING").length,
-    expired: subscriptions.filter((s) => s.status === "EXPIRED").length,
-    suspended: subscriptions.filter((s) => s.status === "SUSPENDED").length,
-    total: subscriptions.length,
+    active: allSubscriptions.filter((s) => s.status === "ACTIVE").length,
+    warning: allSubscriptions.filter((s) => s.status === "WARNING").length,
+    expired: allSubscriptions.filter((s) => s.status === "EXPIRED").length,
+    suspended: allSubscriptions.filter((s) => s.status === "SUSPENDED").length,
+    total: allSubscriptions.length,
   };
+
+  // Filter client-side so summary stays accurate
+  const filtered = statusFilter === "ALL"
+    ? allSubscriptions
+    : allSubscriptions.filter((s) => s.status === statusFilter);
 
   // ── Edit handlers ──
   function openEdit(row: SubRow) {
@@ -270,6 +276,7 @@ export default function SubscriptionsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">All Status</SelectItem>
+              <SelectItem value="ACTIVE">Active</SelectItem>
               <SelectItem value="WARNING">Warning (Expiring)</SelectItem>
               <SelectItem value="EXPIRED">Expired</SelectItem>
               <SelectItem value="SUSPENDED">Suspended</SelectItem>
@@ -283,13 +290,13 @@ export default function SubscriptionsPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <Card>
+        <Card className={`cursor-pointer transition-shadow hover:shadow-md ${statusFilter === 'ALL' ? 'ring-2 ring-primary' : ''}`} onClick={() => setStatusFilter('ALL')}>
           <CardContent className="p-3">
             <p className="text-xs text-slate-500">Total</p>
             <p className="text-2xl font-bold text-slate-900">{counts.total}</p>
           </CardContent>
         </Card>
-        <Card className="border-emerald-200">
+        <Card className={`cursor-pointer transition-shadow hover:shadow-md border-emerald-200 ${statusFilter === 'ACTIVE' ? 'ring-2 ring-emerald-500' : ''}`} onClick={() => setStatusFilter(statusFilter === 'ACTIVE' ? 'ALL' : 'ACTIVE')}>
           <CardContent className="p-3">
             <p className="text-xs text-emerald-600 flex items-center gap-1">
               <CheckCircle2 className="h-3 w-3" /> Active
@@ -297,7 +304,7 @@ export default function SubscriptionsPage() {
             <p className="text-2xl font-bold text-emerald-700">{counts.active}</p>
           </CardContent>
         </Card>
-        <Card className="border-amber-200">
+        <Card className={`cursor-pointer transition-shadow hover:shadow-md border-amber-200 ${statusFilter === 'WARNING' ? 'ring-2 ring-amber-500' : ''}`} onClick={() => setStatusFilter(statusFilter === 'WARNING' ? 'ALL' : 'WARNING')}>
           <CardContent className="p-3">
             <p className="text-xs text-amber-600 flex items-center gap-1">
               <AlertTriangle className="h-3 w-3" /> Warning
@@ -305,7 +312,7 @@ export default function SubscriptionsPage() {
             <p className="text-2xl font-bold text-amber-700">{counts.warning}</p>
           </CardContent>
         </Card>
-        <Card className="border-rose-200">
+        <Card className={`cursor-pointer transition-shadow hover:shadow-md border-rose-200 ${statusFilter === 'EXPIRED' ? 'ring-2 ring-rose-500' : ''}`} onClick={() => setStatusFilter(statusFilter === 'EXPIRED' ? 'ALL' : 'EXPIRED')}>
           <CardContent className="p-3">
             <p className="text-xs text-rose-600 flex items-center gap-1">
               <RefreshCw className="h-3 w-3" /> Grace
@@ -313,7 +320,7 @@ export default function SubscriptionsPage() {
             <p className="text-2xl font-bold text-rose-700">{counts.expired}</p>
           </CardContent>
         </Card>
-        <Card className="border-slate-300">
+        <Card className={`cursor-pointer transition-shadow hover:shadow-md border-slate-300 ${statusFilter === 'SUSPENDED' ? 'ring-2 ring-slate-500' : ''}`} onClick={() => setStatusFilter(statusFilter === 'SUSPENDED' ? 'ALL' : 'SUSPENDED')}>
           <CardContent className="p-3">
             <p className="text-xs text-slate-500 flex items-center gap-1">
               <XCircle className="h-3 w-3" /> Suspended
@@ -343,14 +350,16 @@ export default function SubscriptionsPage() {
                 </tr>
               </thead>
               <tbody>
-                {subscriptions.length === 0 ? (
+                {filtered.length === 0 ? (
                   <tr>
                     <td colSpan={10} className="px-4 py-8 text-center text-slate-400">
-                      No providers found.
+                      {allSubscriptions.length === 0
+                        ? "No providers found."
+                        : `No ${statusFilter === "ALL" ? "" : statusFilter + " "}subscriptions found.`}
                     </td>
                   </tr>
                 ) : (
-                  subscriptions.map((row) => (
+                  filtered.map((row) => (
                     <tr
                       key={row.subscriptionId}
                       className={`border-b hover:bg-slate-50 ${
