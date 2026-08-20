@@ -127,6 +127,11 @@ CREATE TABLE IF NOT EXISTS "Reservation" (
   "actualCheckOut" TIMESTAMP(3),
   "taxAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
   "discountAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "secondGuestName" TEXT NOT NULL DEFAULT '',
+  "secondGuestPhone" TEXT NOT NULL DEFAULT '',
+  "secondGuestIdNumber" TEXT NOT NULL DEFAULT '',
+  "exceptionallyReserved" BOOLEAN NOT NULL DEFAULT false,
+  "exceptionReason" TEXT NOT NULL DEFAULT '',
   "providerId" TEXT NOT NULL,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -490,6 +495,26 @@ EXCEPTION WHEN duplicate_column THEN null;
 END $$;
 DO $$ BEGIN
   ALTER TABLE "Reservation" ADD COLUMN "groupBookingId" TEXT;
+EXCEPTION WHEN duplicate_column THEN null;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "Reservation" ADD COLUMN "secondGuestName" TEXT NOT NULL DEFAULT '';
+EXCEPTION WHEN duplicate_column THEN null;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "Reservation" ADD COLUMN "secondGuestPhone" TEXT NOT NULL DEFAULT '';
+EXCEPTION WHEN duplicate_column THEN null;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "Reservation" ADD COLUMN "secondGuestIdNumber" TEXT NOT NULL DEFAULT '';
+EXCEPTION WHEN duplicate_column THEN null;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "Reservation" ADD COLUMN "exceptionallyReserved" BOOLEAN NOT NULL DEFAULT false;
+EXCEPTION WHEN duplicate_column THEN null;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "Reservation" ADD COLUMN "exceptionReason" TEXT NOT NULL DEFAULT '';
 EXCEPTION WHEN duplicate_column THEN null;
 END $$;
 CREATE TABLE IF NOT EXISTS "GroupBooking" (

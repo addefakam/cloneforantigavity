@@ -129,6 +129,27 @@ export async function ensureNewTables(): Promise<void> {
         END $$;
       `);
 
+      // 3b. Add second-guest / exceptionally-reserved columns to Reservation if missing
+      const reservationNewCols = [
+        { col: 'secondGuestName', type: 'TEXT NOT NULL DEFAULT \'\'' },
+        { col: 'secondGuestPhone', type: 'TEXT NOT NULL DEFAULT \'\'' },
+        { col: 'secondGuestIdNumber', type: 'TEXT NOT NULL DEFAULT \'\'' },
+        { col: 'exceptionallyReserved', type: 'BOOLEAN NOT NULL DEFAULT false' },
+        { col: 'exceptionReason', type: 'TEXT NOT NULL DEFAULT \'\'' },
+      ];
+      for (const c of reservationNewCols) {
+        await db.$executeRawUnsafe(`
+          DO $$ BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns 
+              WHERE table_name = 'Reservation' AND column_name = '${c.col}'
+            ) THEN
+              ALTER TABLE "Reservation" ADD COLUMN "${c.col}" ${c.type};
+            END IF;
+          END $$;
+        `);
+      }
+
       // 4. Add telegramChatId to Provider if missing
       await db.$executeRawUnsafe(`
         DO $$ BEGIN

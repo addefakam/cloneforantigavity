@@ -51,6 +51,12 @@ const CRITICAL_DDL = [
   )`,
   // Subscription.planId column (added later)
   `ALTER TABLE "Subscription" ADD COLUMN "planId" TEXT`,
+  // Reservation: second-guest / exceptionally-reserved columns
+  `ALTER TABLE "Reservation" ADD COLUMN "secondGuestName" TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE "Reservation" ADD COLUMN "secondGuestPhone" TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE "Reservation" ADD COLUMN "secondGuestIdNumber" TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE "Reservation" ADD COLUMN "exceptionallyReserved" BOOLEAN NOT NULL DEFAULT false`,
+  `ALTER TABLE "Reservation" ADD COLUMN "exceptionReason" TEXT NOT NULL DEFAULT ''`,
   // Seed default plans
   `INSERT INTO "SubscriptionPlan" ("id","name","cycle","price","isActive","createdAt","updatedAt")
    SELECT 'plan-monthly-001','Monthly','MONTHLY',500,true,NOW(),NOW()
