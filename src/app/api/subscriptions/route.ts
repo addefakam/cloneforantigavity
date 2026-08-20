@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
             select: {
               id: true, startDate: true, endDate: true, cycle: true, price: true, planId: true,
               plan: { select: { id: true, name: true } },
-              payments: { select: { id: true } },
+              _count: { select: { payments: true } },
             },
           },
         },
@@ -76,6 +76,7 @@ export async function GET(req: NextRequest) {
       startDate: string;
       endDate: string;
       totalPayments: number;
+      hasPendingVerification: boolean;
     }> = [];
 
     for (const provider of providers) {
@@ -131,11 +132,43 @@ export async function GET(req: NextRequest) {
         daysRemaining,
         startDate: subscription.startDate.toISOString(),
         endDate: subscription.endDate.toISOString(),
-        totalPayments: subscription.payments?.length ?? 0,
+        totalPayments: (subscription as any)._count?.payments ?? (subscription.payments as any[])?.length ?? 0,
+        hasPendingVerification,
       };
 
       results.push(row);
     }
+
+    // Batch-check for pending verification payments (single query)
+    const subIds = results.map((r) => r.subscriptionId);
+    if (subIds.length > 0) {
+      const pendingRows = await db.subscriptionPayment.findMany({
+        where: {
+          subscriptionId: { in: subIds },
+          notes: { contains: '[PROVIDER SUBMITTED]' },
+        },
+        select: { subscriptionId: true },
+        distinct: ['subscriptionId'],
+      });
+      const pendingSet = new Set(pendingRows.map((p) => p.subscriptionId));
+      for (const r of results) {
+        r.hasPendingVerification = pendingSet.has(r.subscriptionId);
+      }
+    }
+
+    // Sort: pending verification rows first, then by status
+    const statusOrder: Record<string, number> = { EXPIRED: 0, SUSPENDED: 1, WARNING: 2, ACTIVE: 3 };
+    results.sort((a, b) => {
+      // Pending rows always on top
+      if (a.hasPendingVerification !== b.hasPendingVerification) {
+        return a.hasPendingVerification ? -1 : 1;
+      }
+      // Within same pending state, sort by status urgency then by endDate
+      const sa = statusOrder[a.status] ?? 4;
+      const sb = statusOrder[b.status] ?? 4;
+      if (sa !== sb) return sa - sb;
+      return new Date(a.endDate).getTime() - new Date(b.endDate).getTime();
+    });
 
     // Apply status filter if provided
     const filtered = allowedStatuses

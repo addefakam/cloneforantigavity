@@ -13,6 +13,8 @@ import {
   CalendarDays,
   Filter,
   Tag,
+  Clock,
+  Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -78,6 +80,7 @@ interface SubRow {
   startDate: string;
   endDate: string;
   totalPayments: number;
+  hasPendingVerification: boolean;
 }
 
 interface PlanOption {
@@ -362,12 +365,24 @@ export default function SubscriptionsPage() {
                   filtered.map((row) => (
                     <tr
                       key={row.subscriptionId}
-                      className={`border-b hover:bg-slate-50 ${
-                        row.status === "SUSPENDED" ? "bg-slate-50" : ""
+                      className={`border-b transition-colors ${
+                        row.hasPendingVerification
+                          ? "bg-orange-50 hover:bg-orange-100/70 border-l-4 border-l-orange-400"
+                          : row.status === "SUSPENDED"
+                          ? "bg-slate-50 hover:bg-slate-100"
+                          : "hover:bg-slate-50"
                       }`}
                     >
-                      <td className="px-4 py-2.5 font-medium text-slate-900">
-                        {row.providerName}
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-slate-900">{row.providerName}</span>
+                          {row.hasPendingVerification && (
+                            <Badge className="bg-orange-500 hover:bg-orange-600 text-white border-0 text-[10px] font-semibold gap-1 shrink-0">
+                              <Eye className="w-3 h-3" />
+                              Pending Approval
+                            </Badge>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-2.5 text-slate-600">{row.ownerName}</td>
                       <td className="px-4 py-2.5 text-slate-500">
