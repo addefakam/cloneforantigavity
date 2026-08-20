@@ -39,6 +39,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -122,6 +123,7 @@ export default function SubscriptionsPage() {
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [verifyAction, setVerifyAction] = useState<"approve" | "reject" | null>(null);
   const [verifyReason, setVerifyReason] = useState("");
+  const [verifyDeclineMode, setVerifyDeclineMode] = useState(false);
   const [pendingPayments, setPendingPayments] = useState<any[]>([]);
   const [pendingRow, setPendingRow] = useState<SubRow | null>(null);
 
@@ -181,6 +183,7 @@ export default function SubscriptionsPage() {
     setVerifyLoading(true);
     setVerifyAction(null);
     setVerifyReason("");
+    setVerifyDeclineMode(false);
     try {
       const data = await apiGetSubscriptionPayments(row.subscriptionId);
       const list = Array.isArray(data) ? data : [];
@@ -732,39 +735,75 @@ export default function SubscriptionsPage() {
             </div>
           )}
 
-          {/* Reason input */}
+          {/* Decline reason — always shown, required for reject */}
           {!verifyLoading && pendingPayments.length > 0 && (
             <div className="grid gap-2">
-              <Label>Reason / Note (optional)</Label>
-              <Input
-                placeholder="e.g., Verified via bank statement"
+              <Label className="text-sm font-medium">
+                {verifyDeclineMode ? (
+                  <span className="text-rose-600">Decline Reason (required)</span>
+                ) : (
+                  <span>Approval Note (optional)</span>
+                )}
+              </Label>
+              <Textarea
+                placeholder={verifyDeclineMode
+                  ? "e.g., The reference number does not match our records. Please double-check and resubmit."
+                  : "e.g., Verified via bank statement"}
                 value={verifyReason}
                 onChange={(e) => setVerifyReason(e.target.value)}
+                className={verifyDeclineMode && !verifyReason.trim() ? "border-rose-300 focus-visible:ring-rose-400" : ""}
+                rows={3}
               />
+              {verifyDeclineMode && !verifyReason.trim() && (
+                <p className="text-xs text-rose-500">You must provide a reason when declining a payment. The provider will receive this message.</p>
+              )}
             </div>
           )}
 
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setVerifyOpen(false)} disabled={!!verifyAction}>
+            <Button variant="outline" onClick={() => { setVerifyOpen(false); setVerifyDeclineMode(false); setVerifyReason(""); }} disabled={!!verifyAction}>
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={() => handleVerifyAction("reject")}
-              disabled={!!verifyAction || pendingPayments.length === 0}
-              className="gap-1"
-            >
-              {verifyAction === "reject" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
-              Reject
-            </Button>
-            <Button
-              onClick={() => handleVerifyAction("approve")}
-              disabled={!!verifyAction || pendingPayments.length === 0}
-              className="gap-1 bg-emerald-600 hover:bg-emerald-700"
-            >
-              {verifyAction === "approve" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-              Approve
-            </Button>
+            {!verifyDeclineMode ? (
+              <>
+                <Button
+                  variant="destructive"
+                  onClick={() => setVerifyDeclineMode(true)}
+                  disabled={!!verifyAction || pendingPayments.length === 0}
+                  className="gap-1"
+                >
+                  <Ban className="h-4 w-4" />
+                  Decline
+                </Button>
+                <Button
+                  onClick={() => handleVerifyAction("approve")}
+                  disabled={!!verifyAction || pendingPayments.length === 0}
+                  className="gap-1 bg-emerald-600 hover:bg-emerald-700"
+                >
+                  {verifyAction === "approve" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                  Approve
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => { setVerifyDeclineMode(false); setVerifyReason(""); }}
+                  disabled={!!verifyAction}
+                >
+                  Back
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => handleVerifyAction("reject")}
+                  disabled={!!verifyAction || !verifyReason.trim()}
+                  className="gap-1"
+                >
+                  {verifyAction === "reject" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
+                  Confirm Decline
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

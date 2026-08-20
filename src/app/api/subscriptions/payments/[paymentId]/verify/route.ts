@@ -39,6 +39,14 @@ export async function POST(
       );
     }
 
+    // Reason is REQUIRED for rejection
+    if (action === "reject" && (!reason || !reason.trim())) {
+      return NextResponse.json(
+        { error: "Decline reason is required. Please explain why this payment is being rejected." },
+        { status: 400 }
+      );
+    }
+
     // Fetch the payment with its subscription
     const payment = await db.subscriptionPayment.findUnique({
       where: { id: paymentId },
@@ -106,11 +114,11 @@ export async function POST(
       data: { endDate: revertEndDate },
     });
 
-    // Notify provider
+    // Notify provider with clear decline reason
     await db.notification.create({
       data: {
-        title: "Payment Rejected",
-        message: `Your submitted payment of ${payment.amount.toLocaleString()} Br (${payment.cycle}) was not verified.${reason ? ` Reason: ${reason}` : ""} Please contact support or resubmit.`,
+        title: "Payment Declined",
+        message: `Your payment of ${payment.amount.toLocaleString()} Br (${payment.cycle}) has been declined by the admin.\n\nReason: ${reason!.trim()}\n\nPlease correct the issue and resubmit your payment. Contact support if you need help.`,
         type: "WARNING",
         link: "/subscription",
       },

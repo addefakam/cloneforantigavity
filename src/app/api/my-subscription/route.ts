@@ -206,6 +206,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid billing cycle" }, { status: 400 });
     }
 
+    // ── Duplicate reference check: prevent submitting same bill twice ──
+    if (referenceNo && referenceNo.trim()) {
+      const refTrimmed = referenceNo.trim();
+      const existing = await db.subscriptionPayment.findFirst({
+        where: {
+          notes: { contains: `Ref: ${refTrimmed}` },
+        },
+      });
+      if (existing) {
+        return NextResponse.json(
+          { error: "This payment reference has already been used. Each payment must have a unique reference number." },
+          { status: 409 }
+        );
+      }
+    }
+
     // Get current subscription
     const subscription = await db.subscription.findFirst({
       where: { providerId: auth.providerId },
