@@ -355,6 +355,7 @@ export default function ReservationsPage() {
   };
 
   const handleCreate = async () => {
+    // ── All validation BEFORE setting creating=true ──
     if (!createForm.roomId || !createForm.checkIn || !createForm.checkOut) {
       toast.error("Please fill in all required fields");
       return;
@@ -363,36 +364,40 @@ export default function ReservationsPage() {
       toast.error("Check-out must be after check-in");
       return;
     }
+    if (guestMode === "new" && (!newGuestForm.name || !newGuestForm.phone)) {
+      toast.error("Guest name and phone are required");
+      return;
+    }
+    if (guestMode !== "new" && !selectedGuestId) {
+      toast.error("Please select or create a guest");
+      return;
+    }
+    const selRoom = allRooms.find((r) => r.id === createForm.roomId);
+    const isDoubleRoom = selRoom && (selRoom.type === "DOUBLE" || selRoom.type === "TWIN");
+    if (isDoubleRoom && !createForm.exceptionallyReserved) {
+      if (!createForm.secondGuestName.trim() || !createForm.secondGuestPhone.trim()) {
+        toast.error("Second guest name and phone are required for double/twin rooms");
+        return;
+      }
+    }
+    if (createForm.exceptionallyReserved && !createForm.exceptionReason.trim()) {
+      toast.error("Please provide the exception reason");
+      return;
+    }
+
+    // ── All validation passed — now make API calls ──
     try {
       setCreating(true);
 
       // Determine guestId: use existing or create new
       let guestId = selectedGuestId;
       if (guestMode === "new") {
-        if (!newGuestForm.name || !newGuestForm.phone) {
-          toast.error("Guest name and phone are required");
-          return;
-        }
         const created = await apiCreateGuest(newGuestForm);
         guestId = created.id;
       }
 
       if (!guestId) {
         toast.error("Please select or create a guest");
-        return;
-      }
-
-      // Double room validation
-      const selRoom = allRooms.find((r) => r.id === createForm.roomId);
-      const isDoubleRoom = selRoom && (selRoom.type === "DOUBLE" || selRoom.type === "TWIN");
-      if (isDoubleRoom && !createForm.exceptionallyReserved) {
-        if (!createForm.secondGuestName.trim() || !createForm.secondGuestPhone.trim()) {
-          toast.error("Second guest name and phone are required for double/twin rooms");
-          return;
-        }
-      }
-      if (createForm.exceptionallyReserved && !createForm.exceptionReason.trim()) {
-        toast.error("Please provide the exception reason");
         return;
       }
 
@@ -413,7 +418,6 @@ export default function ReservationsPage() {
       closeCreateDialog();
       triggerRefresh();
     } catch (err: unknown) {
-      setCreating(false);
       const raw = err instanceof Error ? err.message : "Failed to create reservation";
       let parsed = null;
       try { parsed = JSON.parse(raw); } catch {}
@@ -424,6 +428,8 @@ export default function ReservationsPage() {
         return;
       }
       toast.error(parsed?.error || raw || "Failed to create reservation");
+    } finally {
+      setCreating(false);
     }
   };
 
