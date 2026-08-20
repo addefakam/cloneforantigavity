@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { usePagination } from "@/hooks/use-pagination";
 import { PaginationControls } from "@/components/shared/pagination-controls";
 import { useAppStore } from "@/lib/store";
-import { apiPoliceDashboard, apiGetSuspectMatches } from "@/lib/api";
+import { apiPoliceDashboard } from "@/lib/api";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,7 +27,7 @@ import {
   Banknote,
   TrendingUp,
   AlertCircle,
-  ShieldAlert,
+
   ToggleLeft,
   ToggleRight,
   Loader2,
@@ -89,7 +89,7 @@ function formatDate(dateStr: string) {
 export default function PoliceDashboardPage() {
   const { refreshKey, currentUser } = useAppStore();
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
-  const [unreadAlerts, setUnreadAlerts] = useState(0);
+
   const [loading, setLoading] = useState(true);
   const [anomalyEnabled, setAnomalyEnabled] = useState(false);
   const [anomalyToggling, setAnomalyToggling] = useState(false);
@@ -124,10 +124,7 @@ export default function PoliceDashboardPage() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [dashData, alertData] = await Promise.all([
-        apiPoliceDashboard(),
-        apiGetSuspectMatches("unread=true").catch(() => ({ unreadCount: 0 })),
-      ]);
+      const dashData = await apiPoliceDashboard();
 
       const dash = dashData && typeof dashData === "object" ? dashData : null;
       const dashSafe = {
@@ -135,7 +132,6 @@ export default function PoliceDashboardPage() {
         providers: Array.isArray(dash?.providers) ? dash.providers : [],
       };
       setDashboard(dashSafe);
-      setUnreadAlerts(alertData?.unreadCount || 0);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to load dashboard";
       toast.error(message);
@@ -192,13 +188,7 @@ export default function PoliceDashboardPage() {
           color: "text-emerald-600",
           bg: "bg-emerald-50",
         },
-        {
-          title: "Suspect Alerts",
-          value: unreadAlerts,
-          icon: ShieldAlert,
-          color: unreadAlerts > 0 ? "text-red-600" : "text-slate-600",
-          bg: unreadAlerts > 0 ? "bg-red-50" : "bg-slate-100",
-        },
+
       ]
     : [];
 
@@ -258,9 +248,9 @@ export default function PoliceDashboardPage() {
       </div>
 
       {/* KPI Cards — 2 cols on mobile, 3 on tablet, 6 on desktop */}
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 xl:grid-cols-7">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 xl:grid-cols-6">
         {loading
-          ? Array.from({ length: 7 }).map((_, i) => (
+          ? Array.from({ length: 6 }).map((_, i) => (
               <Card key={i} className="shadow-sm">
                 <CardContent className="p-3 sm:p-4">
                   <Skeleton className="mb-2 h-3 w-16" />
