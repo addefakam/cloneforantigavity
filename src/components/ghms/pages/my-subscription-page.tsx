@@ -580,6 +580,7 @@ function MySubscriptionPage() {
                   const isChapaPending = payment.notes.includes("[CHAPA PENDING]");
                   const isChapaVerified = payment.notes.includes("[CHAPA VERIFIED]");
                   const isPaymentOverdue = payment.notes.includes("[PAYMENT_OVERDUE]");
+                  const isOverdueWillApply = isPaymentOverdue && payment.notes.includes("Will apply soon");
                   const isVerified = !isProviderSubmitted && !isChapaPending;
                   return (
                     <div
@@ -590,13 +591,16 @@ function MySubscriptionPage() {
                         <div className={`p-1.5 rounded-full ${
                           isChapaVerified ? "bg-emerald-100" :
                           isChapaPending ? "bg-violet-100" :
-                          isPaymentOverdue ? "bg-rose-100" :
+                          isPaymentOverdue && !isOverdueWillApply ? "bg-rose-100" :
+                          isOverdueWillApply ? "bg-amber-100" :
                           isProviderSubmitted ? "bg-amber-100" : "bg-emerald-100"
                         }`}>
                           {isChapaPending ? (
                             <Zap className="w-3.5 h-3.5 text-violet-600" />
-                          ) : isPaymentOverdue ? (
+                          ) : isPaymentOverdue && !isOverdueWillApply ? (
                             <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                          ) : isOverdueWillApply ? (
+                            <Clock className="w-3.5 h-3.5 text-amber-600" />
                           ) : isProviderSubmitted ? (
                             <Clock className="w-3.5 h-3.5 text-amber-600" />
                           ) : (
@@ -625,14 +629,16 @@ function MySubscriptionPage() {
                           className={`text-[10px] ${
                             isChapaPending
                               ? "border-violet-200 text-violet-700"
-                              : isPaymentOverdue
+                              : isPaymentOverdue && !isOverdueWillApply
                               ? "border-rose-200 text-rose-700"
+                              : isOverdueWillApply
+                              ? "border-amber-200 text-amber-700"
                               : isProviderSubmitted
                               ? "border-amber-200 text-amber-700"
                               : "border-emerald-200 text-emerald-700"
                           }`}
                         >
-                          {isChapaPending ? "Chapa Pending" : isPaymentOverdue ? "Payment Overdue" : isProviderSubmitted ? "Pending" : "Verified"}
+                          {isChapaPending ? "Chapa Pending" : isPaymentOverdue && !isOverdueWillApply ? "Payment Overdue" : isOverdueWillApply ? "Overdue (Will apply soon)" : isProviderSubmitted ? "Pending" : "Verified"}
                         </Badge>
                         <p className="text-[10px] text-muted-foreground mt-1">
                           {new Date(payment.createdAt).toLocaleDateString("en-GB", {

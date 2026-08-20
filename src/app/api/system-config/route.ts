@@ -14,6 +14,7 @@ const DEFAULT_PAYMENT = {
   currencySymbol: "Br",
   paymentInstructions:
     "Contact your administrator to arrange payment. Payments can be made via bank transfer or mobile money.",
+  enablePaymentOverdue: false,
 };
 
 export async function GET() {

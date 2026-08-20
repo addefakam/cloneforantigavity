@@ -74,6 +74,8 @@ interface PaymentSettings {
   // Per-bed-per-day pricing model
   pricePerBedPerDay: number;
   pricingEnabled: boolean;
+  // Payment overdue enforcement
+  enablePaymentOverdue: boolean;
 }
 
 interface SystemConfig {
@@ -136,6 +138,7 @@ const DEFAULT_PAYMENT: PaymentSettings = {
   paymentInstructions: "Contact your administrator to arrange payment. Payments can be made via bank transfer or mobile money.",
   pricePerBedPerDay: 15,
   pricingEnabled: false,
+  enablePaymentOverdue: false,
 };
 
 const FULL_DEFAULTS: SystemConfig = {
@@ -948,6 +951,32 @@ function PaymentTab({
               );
             })}
           </div>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-slate-200">
+          <SettingRow
+            label="Payment Overdue Tagging"
+            description="When enabled, payments made after subscription expiry are tagged PAYMENT_OVERDUE. When disabled, a 'will apply soon' notice is shown instead."
+          >
+            <div className="flex items-center gap-3">
+              <ToggleSwitch
+                id="enablePaymentOverdue"
+                checked={settings.enablePaymentOverdue}
+                onChange={(v) => onPricingSave({ enablePaymentOverdue: v })}
+              />
+              {settings.enablePaymentOverdue ? (
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full">
+                  <AlertTriangle className="w-3 h-3" />
+                  Enforced
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
+                  <Clock className="w-3 h-3" />
+                  Not Active
+                </span>
+              )}
+            </div>
+          </SettingRow>
         </div>
       </SectionCard>
 

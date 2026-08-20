@@ -239,9 +239,19 @@ export async function POST(req: NextRequest) {
     });
     const isOverdue = subStatus === "EXPIRED";
 
+    // Check if payment overdue tagging is enabled by superuser
+    const sysSettings = await db.settings.findFirst({ where: { providerId: null } });
+    const configJson = (sysSettings?.configJson || {}) as Record<string, unknown>;
+    const paymentConfig = (configJson.payment || {}) as Record<string, unknown>;
+    const overdueEnabled = paymentConfig.enablePaymentOverdue === true;
+
     // Build payment notes with provider's reference info
     const paymentNotes = [
-      isOverdue ? `[PAYMENT_OVERDUE]` : `[PROVIDER SUBMITTED]`,
+      isOverdue
+        ? overdueEnabled
+          ? `[PAYMENT_OVERDUE]`
+          : `[PAYMENT_OVERDUE] Will apply soon`
+        : `[PROVIDER SUBMITTED]`,
       isOverdue ? `Subscription was expired at time of payment` : "",
       paymentMethod ? `Method: ${paymentMethod}` : "",
       referenceNo ? `Ref: ${referenceNo}` : "",

@@ -85,6 +85,12 @@ export async function POST(
     const { status: subStatus } = calcSubscriptionStatus(subscription.endDate);
     const isOverdue = subStatus === "EXPIRED";
 
+    // Check if payment overdue tagging is enabled
+    const sysSettings = await db.settings.findFirst({ where: { providerId: null } });
+    const configJson = (sysSettings?.configJson || {}) as Record<string, unknown>;
+    const paymentConfig = (configJson.payment || {}) as Record<string, unknown>;
+    const overdueEnabled = paymentConfig.enablePaymentOverdue === true;
+
     // Create payment record
     const payment = await db.subscriptionPayment.create({
       data: {
@@ -94,7 +100,7 @@ export async function POST(
         periodStart,
         periodEnd,
         markedBy: auth.userId,
-        notes: `${isOverdue ? "[PAYMENT_OVERDUE] " : ""}${notes || ""}${isOverdue ? " | Subscription was expired at time of payment" : ""}`,
+        notes: `${isOverdue ? (overdueEnabled ? "[PAYMENT_OVERDUE]" : "[PAYMENT_OVERDUE] Will apply soon") : ""}${isOverdue ? " " : ""}${notes || ""}${isOverdue ? " | Subscription was expired at time of payment" : ""}`.trim(),
       },
     });
 

@@ -92,7 +92,18 @@ export async function POST(req: NextRequest) {
     const { calcSubscriptionStatus } = await import("@/lib/subscription");
     const { status: subStatus } = calcSubscriptionStatus(subscription.endDate);
     const isOverdue = subStatus === "EXPIRED";
-    const overdueTag = isOverdue ? "[PAYMENT_OVERDUE] " : "";
+
+    // Check if payment overdue tagging is enabled by superuser
+    const sysSettings = await db.settings.findFirst({ where: { providerId: null } });
+    const configJson = (sysSettings?.configJson || {}) as Record<string, unknown>;
+    const paymentConfig = (configJson.payment || {}) as Record<string, unknown>;
+    const overdueEnabled = paymentConfig.enablePaymentOverdue === true;
+
+    const overdueTag = isOverdue
+      ? overdueEnabled
+        ? "[PAYMENT_OVERDUE] "
+        : "[PAYMENT_OVERDUE] Will apply soon "
+      : "";
 
     // Create a pending payment record to track this Chapa transaction
     await db.subscriptionPayment.create({
