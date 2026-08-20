@@ -133,7 +133,7 @@ export async function GET(req: NextRequest) {
         startDate: subscription.startDate.toISOString(),
         endDate: subscription.endDate.toISOString(),
         totalPayments: (subscription as any)._count?.payments ?? (subscription.payments as any[])?.length ?? 0,
-        hasPendingVerification,
+        hasPendingVerification: false,
       };
 
       results.push(row);
