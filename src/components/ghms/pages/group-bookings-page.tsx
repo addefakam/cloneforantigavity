@@ -82,7 +82,10 @@ import {
   Eye,
   Loader2,
   CheckCircle2,
+  BedDouble,
+  AlertCircle,
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 
 interface GroupBooking {
   id: string;
@@ -182,6 +185,11 @@ export default function GroupBookingsPage() {
   const [resRoomId, setResRoomId] = useState("");
   const [resCheckIn, setResCheckIn] = useState("");
   const [resCheckOut, setResCheckOut] = useState("");
+  const [resSecondGuestName, setResSecondGuestName] = useState("");
+  const [resSecondGuestPhone, setResSecondGuestPhone] = useState("");
+  const [resSecondGuestIdNumber, setResSecondGuestIdNumber] = useState("");
+  const [resExceptionallyReserved, setResExceptionallyReserved] = useState(false);
+  const [resExceptionReason, setResExceptionReason] = useState("");
 
   // Inline guest registration
   const [showNewGuest, setShowNewGuest] = useState(false);
@@ -271,6 +279,11 @@ export default function GroupBookingsPage() {
     setResRoomId("");
     setResCheckIn("");
     setResCheckOut("");
+    setResSecondGuestName("");
+    setResSecondGuestPhone("");
+    setResSecondGuestIdNumber("");
+    setResExceptionallyReserved(false);
+    setResExceptionReason("");
     setShowNewGuest(false);
     setNewGuestName("");
     setNewGuestPhone("");
@@ -363,6 +376,19 @@ export default function GroupBookingsPage() {
       toast.error("Check-in and check-out dates are required");
       return;
     }
+    // Validate DOUBLE/TWIN room requirements
+    const selRoom = rooms.find((r) => r.id === resRoomId);
+    const isDoubleRoom = selRoom && (selRoom.type === "DOUBLE" || selRoom.type === "TWIN");
+    if (isDoubleRoom && !resExceptionallyReserved) {
+      if (!resSecondGuestName.trim() || !resSecondGuestPhone.trim()) {
+        toast.error("Second guest name and phone are required for double/twin rooms");
+        return;
+      }
+    }
+    if (resExceptionallyReserved && !resExceptionReason.trim()) {
+      toast.error("Please provide the exception reason");
+      return;
+    }
     try {
       setAddingReservation(true);
       await apiCreateReservation({
@@ -371,7 +397,11 @@ export default function GroupBookingsPage() {
         checkIn: resCheckIn,
         checkOut: resCheckOut,
         groupBookingId: addReservationGroupId,
-        exceptionallyReserved: true,
+        secondGuestName: resSecondGuestName,
+        secondGuestPhone: resSecondGuestPhone,
+        secondGuestIdNumber: resSecondGuestIdNumber,
+        exceptionallyReserved: resExceptionallyReserved,
+        exceptionReason: resExceptionReason,
       });
       toast.success("Reservation added to group");
       setAddReservationOpen(false);
@@ -1116,7 +1146,7 @@ export default function GroupBookingsPage() {
             {/* Room Selection */}
             <div className="grid gap-2">
               <Label>Room <span className="text-destructive">*</span></Label>
-              <Select value={resRoomId} onValueChange={setResRoomId}>
+              <Select value={resRoomId} onValueChange={(val) => { setResRoomId(val); setResSecondGuestName(""); setResSecondGuestPhone(""); setResSecondGuestIdNumber(""); setResExceptionallyReserved(false); setResExceptionReason(""); }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select an available room" />
                 </SelectTrigger>
@@ -1137,6 +1167,56 @@ export default function GroupBookingsPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Second Guest — shown only for DOUBLE/TWIN rooms */}
+            {rooms.find((r) => r.id === resRoomId) && (rooms.find((r) => r.id === resRoomId)!.type === "DOUBLE" || rooms.find((r) => r.id === resRoomId)!.type === "TWIN") && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 space-y-3">
+                <div className="flex items-center gap-2 text-amber-800">
+                  <BedDouble className="h-4 w-4" />
+                  <span className="text-xs font-semibold">Double Room — Second Guest Required</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="grp-res-exception" checked={!resExceptionallyReserved} onChange={() => { setResExceptionallyReserved(false); setResExceptionReason(""); }} className="h-3.5 w-3.5 accent-emerald-600" />
+                    <span className="text-xs font-medium">Two Guests</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="grp-res-exception" checked={resExceptionallyReserved} onChange={() => { setResExceptionallyReserved(true); setResSecondGuestName(""); setResSecondGuestPhone(""); setResSecondGuestIdNumber(""); }} className="h-3.5 w-3.5 accent-amber-600" />
+                    <span className="text-xs font-medium text-amber-700">Exceptionally Reserved</span>
+                  </label>
+                </div>
+                {!resExceptionallyReserved ? (
+                  <div className="space-y-2">
+                    <p className="text-[10px] text-muted-foreground">Enter the second guest details for this double room.</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label>Second Guest Name <span className="text-rose-500">*</span></Label>
+                        <Input placeholder="Full name" value={resSecondGuestName} onChange={(e) => setResSecondGuestName(e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Second Guest Phone <span className="text-rose-500">*</span></Label>
+                        <Input placeholder="Phone number" value={resSecondGuestPhone} onChange={(e) => setResSecondGuestPhone(e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Second Guest ID Number</Label>
+                      <Input placeholder="ID number (optional)" value={resSecondGuestIdNumber} onChange={(e) => setResSecondGuestIdNumber(e.target.value)} />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5 text-amber-700">
+                      <AlertCircle className="h-3.5 w-3.5" />
+                      <p className="text-[10px] font-medium">This room will be reserved for single occupancy with an exception.</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Exception Reason <span className="text-rose-500">*</span></Label>
+                      <Textarea placeholder="Explain why this double room is reserved for only one guest..." rows={2} value={resExceptionReason} onChange={(e) => setResExceptionReason(e.target.value)} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Dates */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
