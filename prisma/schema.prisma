@@ -258,6 +258,13 @@ model Reservation {
   actualCheckOut  DateTime?
   taxAmount       Float             @default(0)
   discountAmount  Float             @default(0)
+  // Second guest for DOUBLE/TWIN rooms
+  secondGuestName    String           @default("")
+  secondGuestPhone   String           @default("")
+  secondGuestIdNumber String          @default("")
+  // Exceptional reservation (one guest in double room)
+  exceptionallyReserved Boolean        @default(false)
+  exceptionReason     String           @default("")
   providerId      String
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt

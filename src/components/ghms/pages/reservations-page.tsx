@@ -126,6 +126,11 @@ interface Reservation {
   createdAt: string;
   guest?: { id: string; name: string; phone: string };
   room?: { id: string; number: string; name: string; type: string };
+  secondGuestName?: string;
+  secondGuestPhone?: string;
+  secondGuestIdNumber?: string;
+  exceptionallyReserved?: boolean;
+  exceptionReason?: string;
 }
 
 const STATUS_TABS = ["ALL", "UPCOMING", "ACTIVE", "COMPLETED", "CANCELLED"] as const;
@@ -185,6 +190,11 @@ export default function ReservationsPage() {
     checkIn: "",
     checkOut: "",
     notes: "",
+    secondGuestName: "",
+    secondGuestPhone: "",
+    secondGuestIdNumber: "",
+    exceptionallyReserved: false,
+    exceptionReason: "",
   });
   const [creating, setCreating] = useState(false);
 
@@ -372,12 +382,31 @@ export default function ReservationsPage() {
         return;
       }
 
+      // Double room validation
+      const selRoom = allRooms.find((r) => r.id === createForm.roomId);
+      const isDoubleRoom = selRoom && (selRoom.type === "DOUBLE" || selRoom.type === "TWIN");
+      if (isDoubleRoom && !createForm.exceptionallyReserved) {
+        if (!createForm.secondGuestName.trim() || !createForm.secondGuestPhone.trim()) {
+          toast.error("Second guest name and phone are required for double/twin rooms");
+          return;
+        }
+      }
+      if (createForm.exceptionallyReserved && !createForm.exceptionReason.trim()) {
+        toast.error("Please provide the exception reason");
+        return;
+      }
+
       await apiCreateReservation({
         guestId,
         roomId: createForm.roomId,
         checkIn: createForm.checkIn,
         checkOut: createForm.checkOut,
         notes: createForm.notes,
+        secondGuestName: createForm.secondGuestName,
+        secondGuestPhone: createForm.secondGuestPhone,
+        secondGuestIdNumber: createForm.secondGuestIdNumber,
+        exceptionallyReserved: createForm.exceptionallyReserved,
+        exceptionReason: createForm.exceptionReason,
       });
 
       toast.success("Guest and reservation created successfully");
@@ -404,7 +433,7 @@ export default function ReservationsPage() {
     setGuestMode("existing");
     setSelectedGuestId("");
     setNewGuestForm({ name: "", phone: "", email: "", idNumber: "", idType: "National ID", nationality: "", region: "", zone: "", woreda: "", kebele: "", houseNumber: "", streetName: "", plateNumber: "", weapon: "", notes: "" });
-    setCreateForm({ roomId: "", checkIn: "", checkOut: "", notes: "" });
+    setCreateForm({ roomId: "", checkIn: "", checkOut: "", notes: "", secondGuestName: "", secondGuestPhone: "", secondGuestIdNumber: "", exceptionallyReserved: false, exceptionReason: "" });
   };
 
   const handleDelete = async () => {
@@ -1048,6 +1077,61 @@ export default function ReservationsPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* ── Double/TWIN Room: Second Guest + Exception ── */}
+              {(() => {
+                const selRoom = allRooms.find((r) => r.id === createForm.roomId);
+                const isDouble = selRoom && (selRoom.type === "DOUBLE" || selRoom.type === "TWIN");
+                if (!isDouble) return null;
+                return (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 space-y-3">
+                    <div className="flex items-center gap-2 text-amber-800">
+                      <BedDouble className="h-4 w-4" />
+                      <span className="text-xs font-semibold">Double Room — Second Guest Required</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="res-exception" checked={!createForm.exceptionallyReserved} onChange={() => setCreateForm({ ...createForm, exceptionallyReserved: false, exceptionReason: "" })} className="h-3.5 w-3.5 accent-emerald-600" />
+                        <span className="text-xs font-medium">Two Guests</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="res-exception" checked={createForm.exceptionallyReserved} onChange={() => setCreateForm({ ...createForm, exceptionallyReserved: true, secondGuestName: "", secondGuestPhone: "", secondGuestIdNumber: "" })} className="h-3.5 w-3.5 accent-amber-600" />
+                        <span className="text-xs font-medium text-amber-700">Exceptionally Reserved</span>
+                      </label>
+                    </div>
+                    {!createForm.exceptionallyReserved ? (
+                      <div className="space-y-2">
+                        <p className="text-[10px] text-muted-foreground">Enter the second guest details for this double room.</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <Label>Second Guest Name <span className="text-rose-500">*</span></Label>
+                            <Input placeholder="Full name" value={createForm.secondGuestName} onChange={(e) => setCreateForm({ ...createForm, secondGuestName: e.target.value })} />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>Second Guest Phone <span className="text-rose-500">*</span></Label>
+                            <Input placeholder="Phone number" value={createForm.secondGuestPhone} onChange={(e) => setCreateForm({ ...createForm, secondGuestPhone: e.target.value })} />
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Second Guest ID Number</Label>
+                          <Input placeholder="ID number (optional)" value={createForm.secondGuestIdNumber} onChange={(e) => setCreateForm({ ...createForm, secondGuestIdNumber: e.target.value })} />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-1.5 text-amber-700">
+                          <AlertCircle className="h-3.5 w-3.5" />
+                          <p className="text-[10px] font-medium">This room will be reserved for single occupancy with an exception.</p>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Exception Reason <span className="text-rose-500">*</span></Label>
+                          <Textarea placeholder="Explain why this double room is reserved for only one guest..." rows={2} value={createForm.exceptionReason} onChange={(e) => setCreateForm({ ...createForm, exceptionReason: e.target.value })} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">

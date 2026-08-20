@@ -46,6 +46,8 @@ export async function GET(req: NextRequest) {
           balance: true, paymentStatus: true, paymentMethod: true,
           status: true, taxAmount: true, discountAmount: true,
           providerId: true, actualCheckIn: true, actualCheckOut: true, createdAt: true, updatedAt: true,
+          secondGuestName: true, secondGuestPhone: true, secondGuestIdNumber: true,
+          exceptionallyReserved: true, exceptionReason: true,
           guest: { select: { id: true, name: true, phone: true } },
           room: { select: { id: true, number: true, name: true, type: true } },
         },
@@ -70,10 +72,27 @@ export async function POST(req: NextRequest) {
     checkWritePermission(auth, { staffOnlyWrite: true, staffPermissionKey: "reservations" });
 
     const body = await req.json();
-    const { guestId, roomId, checkIn, checkOut, roomRate, taxAmount, discountAmount, paymentMethod, notes, groupBookingId } = body;
+    const { guestId, roomId, checkIn, checkOut, roomRate, taxAmount, discountAmount, paymentMethod, notes, groupBookingId, secondGuestName, secondGuestPhone, secondGuestIdNumber, exceptionallyReserved, exceptionReason } = body;
 
     if (!guestId || !roomId || !checkIn || !checkOut) {
       return NextResponse.json({ error: "guestId, roomId, checkIn, and checkOut are required" }, { status: 400 });
+    }
+
+    // Get room to check type
+    const room = await db.room.findUnique({ where: { id: roomId } });
+    if (!room) {
+      return NextResponse.json({ error: "Room not found" }, { status: 404 });
+    }
+
+    // DOUBLE/TWIN rooms require second guest data unless exceptionally reserved
+    const requiresTwoGuests = room.type === "DOUBLE" || room.type === "TWIN";
+    if (requiresTwoGuests && !exceptionallyReserved) {
+      if (!secondGuestName || !secondGuestName.trim()) {
+        return NextResponse.json({ error: "DOUBLE_ROOM_SECOND_GUEST_REQUIRED", code: "DOUBLE_ROOM_SECOND_GUEST_REQUIRED", message: "Second guest name is required for double/twin rooms. Select 'Exceptionally Reserved' if only one guest." }, { status: 400 });
+      }
+      if (!secondGuestPhone || !secondGuestPhone.trim()) {
+        return NextResponse.json({ error: "DOUBLE_ROOM_SECOND_GUEST_REQUIRED", code: "DOUBLE_ROOM_SECOND_GUEST_REQUIRED", message: "Second guest phone is required for double/twin rooms. Select 'Exceptionally Reserved' if only one guest." }, { status: 400 });
+      }
     }
 
     // Calculate nights
@@ -85,10 +104,6 @@ export async function POST(req: NextRequest) {
     // Get room rate if not provided
     let rate = roomRate;
     if (!rate) {
-      const room = await db.room.findUnique({ where: { id: roomId } });
-      if (!room) {
-        return NextResponse.json({ error: "Room not found" }, { status: 404 });
-      }
       rate = room.pricePerNight;
     }
 
@@ -139,6 +154,11 @@ export async function POST(req: NextRequest) {
         notes: notes || "",
         taxAmount: tax,
         discountAmount: discount,
+        secondGuestName: secondGuestName || "",
+        secondGuestPhone: secondGuestPhone || "",
+        secondGuestIdNumber: secondGuestIdNumber || "",
+        exceptionallyReserved: exceptionallyReserved === true,
+        exceptionReason: exceptionReason || "",
         providerId,
         ...(groupBookingId ? { groupBookingId } : {}),
       },

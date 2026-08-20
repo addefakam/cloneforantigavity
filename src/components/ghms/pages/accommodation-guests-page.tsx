@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -30,7 +31,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Search, LogIn, LogOut, Users, BedDouble, CalendarDays,
+  Search, LogIn, LogOut, Users, BedDouble, CalendarDays, AlertTriangle, UserPlus,
 } from "lucide-react";
 import { usePagination } from "@/hooks/use-pagination";
 import { PaginationControls } from "@/components/shared/pagination-controls";
@@ -49,6 +50,8 @@ interface Reservation {
   totalCost: number; paidAmount: number; balance: number; paymentStatus: string;
   guest?: { id: string; name: string; phone: string; idNumber: string };
   room?: { id: string; number: string; name: string; type: string };
+  secondGuestName?: string; secondGuestPhone?: string; secondGuestIdNumber?: string;
+  exceptionallyReserved?: boolean; exceptionReason?: string;
   createdAt: string;
 }
 
@@ -67,8 +70,12 @@ const RES_STATUS: Record<string, { color: string; label: string }> = {
   CANCELLED: { color: "bg-red-100 text-red-800", label: "Cancelled" },
 };
 
+const DOUBLE_ROOM_TYPES = ["DOUBLE", "TWIN"];
+
 const emptyResForm = {
   guestId: "", roomId: "", checkIn: "", checkOut: "", notes: "",
+  secondGuestName: "", secondGuestPhone: "", secondGuestIdNumber: "",
+  exceptionallyReserved: false, exceptionReason: "",
 };
 
 // ── Helpers ──
@@ -131,7 +138,8 @@ export default function AccommodationGuestsPage() {
         apiGetRooms(),
       ]);
       setGuests(Array.isArray(gData) ? gData : []);
-      setReservations(Array.isArray(rData) ? rData : []);
+      const rArr = Array.isArray(rData?.data) ? rData.data : Array.isArray(rData) ? rData : [];
+      setReservations(rArr);
       const raw = Array.isArray(rmData?.rooms) ? rmData.rooms : [];
       setRooms(raw);
     } catch {
@@ -216,16 +224,37 @@ export default function AccommodationGuestsPage() {
     return rm ? rm.pricePerNight : 0;
   }, [resForm.roomId, rooms]);
 
+  // Is the selected room a DOUBLE or TWIN?
+  const selectedRoomIsDouble = useMemo(() => {
+    const rm = rooms.find((r) => r.id === resForm.roomId);
+    return rm ? DOUBLE_ROOM_TYPES.includes(rm.type) : false;
+  }, [resForm.roomId, rooms]);
+
   // ── Handlers ──
   const handleCreateRes = async () => {
     if (!resForm.guestId || !resForm.roomId || !resForm.checkIn || !resForm.checkOut) {
       toast.error("Please fill all required fields"); return;
+    }
+    // Client-side validation for double rooms
+    if (selectedRoomIsDouble && !resForm.exceptionallyReserved) {
+      if (!resForm.secondGuestName.trim() || !resForm.secondGuestPhone.trim()) {
+        toast.error("Second guest name and phone are required for double/twin rooms. Use 'Exceptionally Reserved' for single occupancy.");
+        return;
+      }
+    }
+    if (resForm.exceptionallyReserved && !resForm.exceptionReason.trim()) {
+      toast.error("Please provide the exception reason"); return;
     }
     try {
       setCreatingRes(true);
       await apiCreateReservation({
         guestId: resForm.guestId, roomId: resForm.roomId,
         checkIn: resForm.checkIn, checkOut: resForm.checkOut, notes: resForm.notes,
+        secondGuestName: resForm.secondGuestName,
+        secondGuestPhone: resForm.secondGuestPhone,
+        secondGuestIdNumber: resForm.secondGuestIdNumber,
+        exceptionallyReserved: resForm.exceptionallyReserved,
+        exceptionReason: resForm.exceptionReason,
       });
       toast.success("Reservation created");
       setResDialogOpen(false);
@@ -334,7 +363,7 @@ export default function AccommodationGuestsPage() {
       <div className="rounded-xl border bg-card shadow-sm">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
-            <Users className="mb-3 h-10 w-10 text-muted-foreground/40" />
+            <Users className="mb-3 h-10 w-10 text-muted--foreground/40" />
             <p className="text-sm text-muted-foreground">No guests found</p>
           </div>
         ) : (
@@ -356,16 +385,26 @@ export default function AccommodationGuestsPage() {
                         <p className="text-[10px] text-muted-foreground">{g.phone}{g.idNumber ? ` | ${g.idNumber}` : ""}</p>
                       </div>
                     </div>
-                    {g.activeReservation && (
-                      <Badge variant="outline" className={`text-[9px] shrink-0 ${RES_STATUS[g.activeReservation.status]?.color || ""}`}>
-                        {RES_STATUS[g.activeReservation.status]?.label || g.activeReservation.status}
-                      </Badge>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {g.activeReservation?.exceptionallyReserved && (
+                        <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-300">Exception</Badge>
+                      )}
+                      {g.activeReservation && (
+                        <Badge variant="outline" className={`text-[9px] shrink-0 ${RES_STATUS[g.activeReservation.status]?.color || ""}`}>
+                          {RES_STATUS[g.activeReservation.status]?.label || g.activeReservation.status}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   {g.activeReservation && g.activeReservation.room && (
                     <div className="flex items-center gap-3 text-[10px] text-muted-foreground pl-10">
                       <span>Room {g.activeReservation.room.number}{g.activeReservation.room.name ? ` (${g.activeReservation.room.name})` : ""}</span>
                       <span>{formatDate(g.activeReservation.checkIn)} → {formatDate(g.activeReservation.checkOut)}</span>
+                    </div>
+                  )}
+                  {g.activeReservation?.secondGuestName && (
+                    <div className="text-[10px] text-muted-foreground pl-10 flex items-center gap-1">
+                      <UserPlus className="h-3 w-3" /> 2nd: {g.activeReservation.secondGuestName}{g.activeReservation.secondGuestPhone ? ` (${g.activeReservation.secondGuestPhone})` : ""}
                     </div>
                   )}
                   {g.activeReservation && (
@@ -395,6 +434,7 @@ export default function AccommodationGuestsPage() {
                     <TableHead>Phone / ID</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Room</TableHead>
+                    <TableHead>Second Guest</TableHead>
                     <TableHead>Stay Period</TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -409,7 +449,12 @@ export default function AccommodationGuestsPage() {
                             {g.name.charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <p className="text-sm font-medium">{g.name}{g.vip ? " ★" : ""}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-sm font-medium">{g.name}{g.vip ? " \u2605" : ""}</p>
+                              {g.activeReservation?.exceptionallyReserved && (
+                                <Badge variant="outline" className="text-[8px] bg-amber-50 text-amber-700 border-amber-300 px-1 py-0">Exception</Badge>
+                              )}
+                            </div>
                             <p className="text-[10px] text-muted-foreground">{g.totalStays} stay(s) | {formatCurrency(g.totalSpent)} total</p>
                           </div>
                         </div>
@@ -431,6 +476,18 @@ export default function AccommodationGuestsPage() {
                         {g.activeReservation?.room ? (
                           <span>Room {g.activeReservation.room.number}{g.activeReservation.room.name ? ` (${g.activeReservation.room.name})` : ""}</span>
                         ) : "—"}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {g.activeReservation?.secondGuestName ? (
+                          <div>
+                            <p className="font-medium">{g.activeReservation.secondGuestName}</p>
+                            <p className="text-[10px] text-muted-foreground">{g.activeReservation.secondGuestPhone || ""}</p>
+                          </div>
+                        ) : g.activeReservation?.exceptionallyReserved ? (
+                          <span className="text-[10px] text-amber-600">N/A — Exception</span>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                         {g.activeReservation ? `${formatDate(g.activeReservation.checkIn)} → ${formatDate(g.activeReservation.checkOut)}` : "—"}
@@ -478,7 +535,7 @@ export default function AccommodationGuestsPage() {
 
       {/* ── New Reservation Dialog ── */}
       <Dialog open={resDialogOpen} onOpenChange={(open) => { if (!open) { setResDialogOpen(false); setResForm(emptyResForm); setResGuestSearch(""); } }}>
-        <DialogContent className="max-w-lg mx-4 w-[calc(100%-2rem)]">
+        <DialogContent className="max-w-lg mx-4 w-[calc(100%-2rem)] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><CalendarDays className="h-5 w-5" /> New Reservation</DialogTitle>
             <DialogDescription>Create a room reservation for a guest</DialogDescription>
@@ -509,6 +566,7 @@ export default function AccommodationGuestsPage() {
                 </div>
               )}
             </div>
+
             {/* Room Select */}
             <div>
               <Label className="text-xs">Room *</Label>
@@ -521,6 +579,92 @@ export default function AccommodationGuestsPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* ── Double/TWIN Room: Second Guest + Exception ── */}
+            {selectedRoomIsDouble && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 space-y-3">
+                <div className="flex items-center gap-2 text-amber-800">
+                  <BedDouble className="h-4 w-4" />
+                  <span className="text-xs font-semibold">Double Room — Second Guest Required</span>
+                </div>
+
+                {/* Exception toggle */}
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="exceptionallyReserved"
+                      checked={!resForm.exceptionallyReserved}
+                      onChange={() => setResForm({ ...resForm, exceptionallyReserved: false, exceptionReason: "" })}
+                      className="h-3.5 w-3.5 text-emerald-600 accent-emerald-600"
+                    />
+                    <span className="text-xs font-medium">Two Guests</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="exceptionallyReserved"
+                      checked={resForm.exceptionallyReserved}
+                      onChange={() => setResForm({ ...resForm, exceptionallyReserved: true, secondGuestName: "", secondGuestPhone: "", secondGuestIdNumber: "" })}
+                      className="h-3.5 w-3.5 text-amber-600 accent-amber-600"
+                    />
+                    <span className="text-xs font-medium text-amber-700">Exceptionally Reserved</span>
+                  </label>
+                </div>
+
+                {!resForm.exceptionallyReserved ? (
+                  /* Second guest fields */
+                  <div className="space-y-2">
+                    <p className="text-[10px] text-muted-foreground">Enter the second guest details for this double room.</p>
+                    <div>
+                      <Label className="text-xs">Second Guest Name *</Label>
+                      <Input
+                        value={resForm.secondGuestName}
+                        onChange={(e) => setResForm({ ...resForm, secondGuestName: e.target.value })}
+                        placeholder="Full name of second guest"
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Second Guest Phone *</Label>
+                      <Input
+                        value={resForm.secondGuestPhone}
+                        onChange={(e) => setResForm({ ...resForm, secondGuestPhone: e.target.value })}
+                        placeholder="Phone number"
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Second Guest ID Number</Label>
+                      <Input
+                        value={resForm.secondGuestIdNumber}
+                        onChange={(e) => setResForm({ ...resForm, secondGuestIdNumber: e.target.value })}
+                        placeholder="ID number (optional)"
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  /* Exception reason field */
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5 text-amber-700">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      <p className="text-[10px] font-medium">This room will be reserved for single occupancy with an exception.</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Exception Reason *</Label>
+                      <Textarea
+                        value={resForm.exceptionReason}
+                        onChange={(e) => setResForm({ ...resForm, exceptionReason: e.target.value })}
+                        placeholder="Explain why this double room is reserved for only one guest (e.g., VIP request, special arrangement, complimentary upgrade...)"
+                        className="min-h-[60px] text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div><Label className="text-xs">Check-in *</Label><Input type="date" value={resForm.checkIn} min={todayStr()} onChange={(e) => setResForm({ ...resForm, checkIn: e.target.value, checkOut: resForm.checkOut || addDays(e.target.value, 1) })} className="h-9 text-sm" /></div>
               <div><Label className="text-xs">Check-out *</Label><Input type="date" value={resForm.checkOut} min={resForm.checkIn || todayStr()} onChange={(e) => setResForm({ ...resForm, checkOut: e.target.value })} className="h-9 text-sm" /></div>
