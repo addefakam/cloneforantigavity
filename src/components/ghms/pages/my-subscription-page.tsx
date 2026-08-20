@@ -154,7 +154,21 @@ function MySubscriptionPage() {
   const [chapaVerifyResult, setChapaVerifyResult] = useState<string | null>(null);
 
   const searchParams = useSearchParams();
-  const chapaResult = searchParams.get("chapa");
+  const urlChapaResult = searchParams.get("chapa");
+
+  // Check sessionStorage for chapa result (set by bridge page redirect)
+  const [sessionChapaResult, setSessionChapaResult] = useState<string | null>(null);
+  useEffect(() => {
+    const stored = sessionStorage.getItem("chapa_result");
+    if (stored) {
+      setSessionChapaResult(stored);
+      sessionStorage.removeItem("chapa_result");
+      sessionStorage.removeItem("chapa_sub");
+    }
+  }, []);
+
+  // Use sessionStorage result if URL params aren't present
+  const chapaResult = urlChapaResult || sessionChapaResult;
 
   const fetchData = useCallback(async () => {
     try {
@@ -176,8 +190,10 @@ function MySubscriptionPage() {
   // Handle Chapa payment callback — actively verify with Chapa API
   useEffect(() => {
     if (chapaResult === "success") {
-      // Clean up URL params immediately
-      window.history.replaceState({}, "/my-subscription", "/my-subscription");
+      // Clean up URL params if they're in the URL (direct access)
+      if (urlChapaResult) {
+        window.history.replaceState({}, "/", "/");
+      }
       toast.success("Chapa payment completed! Verifying your payment...");
       setChapaVerifying(true);
       setChapaVerifyResult(null);
@@ -206,7 +222,7 @@ function MySubscriptionPage() {
 
       return () => clearTimeout(timer);
     }
-  }, [chapaResult, fetchData]);
+  }, [chapaResult, fetchData, urlChapaResult]);
 
   const handleSelectPlan = (plan: SubData["plans"][0]) => {
     setSelectedPlan(plan);

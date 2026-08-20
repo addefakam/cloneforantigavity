@@ -20,6 +20,26 @@ export default function Home() {
   const [urgentNotifs, setUrgentNotifs] = useState<UrgentNotif[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // ── Handle Chapa payment redirect from /my-subscription?chapa=success bridge page ──
+  useEffect(() => {
+    const raw = sessionStorage.getItem("chapa_callback");
+    if (!raw) return;
+    try {
+      const data = JSON.parse(raw);
+      // Only process if less than 5 minutes old
+      if (Date.now() - (data.timestamp || 0) < 5 * 60 * 1000) {
+        // Store the params for MySubscriptionPage to pick up via sessionStorage
+        // (it already checks sessionStorage as fallback after useSearchParams)
+        sessionStorage.setItem("chapa_result", data.chapa);
+        sessionStorage.setItem("chapa_sub", data.sub || "");
+        setCurrentPage("my-subscription");
+      }
+    } catch {
+      // Invalid JSON, ignore
+    }
+    sessionStorage.removeItem("chapa_callback");
+  }, [setCurrentPage]);
+
   const fetchNotifData = useCallback(async () => {
     try {
       const res = await apiGetNotifications();
