@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureDatabase, forceMigrate } from "@/lib/init-db";
+import { requireAdminAccess } from "@/lib/admin-guard";
 
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
+  // ── Deploy-blocker fix: require admin secret OR superuser auth ──
+  const guard = await requireAdminAccess(req);
+  if (!guard.ok) {
+    return NextResponse.json({ error: guard.error }, { status: guard.status });
+  }
+
   try {
     // Check if caller wants a forced migration (re-run migrations even if init was done)
     const body = await req.json().catch(() => ({}));
@@ -19,7 +26,13 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // ── Deploy-blocker fix: require admin secret OR superuser auth ──
+  const guard = await requireAdminAccess(req);
+  if (!guard.ok) {
+    return NextResponse.json({ error: guard.error }, { status: guard.status });
+  }
+
   try {
     // Force re-init even if _initDone is true
     const { PrismaClient } = await import("@prisma/client");

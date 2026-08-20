@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getAuthContext, AuthError } from "@/lib/tenant";
 
 const DEFAULT_PAYMENT = {
   trialDays: 15,
@@ -17,8 +18,20 @@ const DEFAULT_PAYMENT = {
   enablePaymentOverdue: false,
 };
 
-export async function GET() {
+/**
+ * GET /api/system-config
+ *
+ * Returns system-wide payment configuration.
+ * Deploy-blocker fix: requires authenticated session.
+ */
+export async function GET(req: NextRequest) {
   try {
+    // ── Deploy-blocker fix: require auth — this leaks payment config ──
+    const auth = await getAuthContext(req);
+    if (auth.role !== "SUPERUSER" && auth.role !== "OPERATOR") {
+      return NextResponse.json({ error: "Operator or Superuser access required." }, { status: 403 });
+    }
+
     const sysSettings = await db.settings.findFirst({
       where: { providerId: null },
     });
@@ -32,7 +45,10 @@ export async function GET() {
     }
 
     return NextResponse.json(DEFAULT_PAYMENT);
-  } catch {
+  } catch (error: unknown) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     return NextResponse.json(DEFAULT_PAYMENT);
   }
 }

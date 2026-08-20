@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { verifyToken } from "@/lib/auth-utils";
+import { getAuthContext, AuthError } from "@/lib/tenant";
 
 /**
  * GET /api/joint-ops/users
@@ -9,6 +10,12 @@ import { verifyToken } from "@/lib/auth-utils";
  */
 export async function GET(req: NextRequest) {
   try {
+    // ── Deploy-blocker fix: require authenticated session first ──
+    const auth = await getAuthContext(req);
+    if (auth.role !== "SUPERUSER" && auth.role !== "POLICE") {
+      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    }
+
     // Verify joint session
     const primaryToken = req.cookies.get("ghms_token")?.value;
     const jointToken = req.cookies.get("ghms_token_joint")?.value;
@@ -55,7 +62,10 @@ export async function GET(req: NextRequest) {
         providerName: u.provider?.name || null,
       })),
     });
-  } catch (error) {
+  } catch (error: unknown) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     console.error("Joint ops users error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

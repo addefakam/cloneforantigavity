@@ -1,11 +1,17 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { forceMigrate } from "@/lib/init-db";
+import { requireAdminAccess } from "@/lib/admin-guard";
 
 export const maxDuration = 60;
 
 // POST /api/force-migrate — Force-run all idempotent migrations on the live DB
-// This endpoint bypasses all caching and runs migrations directly.
-export async function POST() {
+// Deploy-blocker fix: requires admin secret header OR authenticated SUPERUSER.
+export async function POST(req: NextRequest) {
+  const guard = await requireAdminAccess(req);
+  if (!guard.ok) {
+    return NextResponse.json({ error: guard.error }, { status: guard.status });
+  }
+
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({ error: "DATABASE_URL not set" }, { status: 500 });
   }
@@ -18,4 +24,3 @@ export async function POST() {
     return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }
-

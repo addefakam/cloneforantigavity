@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { verifyToken } from "@/lib/auth-utils";
+import { getAuthContext, AuthError } from "@/lib/tenant";
 
 /**
  * GET /api/joint-ops/stats
@@ -10,7 +11,13 @@ import { verifyToken } from "@/lib/auth-utils";
  */
 export async function GET(req: NextRequest) {
   try {
-    // Verify joint session
+    // ── Deploy-blocker fix: require authenticated session first ──
+    const auth = await getAuthContext(req);
+    if (auth.role !== "SUPERUSER" && auth.role !== "POLICE") {
+      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    }
+
+    // Verify joint session (SUPERUSER + POLICE ADMIN dual auth)
     const jointValid = await verifyJointSession(req);
     if (!jointValid) {
       return NextResponse.json(
@@ -35,7 +42,10 @@ export async function GET(req: NextRequest) {
       totalRooms,
       totalReservations,
     });
-  } catch (error) {
+  } catch (error: unknown) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     console.error("Joint ops stats error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

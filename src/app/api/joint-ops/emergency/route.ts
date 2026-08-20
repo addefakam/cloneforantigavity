@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
 import { verifyToken } from "@/lib/auth-utils";
+import { getAuthContext, AuthError } from "@/lib/tenant";
 
 /**
  * POST /api/joint-ops/emergency
@@ -12,7 +13,13 @@ import { verifyToken } from "@/lib/auth-utils";
  */
 export async function POST(req: NextRequest) {
   try {
-    // Verify joint session
+    // ── Deploy-blocker fix: require authenticated session first ──
+    const auth = await getAuthContext(req);
+    if (auth.role !== "SUPERUSER" && auth.role !== "POLICE") {
+      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    }
+
+    // Verify joint session (SUPERUSER + POLICE ADMIN dual auth)
     const primaryToken = req.cookies.get("ghms_token")?.value;
     const jointToken = req.cookies.get("ghms_token_joint")?.value;
     if (!primaryToken || !jointToken) {
@@ -94,7 +101,10 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ error: "Unknown action." }, { status: 400 });
-  } catch (error) {
+  } catch (error: unknown) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     console.error("Emergency action error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
