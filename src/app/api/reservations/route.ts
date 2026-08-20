@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getAuthContext, getProviderFilter, checkWritePermission } from "@/lib/tenant";
+import { getAuthContext, getProviderFilter, checkWritePermission, AuthError } from "@/lib/tenant";
 import { checkSuspectMatch } from "@/lib/suspect-check";
 import { runAnomalyDetection } from "@/lib/anomaly-engine";
 
@@ -200,8 +200,14 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(reservation, { status: 201 });
   } catch (error: unknown) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     const message = error instanceof Error ? error.message : "Failed to create reservation";
-    const status = message.includes("required") || message.includes("not found") ? 400 : message.includes("permission") || message.includes("cannot") ? 403 : 500;
+    let status = 500;
+    if (message.includes("required") || message.includes("not found")) status = 400;
+    else if (message.includes("permission") || message.includes("cannot") || message.includes("Staff")) status = 403;
+    else if (message.includes("ROOM_CONFLICT")) status = 409;
     return NextResponse.json({ error: message }, { status });
   }
 }

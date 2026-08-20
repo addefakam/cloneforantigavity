@@ -371,14 +371,15 @@ export default function GroupBookingsPage() {
         checkIn: resCheckIn,
         checkOut: resCheckOut,
         groupBookingId: addReservationGroupId,
+        exceptionallyReserved: true,
       });
       toast.success("Reservation added to group");
       setAddReservationOpen(false);
       resetReservationForm();
       setAddReservationGroupId(null);
       fetchGroupBookings();
-    } catch {
-      toast.error("Failed to add reservation");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to add reservation");
     } finally {
       setAddingReservation(false);
     }
@@ -522,7 +523,11 @@ export default function GroupBookingsPage() {
     });
   };
 
-  const availableRooms = rooms.filter((r) => !r.status || r.status === "AVAILABLE");
+  const selectedGroup = groupBookings.find((g) => g.id === addReservationGroupId);
+  const groupRoomIds = new Set(selectedGroup?.reservations?.map((r) => r.roomId) || []);
+  const availableRooms = rooms.filter(
+    (r) => (!r.status || r.status === "AVAILABLE") && !groupRoomIds.has(r.id)
+  );
   const resCount = (g: GroupBooking) =>
     g.reservations?.length ?? g._count?.reservations ?? 0;
 
