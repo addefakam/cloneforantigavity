@@ -31,10 +31,10 @@ export async function PUT(
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Only allow resetting credentials for SUPERUSER (owner) and POLICE accounts
-    if (existing.role !== "SUPERUSER" && existing.role !== "POLICE") {
+    // Allow resetting credentials for SUPERUSER (owner), OPERATOR, and POLICE accounts
+    if (existing.role !== "SUPERUSER" && existing.role !== "OPERATOR" && existing.role !== "POLICE") {
       return NextResponse.json(
-        { error: "Only owner and police accounts can be managed here. Contact your operator for other user management." },
+        { error: "Only owner, operator, and police accounts can be managed here." },
         { status: 403 }
       );
     }
