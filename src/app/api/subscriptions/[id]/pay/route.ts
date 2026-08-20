@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAuthContext, AuthError } from "@/lib/tenant";
-import { calcNextEndDate, CYCLE_DAYS, TRIAL_DAYS } from "@/lib/subscription";
+import { calcNextEndDate, CYCLE_DAYS, TRIAL_DAYS, calcSubscriptionStatus } from "@/lib/subscription";
 import { logAudit } from "@/lib/audit";
 
 const VALID_CYCLES = ["MONTHLY", "QUARTERLY", "SEMI_ANNUAL", "YEARLY"] as const;
@@ -81,6 +81,10 @@ export async function POST(
       },
     });
 
+    // Check if subscription is expired at payment time
+    const { status: subStatus } = calcSubscriptionStatus(subscription.endDate);
+    const isOverdue = subStatus === "EXPIRED";
+
     // Create payment record
     const payment = await db.subscriptionPayment.create({
       data: {
@@ -90,7 +94,7 @@ export async function POST(
         periodStart,
         periodEnd,
         markedBy: auth.userId,
-        notes: notes || "",
+        notes: `${isOverdue ? "[PAYMENT_OVERDUE] " : ""}${notes || ""}${isOverdue ? " | Subscription was expired at time of payment" : ""}`,
       },
     });
 

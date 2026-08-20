@@ -88,6 +88,12 @@ export async function POST(req: NextRequest) {
       if (plan) resolvedPlanId = plan.id;
     }
 
+    // Check if subscription is expired at payment time
+    const { calcSubscriptionStatus } = await import("@/lib/subscription");
+    const { status: subStatus } = calcSubscriptionStatus(subscription.endDate);
+    const isOverdue = subStatus === "EXPIRED";
+    const overdueTag = isOverdue ? "[PAYMENT_OVERDUE] " : "";
+
     // Create a pending payment record to track this Chapa transaction
     await db.subscriptionPayment.create({
       data: {
@@ -97,7 +103,7 @@ export async function POST(req: NextRequest) {
         periodStart,
         periodEnd,
         markedBy: auth.userId,
-        notes: `[CHAPA PENDING] tx_ref: ${txRef} | Amount: ${Number(amount).toLocaleString()} ETB | ${cycle} plan | Awaiting Chapa confirmation`,
+        notes: `${overdueTag}[CHAPA PENDING] tx_ref: ${txRef} | Amount: ${Number(amount).toLocaleString()} ETB | ${cycle} plan | Awaiting Chapa confirmation${isOverdue ? " | Subscription was expired at time of payment" : ""}`,
       },
     });
 

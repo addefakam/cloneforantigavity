@@ -593,8 +593,9 @@ export default function SubscriptionsPage() {
               <div className="space-y-2">
                 {payments.map((p: any) => {
                   const isPending = p.notes && p.notes.includes("[PROVIDER SUBMITTED]");
+                  const isOverdue = p.notes && p.notes.includes("[PAYMENT_OVERDUE]");
                   return (
-                  <div key={p.id} className={`rounded-lg border p-3 ${isPending ? 'border-amber-200 bg-amber-50/50' : ''}`}>
+                  <div key={p.id} className={`rounded-lg border p-3 ${isOverdue ? 'border-rose-200 bg-rose-50/50' : isPending ? 'border-amber-200 bg-amber-50/50' : ''}`}>
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-semibold text-slate-900">
@@ -610,12 +611,14 @@ export default function SubscriptionsPage() {
                         <Badge
                           variant="outline"
                           className={`text-[10px] ${
-                            isPending
+                            isOverdue
+                              ? "bg-rose-50 text-rose-700 border-rose-200"
+                              : isPending
                               ? "bg-amber-50 text-amber-700 border-amber-200"
                               : "bg-emerald-50 text-emerald-700 border-emerald-200"
                           }`}
                         >
-                          {isPending ? "Pending Verification" : "Paid"}
+                          {isOverdue ? "Payment Overdue" : isPending ? "Pending Verification" : "Paid"}
                         </Badge>
                         <p className="mt-1 text-[10px] text-slate-400">
                           {new Date(p.createdAt).toLocaleString()}

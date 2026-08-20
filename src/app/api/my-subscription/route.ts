@@ -232,9 +232,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Check if subscription is expired at payment time
+    const { status: subStatus } = calcSubscriptionStatus(subscription.endDate, {
+      warningDays: 7,
+      graceDays: 2,
+    });
+    const isOverdue = subStatus === "EXPIRED";
+
     // Build payment notes with provider's reference info
     const paymentNotes = [
-      `[PROVIDER SUBMITTED]`,
+      isOverdue ? `[PAYMENT_OVERDUE]` : `[PROVIDER SUBMITTED]`,
+      isOverdue ? `Subscription was expired at time of payment` : "",
       paymentMethod ? `Method: ${paymentMethod}` : "",
       referenceNo ? `Ref: ${referenceNo}` : "",
       notes || "",
