@@ -195,6 +195,14 @@ export default function GuestsPage() {
       toast.error("ID type is required");
       return;
     }
+    if (!form.idNumber || !form.idNumber.trim()) {
+      toast.error("ID number is required");
+      return;
+    }
+    if (form.idNumber.trim().length < 4) {
+      toast.error("ID number is too short. Please enter a valid ID number.");
+      return;
+    }
     if (!form.nationality || !form.nationality.trim()) {
       toast.error("Nationality is required");
       return;
@@ -668,10 +676,10 @@ export default function GuestsPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="guest-id-number">ID Number</Label>
+                <Label htmlFor="guest-id-number">ID Number <span className="text-rose-500">*</span></Label>
                 <Input
                   id="guest-id-number"
-                  placeholder="ID number"
+                  placeholder="Enter ID number"
                   value={form.idNumber}
                   onChange={(e) => setForm({ ...form, idNumber: e.target.value })}
                 />

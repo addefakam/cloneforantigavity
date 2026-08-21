@@ -78,6 +78,12 @@ export async function POST(req: NextRequest) {
     if (!idType || !idType.trim()) {
       return NextResponse.json({ error: "ID type is required" }, { status: 400 });
     }
+    if (!idNumber || !idNumber.trim()) {
+      return NextResponse.json({ error: "ID number is required" }, { status: 400 });
+    }
+    if (idNumber.trim().length < 4) {
+      return NextResponse.json({ error: "ID number is too short. Please enter a valid ID number." }, { status: 400 });
+    }
 
     // Auto-compose address from normalized fields if not explicitly provided
     const composedAddress = address || composeAddress({ region, zone, woreda, kebele, houseNumber, streetName });

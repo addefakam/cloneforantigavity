@@ -33,6 +33,17 @@ export async function PUT(
     if (email !== undefined && email && !isValidEmail(email)) {
       return NextResponse.json({ error: "Invalid email address format" }, { status: 400 });
     }
+    // Validate ID type if provided
+    if (idType !== undefined && !idType.trim()) {
+      return NextResponse.json({ error: "ID type is required" }, { status: 400 });
+    }
+    // Validate ID number if provided
+    if (idNumber !== undefined && !idNumber.trim()) {
+      return NextResponse.json({ error: "ID number is required" }, { status: 400 });
+    }
+    if (idNumber !== undefined && idNumber.trim().length < 4) {
+      return NextResponse.json({ error: "ID number is too short. Please enter a valid ID number." }, { status: 400 });
+    }
 
     // Auto-compose address from normalized fields
     const composedAddress = address !== undefined
