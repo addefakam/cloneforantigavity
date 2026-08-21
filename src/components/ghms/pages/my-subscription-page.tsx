@@ -850,7 +850,7 @@ export default function MySubscriptionPage() {
                     <Input
                       value={payRef}
                       onChange={(e) => setPayRef(e.target.value)}
-                      placeholder="e.g., TXN-123456 or receipt number"
+                      placeholder="e.g., FT25632i5632k"
                       className="mt-1"
                     />
                     <p className="text-[10px] text-muted-foreground mt-1">
