@@ -125,6 +125,7 @@ export default function SubscriptionsPage() {
   const [verifyReason, setVerifyReason] = useState("");
   const [verifyDeclineMode, setVerifyDeclineMode] = useState(false);
   const [pendingPayments, setPendingPayments] = useState<any[]>([]);
+  const [currentPayIndex, setCurrentPayIndex] = useState(0);
   const [pendingRow, setPendingRow] = useState<SubRow | null>(null);
 
   // History dialog
@@ -184,6 +185,7 @@ export default function SubscriptionsPage() {
     setVerifyAction(null);
     setVerifyReason("");
     setVerifyDeclineMode(false);
+    setCurrentPayIndex(0);
     try {
       const data = await apiGetSubscriptionPayments(row.subscriptionId);
       const list = Array.isArray(data) ? data : [];
@@ -199,18 +201,25 @@ export default function SubscriptionsPage() {
 
   async function handleVerifyAction(action: "approve" | "reject") {
     if (!pendingPayments.length) return;
+    const currentPayment = pendingPayments[currentPayIndex];
+    if (!currentPayment) return;
     setVerifyAction(action);
     try {
-      for (const p of pendingPayments) {
-        await apiVerifyPayment(p.id, { action, reason: verifyReason || undefined });
+      await apiVerifyPayment(currentPayment.id, { action, reason: verifyReason || undefined });
+      const label = action === "approve" ? "Approved" : "Rejected";
+      // If more payments remain, advance to next
+      if (currentPayIndex + 1 < pendingPayments.length) {
+        toast.success(`${label} payment of ${currentPayment.amount.toLocaleString()} ETB — ${pendingPayments.length - currentPayIndex - 1} remaining`);
+        setPendingPayments((prev) => prev.filter((_, i) => i !== currentPayIndex));
+        // Don't increment index since we removed the current item
+        setCurrentPayIndex(0);
+        setVerifyReason("");
+        setVerifyDeclineMode(false);
+      } else {
+        toast.success(`${label} payment for ${pendingRow?.providerName}`);
+        setVerifyOpen(false);
+        fetchSubscriptions();
       }
-      toast.success(
-        action === "approve"
-          ? `${pendingPayments.length} payment(s) verified for ${pendingRow?.providerName}`
-          : `${pendingPayments.length} payment(s) rejected for ${pendingRow?.providerName}`
-      );
-      setVerifyOpen(false);
-      fetchSubscriptions();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : `Failed to ${action} payment`);
     } finally {
@@ -692,8 +701,24 @@ export default function SubscriptionsPage() {
           ) : pendingPayments.length === 0 ? (
             <p className="py-8 text-center text-sm text-slate-400">No pending payments found.</p>
           ) : (
-            <div className="space-y-3 max-h-[350px] overflow-y-auto">
-              {pendingPayments.map((p: any) => {
+            <div className="space-y-3">
+              {/* Counter: Payment 1 of 3 */}
+              {pendingPayments.length > 1 && (
+                <div className="flex items-center justify-center gap-2">
+                  {pendingPayments.map((_: any, i: number) => (
+                    <div
+                      key={i}
+                      className={`h-1.5 rounded-full transition-all ${i === currentPayIndex ? "w-6 bg-orange-500" : i < currentPayIndex ? "w-1.5 bg-emerald-400" : "w-1.5 bg-slate-200"}`}
+                    />
+                  ))}
+                  <span className="text-[10px] text-slate-400 ml-1">{currentPayIndex + 1} of {pendingPayments.length}</span>
+                </div>
+              )}
+
+              {/* Single payment card */}
+              {(() => {
+                const p = pendingPayments[currentPayIndex];
+                if (!p) return null;
                 // Parse payment details from notes
                 const noteParts = (p.notes || "").split(" | ").filter(Boolean);
                 const methodPart = noteParts.find((n: string) => n.startsWith("Method:"));
@@ -747,7 +772,7 @@ export default function SubscriptionsPage() {
                     )}
                   </div>
                 );
-              })}
+              })()}
             </div>
           )}
 
