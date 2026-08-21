@@ -86,6 +86,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { isValidPhone, isValidEmail } from "@/lib/utils";
 
 interface GroupBooking {
   id: string;
@@ -294,6 +295,14 @@ export default function GroupBookingsPage() {
   const handleCreate = async () => {
     if (!name.trim()) { toast.error("Group name is required"); return; }
     if (!startDate || !endDate) { toast.error("Start and end dates are required"); return; }
+    if (contactPhone.trim() && !isValidPhone(contactPhone)) {
+      toast.error("Invalid contact phone number format (7-15 digits)");
+      return;
+    }
+    if (contactEmail.trim() && !isValidEmail(contactEmail)) {
+      toast.error("Invalid contact email address format");
+      return;
+    }
     try {
       setCreating(true);
       await apiCreateGroupBooking({
@@ -343,6 +352,10 @@ export default function GroupBookingsPage() {
 
   const handleRegisterGuest = async () => {
     if (!newGuestName.trim()) { toast.error("Guest name is required"); return; }
+    if (newGuestPhone.trim() && !isValidPhone(newGuestPhone)) {
+      toast.error("Invalid phone number format (7-15 digits)");
+      return;
+    }
     try {
       setRegisteringGuest(true);
       const guest = await apiCreateGuest({
@@ -382,6 +395,10 @@ export default function GroupBookingsPage() {
     if (isDoubleRoom && !resExceptionallyReserved) {
       if (!resSecondGuestName.trim() || !resSecondGuestPhone.trim()) {
         toast.error("Second guest name and phone are required for double/twin rooms");
+        return;
+      }
+      if (!isValidPhone(resSecondGuestPhone)) {
+        toast.error("Invalid second guest phone number format (7-15 digits)");
         return;
       }
     }
@@ -952,6 +969,7 @@ export default function GroupBookingsPage() {
                 <Label htmlFor="contact-phone">Contact Phone</Label>
                 <Input
                   id="contact-phone"
+                  type="tel"
                   placeholder="Phone number"
                   value={contactPhone}
                   onChange={(e) => setContactPhone(e.target.value)}
@@ -1084,6 +1102,7 @@ export default function GroupBookingsPage() {
                       </Label>
                       <Input
                         id="new-guest-phone"
+                        type="tel"
                         placeholder="Phone number"
                         value={newGuestPhone}
                         onChange={(e) => setNewGuestPhone(e.target.value)}
@@ -1195,7 +1214,7 @@ export default function GroupBookingsPage() {
                       </div>
                       <div className="space-y-1.5">
                         <Label>Second Guest Phone <span className="text-rose-500">*</span></Label>
-                        <Input placeholder="Phone number" value={resSecondGuestPhone} onChange={(e) => setResSecondGuestPhone(e.target.value)} />
+                        <Input type="tel" placeholder="Phone number" value={resSecondGuestPhone} onChange={(e) => setResSecondGuestPhone(e.target.value)} />
                       </div>
                     </div>
                     <div className="space-y-1.5">

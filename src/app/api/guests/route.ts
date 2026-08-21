@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getAuthContext, getProviderFilter, checkWritePermission } from "@/lib/tenant";
 import { checkSuspectMatch } from "@/lib/suspect-check";
 import { composeAddress } from "@/lib/ethiopian-admin-divisions";
+import { isValidPhone, isValidEmail } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
   try {
@@ -64,6 +65,18 @@ export async function POST(req: NextRequest) {
 
     if (!name || !phone) {
       return NextResponse.json({ error: "Name and phone are required" }, { status: 400 });
+    }
+    if (!isValidPhone(phone)) {
+      return NextResponse.json({ error: "Invalid phone number format" }, { status: 400 });
+    }
+    if (email && !isValidEmail(email)) {
+      return NextResponse.json({ error: "Invalid email address format" }, { status: 400 });
+    }
+    if (!nationality || !nationality.trim()) {
+      return NextResponse.json({ error: "Nationality is required" }, { status: 400 });
+    }
+    if (!idType || !idType.trim()) {
+      return NextResponse.json({ error: "ID type is required" }, { status: 400 });
     }
 
     // Auto-compose address from normalized fields if not explicitly provided

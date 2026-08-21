@@ -1,0 +1,1149 @@
+   370→  const handleAddReservation = async () => {
+   371→    if (!addReservationGroupId || !resGuestId || !resRoomId) {
+   372→      toast.error("Please select a guest and room");
+   373→      return;
+   374→    }
+   375→    if (!resCheckIn || !resCheckOut) {
+   376→      toast.error("Check-in and check-out dates are required");
+   377→      return;
+   378→    }
+   379→    // Validate DOUBLE/TWIN room requirements
+   380→    const selRoom = rooms.find((r) => r.id === resRoomId);
+   381→    const isDoubleRoom = selRoom && (selRoom.type === "DOUBLE" || selRoom.type === "TWIN");
+   382→    if (isDoubleRoom && !resExceptionallyReserved) {
+   383→      if (!resSecondGuestName.trim() || !resSecondGuestPhone.trim()) {
+   384→        toast.error("Second guest name and phone are required for double/twin rooms");
+   385→        return;
+   386→      }
+   387→    }
+   388→    if (resExceptionallyReserved && !resExceptionReason.trim()) {
+   389→      toast.error("Please provide the exception reason");
+   390→      return;
+   391→    }
+   392→    try {
+   393→      setAddingReservation(true);
+   394→      await apiCreateReservation({
+   395→        guestId: resGuestId,
+   396→        roomId: resRoomId,
+   397→        checkIn: resCheckIn,
+   398→        checkOut: resCheckOut,
+   399→        groupBookingId: addReservationGroupId,
+   400→        secondGuestName: resSecondGuestName,
+   401→        secondGuestPhone: resSecondGuestPhone,
+   402→        secondGuestIdNumber: resSecondGuestIdNumber,
+   403→        exceptionallyReserved: resExceptionallyReserved,
+   404→        exceptionReason: resExceptionReason,
+   405→      });
+   406→      toast.success("Reservation added to group");
+   407→      setAddReservationOpen(false);
+   408→      resetReservationForm();
+   409→      setAddReservationGroupId(null);
+   410→      fetchGroupBookings();
+   411→    } catch (err: unknown) {
+   412→      toast.error(err instanceof Error ? err.message : "Failed to add reservation");
+   413→    } finally {
+   414→      setAddingReservation(false);
+   415→    }
+   416→  };
+   417→
+   418→  const handleUnlinkReservation = async (reservationId: string) => {
+   419→    try {
+   420→      setUnlinkingId(reservationId);
+   421→      await apiUpdateReservation(reservationId, { groupBookingId: null });
+   422→      toast.success("Reservation removed from group");
+   423→      fetchGroupBookings();
+   424→    } catch {
+   425→      toast.error("Failed to remove reservation");
+   426→    } finally {
+   427→      setUnlinkingId(null);
+   428→    }
+   429→  };
+   430→
+   431→  const handleAutoAssign = async (groupId: string) => {
+   432→    try {
+   433→      setAutoAssigning(groupId);
+   434→      const result = await apiAutoAssignGroup(groupId);
+   435→      const { assigned, unassigned } = result as { assigned: Array<{ guestName: string; roomNumber: string; roomName: string; roomType: string; pricePerNight: number; totalCost: number; isNew: boolean }>; unassigned: Array<{ guestName: string; reason: string }> };
+   436→      if (assigned.length > 0) {
+   437→        const newCount = assigned.filter((a) => a.isNew).length;
+   438→        toast.success(`Auto-assigned ${assigned.length} guest(s) to rooms${newCount > 0 ? ` (${newCount} new reservations created)` : ""}`);
+   439→      }
+   440→      if (unassigned.length > 0) {
+   441→        toast.warning(`${unassigned.length} guest(s) could not be assigned: ${unassigned.map((u) => u.guestName).join(", ")}`);
+   442→      }
+   443→      if (assigned.length === 0 && unassigned.length === 0) {
+   444→        toast.info("No unassigned guests found. All guests already have rooms.");
+   445→      }
+   446→      setDetailId(groupId);
+   447→      fetchGroupBookings();
+   448→    } catch (err: unknown) {
+   449→      const msg = err instanceof Error ? err.message : "Auto-assign failed";
+   450→      if (msg.includes("NO_ROOMS")) {
+   451→        toast.error("No available rooms for the selected dates");
+   452→      } else {
+   453→        toast.error(msg);
+   454→      }
+   455→    } finally {
+   456→      setAutoAssigning(null);
+   457→    }
+   458→  };
+   459→
+   460→  const handleGroupCheckin = async (group: GroupBooking) => {
+   461→    const upcomingReservations = group.reservations?.filter(
+   462→      (r) => r.status === "UPCOMING"
+   463→    ) || [];
+   464→    if (upcomingReservations.length === 0) {
+   465→      toast.info("No upcoming reservations to check in");
+   466→      return;
+   467→    }
+   468→    try {
+   469→      let checked = 0;
+   470→      for (const res of upcomingReservations) {
+   471→        try {
+   472→          await apiCheckin(res.id);
+   473→          checked++;
+   474→        } catch {
+   475→          /* skip failed ones */
+   476→        }
+   477→      }
+   478→      toast.success(`${checked} reservation(s) checked in`);
+   479→      fetchGroupBookings();
+   480→    } catch {
+   481→      toast.error("Bulk check-in failed");
+   482→    }
+   483→  };
+   484→
+   485→  const handleGroupCheckout = async () => {
+   486→    if (!checkoutTarget) return;
+   487→    try {
+   488→      setCheckingOut(true);
+   489→      const result = await apiGroupCheckout(checkoutTarget.id);
+   490→      const r = result as { checkedOut: number; total: number; message: string };
+   491→      toast.success(r.message || `${r.checkedOut} reservation(s) checked out`);
+   492→      setCheckoutTarget(null);
+   493→      fetchGroupBookings();
+   494→    } catch (err: unknown) {
+   495→      const msg = err instanceof Error ? err.message : "Group checkout failed";
+   496→      toast.error(msg);
+   497→    } finally {
+   498→      setCheckingOut(false);
+   499→    }
+   500→  };
+   501→
+   502→  const openPaymentDialog = (group: GroupBooking) => {
+   503→    // Calculate total cost and total paid from reservations
+   504→    const totalCost = group.reservations?.reduce((s, r) => (s + (r.totalCost || 0)), 0) || 0;
+   505→    setPaymentGroupId(group.id);
+   506→    setPaymentForm({ amount: String(totalCost), method: "CASH", referenceNo: "", notes: "" });
+   507→    setPaymentOpen(true);
+   508→  };
+   509→
+   510→  const handleGroupPayment = async () => {
+   511→    if (!paymentGroupId || !paymentForm.amount || !paymentForm.method) {
+   512→      toast.error("Amount and payment method are required");
+   513→      return;
+   514→    }
+   515→    try {
+   516→      setPaying(true);
+   517→      const result = await apiGroupPayment(paymentGroupId, {
+   518→        amount: Number(paymentForm.amount),
+   519→        method: paymentForm.method,
+   520→        referenceNo: paymentForm.referenceNo,
+   521→        notes: paymentForm.notes,
+   522→      });
+   523→      const r = result as { message: string };
+   524→      toast.success(r.message || "Payment recorded successfully");
+   525→      setPaymentOpen(false);
+   526→      setPaymentGroupId(null);
+   527→      fetchGroupBookings();
+   528→    } catch (err: unknown) {
+   529→      const msg = err instanceof Error ? err.message : "Payment failed";
+   530→      toast.error(msg);
+   531→    } finally {
+   532→      setPaying(false);
+   533→    }
+   534→  };
+   535→
+   536→  const openAddReservation = (group: GroupBooking) => {
+   537→    setAddReservationGroupId(group.id);
+   538→    setResCheckIn(group.startDate);
+   539→    setResCheckOut(group.endDate);
+   540→    setAddReservationOpen(true);
+   541→  };
+   542→
+   543→  const toggleDetail = (id: string) => {
+   544→    setDetailId((prev) => (prev === id ? null : id));
+   545→  };
+   546→
+   547→  const formatDate = (dateStr: string) => {
+   548→    if (!dateStr) return "—";
+   549→    return new Date(dateStr).toLocaleDateString("en-US", {
+   550→      year: "numeric",
+   551→      month: "short",
+   552→      day: "numeric",
+   553→    });
+   554→  };
+   555→
+   556→  const selectedGroup = groupBookings.find((g) => g.id === addReservationGroupId);
+   557→  const groupRoomIds = new Set(selectedGroup?.reservations?.map((r) => r.roomId) || []);
+   558→  const availableRooms = rooms.filter(
+   559→    (r) => (!r.status || r.status === "AVAILABLE") && !groupRoomIds.has(r.id)
+   560→  );
+   561→  const resCount = (g: GroupBooking) =>
+   562→    g.reservations?.length ?? g._count?.reservations ?? 0;
+   563→
+   564→  return (
+   565→    <div className="space-y-6 p-4 md:p-6">
+   566→      {/* Header */}
+   567→      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+   568→        <div>
+   569→          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+   570→            <Users className="h-6 w-6" />
+   571→            Group Bookings
+   572→          </h1>
+   573→          <p className="text-muted-foreground text-sm mt-1">
+   574→            Manage teams, events, and bulk reservations
+   575→          </p>
+   576→        </div>
+   577→        <Button onClick={() => setCreateOpen(true)}>
+   578→          <Plus className="h-4 w-4 mr-2" />
+   579→          New Group Booking
+   580→        </Button>
+   581→      </div>
+   582→
+   583→      {/* Loading State */}
+   584→      {loading && (
+   585→        <div className="space-y-4">
+   586→          {Array.from({ length: 3 }).map((_, i) => (
+   587→            <Card key={i}>
+   588→              <CardHeader className="pb-3">
+   589→                <Skeleton className="h-5 w-48" />
+   590→              </CardHeader>
+   591→              <CardContent>
+   592→                <div className="space-y-2">
+   593→                  <Skeleton className="h-4 w-full max-w-md" />
+   594→                  <Skeleton className="h-4 w-3/4 max-w-sm" />
+   595→                </div>
+   596→              </CardContent>
+   597→            </Card>
+   598→          ))}
+   599→        </div>
+   600→      )}
+   601→
+   602→      {/* Empty State */}
+   603→      {!loading && groupBookings.length === 0 && (
+   604→        <Card className="py-12">
+   605→          <CardContent className="flex flex-col items-center justify-center text-center">
+   606→            <Users className="h-12 w-12 text-muted-foreground/40 mb-4" />
+   607→            <h3 className="text-lg font-medium text-muted-foreground">
+   608→              No group bookings yet
+   609→            </h3>
+   610→            <p className="text-sm text-muted-foreground mt-1">
+   611→              Create your first group booking to get started.
+   612→            </p>
+   613→            <Button
+   614→              className="mt-4"
+   615→              variant="outline"
+   616→              onClick={() => setCreateOpen(true)}
+   617→            >
+   618→              <Plus className="h-4 w-4 mr-2" />
+   619→              Create Group Booking
+   620→            </Button>
+   621→          </CardContent>
+   622→        </Card>
+   623→      )}
+   624→
+   625→      {/* Group Booking List */}
+   626→      {!loading && groupBookings.length > 0 && (
+   627→        <div className="space-y-4">
+   628→          {groupBookings.map((group) => {
+   629→            const isExpanded = detailId === group.id;
+   630→            const badgeClass = STATUS_COLORS[group.status] ?? "bg-gray-100 text-gray-700 border-gray-200";
+   631→            const numRes = resCount(group);
+   632→            const upcomingCount = group.reservations?.filter((r) => r.status === "UPCOMING").length ?? 0;
+   633→
+   634→            return (
+   635→              <Card key={group.id} className="overflow-hidden">
+   636→                {/* Card Header */}
+   637→                <CardHeader className="pb-3">
+   638→                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+   639→                    <div className="flex items-center gap-3 min-w-0">
+   640→                      <CardTitle className="text-base font-semibold truncate">
+   641→                        {group.name}
+   642→                      </CardTitle>
+   643→                      <Badge variant="outline" className={badgeClass}>
+   644→                        {group.status}
+   645→                      </Badge>
+   646→                    </div>
+   647→                    <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+   648→                      <Select
+   649→                        value={group.status}
+   650→                        onValueChange={(value) => handleStatusChange(group.id, value)}
+   651→                      >
+   652→                        <SelectTrigger className="w-[140px] h-8 text-xs">
+   653→                          <SelectValue />
+   654→                        </SelectTrigger>
+   655→                        <SelectContent>
+   656→                          {GROUP_STATUSES.map((s) => (
+   657→                            <SelectItem key={s} value={s}>{s}</SelectItem>
+   658→                          ))}
+   659→                        </SelectContent>
+   660→                      </Select>
+   661→                      {upcomingCount > 0 && (
+   662→                        <Button
+   663→                          variant="outline"
+   664→                          size="sm"
+   665→                          className="text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+   666→                          onClick={() => handleGroupCheckin(group)}
+   667→                        >
+   668→                          <LogIn className="h-3.5 w-3.5 mr-1" />
+   669→                          Check-in All ({upcomingCount})
+   670→                        </Button>
+   671→                      )}
+   672→                      {group.reservations?.some((r) => r.status === "ACTIVE") && (
+   673→                        <Button
+   674→                          variant="outline"
+   675→                          size="sm"
+   676→                          className="text-orange-600 border-orange-200 hover:bg-orange-50"
+   677→                          onClick={() => setCheckoutTarget(group)}
+   678→                        >
+   679→                          <LogOut className="h-3.5 w-3.5 mr-1" />
+   680→                          <span className="hidden sm:inline">Check-out All</span>
+   681→                        </Button>
+   682→                      )}
+   683→                      {group.reservations?.some((r) => r.status !== "COMPLETED" && r.status !== "CANCELLED") && (
+   684→                        <Button
+   685→                          variant="outline"
+   686→                          size="sm"
+   687→                          className="text-blue-600 border-blue-200 hover:bg-blue-50"
+   688→                          onClick={() => openPaymentDialog(group)}
+   689→                        >
+   690→                          <CreditCard className="h-3.5 w-3.5 mr-1" />
+   691→                          <span className="hidden sm:inline">Pay</span>
+   692→                        </Button>
+   693→                      )}
+   694→                      <Button
+   695→                        variant="outline"
+   696→                        size="sm"
+   697→                        className="text-violet-600 border-violet-200 hover:bg-violet-50"
+   698→                        disabled={autoAssigning === group.id}
+   699→                        onClick={() => handleAutoAssign(group.id)}
+   700→                      >
+   701→                        {autoAssigning === group.id ? (
+   702→                          <span className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+   703→                        ) : (
+   704→                          <Wand2 className="h-3.5 w-3.5 mr-1" />
+   705→                        )}
+   706→                        <span className="hidden sm:inline">Auto Assign</span>
+   707→                      </Button>
+   708→                      <Button
+   709→                        variant="outline"
+   710→                        size="sm"
+   711→                        onClick={() => openAddReservation(group)}
+   712→                      >
+   713→                        <UserPlus className="h-3.5 w-3.5 mr-1" />
+   714→                        <span className="hidden sm:inline">Add Guest</span>
+   715→                      </Button>
+   716→                      <Button
+   717→                        variant="outline"
+   718→                        size="sm"
+   719→                        className="text-destructive hover:text-destructive"
+   720→                        onClick={() => setDeleteTarget(group)}
+   721→                      >
+   722→                        <Trash2 className="h-3.5 w-3.5" />
+   723→                      </Button>
+   724→                      <Button
+   725→                        variant="ghost"
+   726→                        size="sm"
+   727→                        onClick={() => toggleDetail(group.id)}
+   728→                      >
+   729→                        {isExpanded ? (
+   730→                          <ChevronUp className="h-4 w-4" />
+   731→                        ) : (
+   732→                          <ChevronDown className="h-4 w-4" />
+   733→                        )}
+   734→                      </Button>
+   735→                    </div>
+   736→                  </div>
+   737→                </CardHeader>
+   738→
+   739→                {/* Card Body */}
+   740→                <CardContent className="pt-0">
+   741→                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+   742→                    {group.contactName && (
+   743→                      <div className="flex items-center gap-2 text-muted-foreground">
+   744→                        <Users className="h-4 w-4 flex-shrink-0" />
+   745→                        <span className="truncate">{group.contactName}</span>
+   746→                      </div>
+   747→                    )}
+   748→                    {group.contactPhone && (
+   749→                      <div className="flex items-center gap-2 text-muted-foreground">
+   750→                        <Phone className="h-4 w-4 flex-shrink-0" />
+   751→                        <span>{group.contactPhone}</span>
+   752→                      </div>
+   753→                    )}
+   754→                    {group.contactEmail && (
+   755→                      <div className="flex items-center gap-2 text-muted-foreground">
+   756→                        <Mail className="h-4 w-4 flex-shrink-0" />
+   757→                        <span className="truncate">{group.contactEmail}</span>
+   758→                      </div>
+   759→                    )}
+   760→                    <div className="flex items-center gap-2 text-muted-foreground">
+   761→                      <CalendarDays className="h-4 w-4 flex-shrink-0" />
+   762→                      <span>
+   763→                        {formatDate(group.startDate)} — {formatDate(group.endDate)}
+   764→                      </span>
+   765→                    </div>
+   766→                  </div>
+   767→
+   768→                  {/* Stats row */}
+   769→                  <div className="flex items-center gap-5 mt-3 text-sm text-muted-foreground">
+   770→                    <div className="flex items-center gap-1.5">
+   771→                      <Building2 className="h-3.5 w-3.5" />
+   772→                      <span>{numRes} reservation{numRes !== 1 ? "s" : ""}</span>
+   773→                    </div>
+   774→                    <div className="flex items-center gap-1.5">
+   775→                      <Users className="h-3.5 w-3.5" />
+   776→                      <span>{group.totalGuests || 0} guest{group.totalGuests !== 1 ? "s" : ""}</span>
+   777→                    </div>
+   778→                    {(group.totalCost ?? 0) > 0 && (
+   779→                      <span className="font-medium text-foreground">
+   780→                        {group.totalCost?.toLocaleString()} ETB
+   781→                      </span>
+   782→                    )}
+   783→                  </div>
+   784→
+   785→                  {group.notes && (
+   786→                    <p className="mt-3 text-sm text-muted-foreground border-l-2 border-muted pl-3">
+   787→                      {group.notes}
+   788→                    </p>
+   789→                  )}
+   790→
+   791→                  {/* Expanded: Linked Reservations */}
+   792→                  {isExpanded && (
+   793→                    <div className="mt-4 border rounded-lg overflow-hidden">
+   794→                      {numRes > 0 ? (
+   795→                        <Table>
+   796→                          <TableHeader>
+   797→                            <TableRow>
+   798→                              <TableHead>Guest</TableHead>
+   799→                              <TableHead>Assigned Room</TableHead>
+   800→                              <TableHead className="hidden md:table-cell">Room Type</TableHead>
+   801→                              <TableHead className="hidden lg:table-cell">Cost</TableHead>
+   802→                              <TableHead className="hidden md:table-cell">Check-in</TableHead>
+   803→                              <TableHead>Status</TableHead>
+   804→                              <TableHead className="w-[50px]"></TableHead>
+   805→                            </TableRow>
+   806→                          </TableHeader>
+   807→                          <TableBody>
+   808→                            {group.reservations?.map((res) => (
+   809→                              <TableRow
+   810→                                key={res.id}
+   811→                                className="cursor-pointer hover:bg-muted/50"
+   812→                                onClick={() => setDetailRes(res)}
+   813→                              >
+   814→                                <TableCell className="font-medium">
+   815→                                  <div>
+   816→                                    <div>{res.guest?.name ?? "Unknown"}</div>
+   817→                                    {res.guest?.phone && (
+   818→                                      <div className="text-xs text-muted-foreground">{res.guest.phone}</div>
+   819→                                    )}
+   820→                                  </div>
+   821→                                </TableCell>
+   822→                                <TableCell>
+   823→                                  {res.room
+   824→                                    ? (
+   825→                                      <div>
+   826→                                        <div className="font-medium">{res.room.number}{res.room.name ? ` - ${res.room.name}` : ""}</div>
+   827→                                      </div>
+   828→                                    )
+   829→                                    : <span className="text-muted-foreground">Not assigned</span>}
+   830→                                </TableCell>
+   831→                                <TableCell className="hidden md:table-cell">
+   832→                                  {res.room?.type ? (
+   833→                                    <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 text-xs">
+   834→                                      {res.room.type}
+   835→                                    </Badge>
+   836→                                  ) : "—"}
+   837→                                </TableCell>
+   838→                                <TableCell className="hidden lg:table-cell">
+   839→                                  {res.totalCost > 0 ? (
+   840→                                    <span className="text-sm font-medium">{res.totalCost.toLocaleString()} ETB</span>
+   841→                                  ) : "—"}
+   842→                                </TableCell>
+   843→                                <TableCell className="hidden md:table-cell">
+   844→                                  {formatDate(res.checkIn)}
+   845→                                </TableCell>
+   846→                                <TableCell>
+   847→                                  <Badge
+   848→                                    variant="outline"
+   849→                                    className={
+   850→                                      RESERVATION_STATUS_BADGE[res.status] ??
+   851→                                      "bg-gray-100 text-gray-700 border-gray-200"
+   852→                                    }
+   853→                                  >
+   854→                                    {res.status}
+   855→                                  </Badge>
+   856→                                </TableCell>
+   857→                                <TableCell>
+   858→                                  <Button
+   859→                                    variant="ghost"
+   860→                                    size="icon"
+   861→                                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+   862→                                    disabled={unlinkingId === res.id}
+   863→                                    onClick={(e) => { e.stopPropagation(); handleUnlinkReservation(res.id); }}
+   864→                                    title="Remove from group"
+   865→                                  >
+   866→                                    {unlinkingId === res.id ? (
+   867→                                      <span className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+   868→                                    ) : (
+   869→                                      <X className="h-3.5 w-3.5" />
+   870→                                    )}
+   871→                                  </Button>
+   872→                                </TableCell>
+   873→                              </TableRow>
+   874→                            ))}
+   875→                          </TableBody>
+   876→                        </Table>
+   877→                      ) : (
+   878→                        <div className="py-6 text-center text-sm text-muted-foreground">
+   879→                          <CalendarDays className="h-8 w-8 mx-auto mb-2 opacity-40" />
+   880→                          No reservations yet. Add guests manually or use "Auto Assign" to assign rooms automatically.
+   881→                        </div>
+   882→                      )}
+   883→                    </div>
+   884→                  )}
+   885→                </CardContent>
+   886→              </Card>
+   887→            );
+   888→          })}
+   889→        </div>
+   890→      )}
+   891→
+   892→      {/* Pagination */}
+   893→      {!loading && totalPages > 1 && (
+   894→        <div className="flex items-center justify-center gap-2">
+   895→          <Button
+   896→            variant="outline"
+   897→            size="sm"
+   898→            disabled={page <= 1}
+   899→            onClick={() => setPage((p) => Math.max(1, p - 1))}
+   900→          >
+   901→            Previous
+   902→          </Button>
+   903→          <span className="text-sm text-muted-foreground">
+   904→            Page {page} of {totalPages}
+   905→          </span>
+   906→          <Button
+   907→            variant="outline"
+   908→            size="sm"
+   909→            disabled={page >= totalPages}
+   910→            onClick={() => setPage((p) => p + 1)}
+   911→          >
+   912→            Next
+   913→          </Button>
+   914→        </div>
+   915→      )}
+   916→
+   917→      {/* Create Group Booking Dialog */}
+   918→      <Dialog open={createOpen} onOpenChange={(open) => {
+   919→        if (!open) resetCreateForm();
+   920→        setCreateOpen(open);
+   921→      }}>
+   922→        <DialogContent className="sm:max-w-[520px]">
+   923→          <DialogHeader>
+   924→            <DialogTitle>Create Group Booking</DialogTitle>
+   925→            <DialogDescription>
+   926→              Add a new group booking for a team or event.
+   927→            </DialogDescription>
+   928→          </DialogHeader>
+   929→          <div className="grid gap-4 py-2">
+   930→            <div className="grid gap-2">
+   931→              <Label htmlFor="group-name">
+   932→                Group Name <span className="text-destructive">*</span>
+   933→              </Label>
+   934→              <Input
+   935→                id="group-name"
+   936→                placeholder="e.g. ABC Company Training"
+   937→                value={name}
+   938→                onChange={(e) => setName(e.target.value)}
+   939→              />
+   940→            </div>
+   941→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   942→              <div className="grid gap-2">
+   943→                <Label htmlFor="contact-name">Contact Name</Label>
+   944→                <Input
+   945→                  id="contact-name"
+   946→                  placeholder="Full name"
+   947→                  value={contactName}
+   948→                  onChange={(e) => setContactName(e.target.value)}
+   949→                />
+   950→              </div>
+   951→              <div className="grid gap-2">
+   952→                <Label htmlFor="contact-phone">Contact Phone</Label>
+   953→                <Input
+   954→                  id="contact-phone"
+   955→                  placeholder="Phone number"
+   956→                  value={contactPhone}
+   957→                  onChange={(e) => setContactPhone(e.target.value)}
+   958→                />
+   959→              </div>
+   960→            </div>
+   961→            <div className="grid gap-2">
+   962→              <Label htmlFor="contact-email">Contact Email</Label>
+   963→              <Input
+   964→                id="contact-email"
+   965→                type="email"
+   966→                placeholder="email@example.com"
+   967→                value={contactEmail}
+   968→                onChange={(e) => setContactEmail(e.target.value)}
+   969→              />
+   970→            </div>
+   971→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   972→              <div className="grid gap-2">
+   973→                <Label htmlFor="start-date">
+   974→                  Start Date <span className="text-destructive">*</span>
+   975→                </Label>
+   976→                <Input
+   977→                  id="start-date"
+   978→                  type="date"
+   979→                  value={startDate}
+   980→                  onChange={(e) => setStartDate(e.target.value)}
+   981→                />
+   982→              </div>
+   983→              <div className="grid gap-2">
+   984→                <Label htmlFor="end-date">
+   985→                  End Date <span className="text-destructive">*</span>
+   986→                </Label>
+   987→                <Input
+   988→                  id="end-date"
+   989→                  type="date"
+   990→                  value={endDate}
+   991→                  onChange={(e) => setEndDate(e.target.value)}
+   992→                />
+   993→              </div>
+   994→            </div>
+   995→            <div className="grid gap-2">
+   996→              <Label htmlFor="notes">Notes</Label>
+   997→              <Input
+   998→                id="notes"
+   999→                placeholder="Any additional notes..."
+  1000→                value={notes}
+  1001→                onChange={(e) => setNotes(e.target.value)}
+  1002→              />
+  1003→            </div>
+  1004→          </div>
+  1005→          <DialogFooter>
+  1006→            <Button
+  1007→              variant="outline"
+  1008→              onClick={() => { setCreateOpen(false); resetCreateForm(); }}
+  1009→              disabled={creating}
+  1010→            >
+  1011→              Cancel
+  1012→            </Button>
+  1013→            <Button onClick={handleCreate} disabled={creating}>
+  1014→              {creating ? "Creating..." : "Create Group Booking"}
+  1015→            </Button>
+  1016→          </DialogFooter>
+  1017→        </DialogContent>
+  1018→      </Dialog>
+  1019→
+  1020→      {/* Add Guest / Reservation to Group Dialog */}
+  1021→      <Dialog
+  1022→        open={addReservationOpen}
+  1023→        onOpenChange={(open) => {
+  1024→          if (!open) { resetReservationForm(); setAddReservationGroupId(null); }
+  1025→          setAddReservationOpen(open);
+  1026→        }}
+  1027→      >
+  1028→        <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
+  1029→          <DialogHeader>
+  1030→            <DialogTitle>Add Guest to Group</DialogTitle>
+  1031→            <DialogDescription>
+  1032→              Select an existing guest or register a new one, then assign a room.
+  1033→            </DialogDescription>
+  1034→          </DialogHeader>
+  1035→          <div className="grid gap-4 py-2">
+  1036→            {/* Guest Selection with inline register toggle */}
+  1037→            <div className="grid gap-2">
+  1038→              <div className="flex items-center justify-between">
+  1039→                <Label>Guest <span className="text-destructive">*</span></Label>
+  1040→                <Button
+  1041→                  type="button"
+  1042→                  variant="ghost"
+  1043→                  size="sm"
+  1044→                  className="h-7 text-xs gap-1"
+  1045→                  onClick={() => setShowNewGuest(!showNewGuest)}
+  1046→                >
+  1047→                  <UserPlus className="h-3.5 w-3.5" />
+  1048→                  {showNewGuest ? "Select existing" : "Register new guest"}
+  1049→                </Button>
+  1050→              </div>
+  1051→
+  1052→              {!showNewGuest ? (
+  1053→                /* Existing guest dropdown */
+  1054→                <Select value={resGuestId} onValueChange={setResGuestId}>
+  1055→                  <SelectTrigger>
+  1056→                    <SelectValue placeholder="Select a guest" />
+  1057→                  </SelectTrigger>
+  1058→                  <SelectContent>
+  1059→                    {guests.map((g) => (
+  1060→                      <SelectItem key={g.id} value={g.id}>
+  1061→                        {g.name}{g.phone ? ` — ${g.phone}` : ""}
+  1062→                      </SelectItem>
+  1063→                    ))}
+  1064→                  </SelectContent>
+  1065→                </Select>
+  1066→              ) : (
+  1067→                /* Inline guest registration form */
+  1068→                <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+  1069→                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+  1070→                    <div className="grid gap-1.5">
+  1071→                      <Label htmlFor="new-guest-name" className="text-xs">
+  1072→                        Full Name <span className="text-destructive">*</span>
+  1073→                      </Label>
+  1074→                      <Input
+  1075→                        id="new-guest-name"
+  1076→                        placeholder="Guest full name"
+  1077→                        value={newGuestName}
+  1078→                        onChange={(e) => setNewGuestName(e.target.value)}
+  1079→                      />
+  1080→                    </div>
+  1081→                    <div className="grid gap-1.5">
+  1082→                      <Label htmlFor="new-guest-phone" className="text-xs">
+  1083→                        Phone Number
+  1084→                      </Label>
+  1085→                      <Input
+  1086→                        id="new-guest-phone"
+  1087→                        placeholder="Phone number"
+  1088→                        value={newGuestPhone}
+  1089→                        onChange={(e) => setNewGuestPhone(e.target.value)}
+  1090→                      />
+  1091→                    </div>
+  1092→                  </div>
+  1093→                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+  1094→                    <div className="grid gap-1.5">
+  1095→                      <Label htmlFor="new-guest-id-type" className="text-xs">
+  1096→                        ID Type
+  1097→                      </Label>
+  1098→                      <Select value={newGuestIdType} onValueChange={setNewGuestIdType}>
+  1099→                        <SelectTrigger id="new-guest-id-type">
+  1100→                          <SelectValue placeholder="Select ID type" />
+  1101→                        </SelectTrigger>
+  1102→                        <SelectContent>
+  1103→                          <SelectItem value="National_ID">National ID</SelectItem>
+  1104→                          <SelectItem value="Passport">Passport</SelectItem>
+  1105→                          <SelectItem value="Driver_License">Driver License</SelectItem>
+  1106→                          <SelectItem value="Military_ID">Military ID</SelectItem>
+  1107→                          <SelectItem value="Other">Other</SelectItem>
+  1108→                        </SelectContent>
+  1109→                      </Select>
+  1110→                    </div>
+  1111→                    <div className="grid gap-1.5">
+  1112→                      <Label htmlFor="new-guest-id-number" className="text-xs">
+  1113→                        ID Number
+  1114→                      </Label>
+  1115→                      <Input
+  1116→                        id="new-guest-id-number"
+  1117→                        placeholder="ID number"
+  1118→                        value={newGuestIdNumber}
+  1119→                        onChange={(e) => setNewGuestIdNumber(e.target.value)}
+  1120→                      />
+  1121→                    </div>
+  1122→                  </div>
+  1123→                  <Button
+  1124→                    type="button"
+  1125→                    size="sm"
+  1126→                    onClick={handleRegisterGuest}
+  1127→                    disabled={registeringGuest || !newGuestName.trim()}
+  1128→                    className="w-full"
+  1129→                  >
+  1130→                    {registeringGuest ? (
+  1131→                      <>
+  1132→                        <span className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+  1133→                        Registering...
+  1134→                      </>
+  1135→                    ) : (
+  1136→                      <>
+  1137→                        <UserPlus className="h-3.5 w-3.5 mr-1" />
+  1138→                        Register & Select Guest
+  1139→                      </>
+  1140→                    )}
+  1141→                  </Button>
+  1142→                </div>
+  1143→              )}
+  1144→            </div>
+  1145→
+  1146→            {/* Room Selection */}
+  1147→            <div className="grid gap-2">
+  1148→              <Label>Room <span className="text-destructive">*</span></Label>
+  1149→              <Select value={resRoomId} onValueChange={(val) => { setResRoomId(val); setResSecondGuestName(""); setResSecondGuestPhone(""); setResSecondGuestIdNumber(""); setResExceptionallyReserved(false); setResExceptionReason(""); }}>
+  1150→                <SelectTrigger>
+  1151→                  <SelectValue placeholder="Select an available room" />
+  1152→                </SelectTrigger>
+  1153→                <SelectContent>
+  1154→                  {availableRooms.length > 0 ? (
+  1155→                    availableRooms.map((r) => (
+  1156→                      <SelectItem key={r.id} value={r.id}>
+  1157→                        {r.number}{r.name ? ` — ${r.name}` : ""}
+  1158→                        {r.type ? ` (${r.type})` : ""}
+  1159→                        {r.pricePerNight ? ` — ${r.pricePerNight} ETB/night` : ""}
+  1160→                      </SelectItem>
+  1161→                    ))
+  1162→                  ) : (
+  1163→                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
+  1164→                      No available rooms
+  1165→                    </div>
+  1166→                  )}
+  1167→                </SelectContent>
+  1168→              </Select>
+  1169→            </div>
+  1170→
+  1171→            {/* Second Guest — shown only for DOUBLE/TWIN rooms */}
+  1172→            {rooms.find((r) => r.id === resRoomId) && (rooms.find((r) => r.id === resRoomId)!.type === "DOUBLE" || rooms.find((r) => r.id === resRoomId)!.type === "TWIN") && (
+  1173→              <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 space-y-3">
+  1174→                <div className="flex items-center gap-2 text-amber-800">
+  1175→                  <BedDouble className="h-4 w-4" />
+  1176→                  <span className="text-xs font-semibold">Double Room — Second Guest Required</span>
+  1177→                </div>
+  1178→                <div className="flex items-center gap-4">
+  1179→                  <label className="flex items-center gap-2 cursor-pointer">
+  1180→                    <input type="radio" name="grp-res-exception" checked={!resExceptionallyReserved} onChange={() => { setResExceptionallyReserved(false); setResExceptionReason(""); }} className="h-3.5 w-3.5 accent-emerald-600" />
+  1181→                    <span className="text-xs font-medium">Two Guests</span>
+  1182→                  </label>
+  1183→                  <label className="flex items-center gap-2 cursor-pointer">
+  1184→                    <input type="radio" name="grp-res-exception" checked={resExceptionallyReserved} onChange={() => { setResExceptionallyReserved(true); setResSecondGuestName(""); setResSecondGuestPhone(""); setResSecondGuestIdNumber(""); }} className="h-3.5 w-3.5 accent-amber-600" />
+  1185→                    <span className="text-xs font-medium text-amber-700">Exceptionally Reserved</span>
+  1186→                  </label>
+  1187→                </div>
+  1188→                {!resExceptionallyReserved ? (
+  1189→                  <div className="space-y-2">
+  1190→                    <p className="text-[10px] text-muted-foreground">Enter the second guest details for this double room.</p>
+  1191→                    <div className="grid grid-cols-2 gap-3">
+  1192→                      <div className="space-y-1.5">
+  1193→                        <Label>Second Guest Name <span className="text-rose-500">*</span></Label>
+  1194→                        <Input placeholder="Full name" value={resSecondGuestName} onChange={(e) => setResSecondGuestName(e.target.value)} />
+  1195→                      </div>
+  1196→                      <div className="space-y-1.5">
+  1197→                        <Label>Second Guest Phone <span className="text-rose-500">*</span></Label>
+  1198→                        <Input placeholder="Phone number" value={resSecondGuestPhone} onChange={(e) => setResSecondGuestPhone(e.target.value)} />
+  1199→                      </div>
+  1200→                    </div>
+  1201→                    <div className="space-y-1.5">
+  1202→                      <Label>Second Guest ID Number</Label>
+  1203→                      <Input placeholder="ID number (optional)" value={resSecondGuestIdNumber} onChange={(e) => setResSecondGuestIdNumber(e.target.value)} />
+  1204→                    </div>
+  1205→                  </div>
+  1206→                ) : (
+  1207→                  <div className="space-y-2">
+  1208→                    <div className="flex items-center gap-1.5 text-amber-700">
+  1209→                      <AlertCircle className="h-3.5 w-3.5" />
+  1210→                      <p className="text-[10px] font-medium">This room will be reserved for single occupancy with an exception.</p>
+  1211→                    </div>
+  1212→                    <div className="space-y-1.5">
+  1213→                      <Label>Exception Reason <span className="text-rose-500">*</span></Label>
+  1214→                      <Textarea placeholder="Explain why this double room is reserved for only one guest..." rows={2} value={resExceptionReason} onChange={(e) => setResExceptionReason(e.target.value)} />
+  1215→                    </div>
+  1216→                  </div>
+  1217→                )}
+  1218→              </div>
+  1219→            )}
+  1220→
+  1221→            {/* Dates */}
+  1222→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  1223→              <div className="grid gap-2">
+  1224→                <Label>Check-in Date</Label>
+  1225→                <Input
+  1226→                  type="date"
+  1227→                  value={resCheckIn}
+  1228→                  onChange={(e) => setResCheckIn(e.target.value)}
+  1229→                />
+  1230→              </div>
+  1231→              <div className="grid gap-2">
+  1232→                <Label>Check-out Date</Label>
+  1233→                <Input
+  1234→                  type="date"
+  1235→                  value={resCheckOut}
+  1236→                  onChange={(e) => setResCheckOut(e.target.value)}
+  1237→                />
+  1238→              </div>
+  1239→            </div>
+  1240→          </div>
+  1241→          <DialogFooter>
+  1242→            <Button
+  1243→              variant="outline"
+  1244→              onClick={() => {
+  1245→                setAddReservationOpen(false);
+  1246→                resetReservationForm();
+  1247→                setAddReservationGroupId(null);
+  1248→              }}
+  1249→              disabled={addingReservation}
+  1250→            >
+  1251→              Cancel
+  1252→            </Button>
+  1253→            <Button
+  1254→              onClick={handleAddReservation}
+  1255→              disabled={addingReservation || !resGuestId || !resRoomId}
+  1256→            >
+  1257→              {addingReservation ? "Adding..." : "Add to Group"}
+  1258→            </Button>
+  1259→          </DialogFooter>
+  1260→        </DialogContent>
+  1261→      </Dialog>
+  1262→
+  1263→      {/* Delete Confirmation Dialog */}
+  1264→      <AlertDialog
+  1265→        open={!!deleteTarget}
+  1266→        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+  1267→      >
+  1268→        <AlertDialogContent>
+  1269→          <AlertDialogHeader>
+  1270→            <AlertDialogTitle>Delete Group Booking</AlertDialogTitle>
+  1271→            <AlertDialogDescription>
+  1272→              Are you sure you want to delete{" "}
+  1273→              <span className="font-semibold">{deleteTarget?.name}</span>? All linked
+  1274→              reservations will be unlinked (not deleted).
+  1275→            </AlertDialogDescription>
+  1276→          </AlertDialogHeader>
+  1277→          <AlertDialogFooter>
+  1278→            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+  1279→            <AlertDialogAction
+  1280→              onClick={handleDelete}
+  1281→              disabled={deleting}
+  1282→              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+  1283→            >
+  1284→              {deleting ? "Deleting..." : "Delete"}
+  1285→            </AlertDialogAction>
+  1286→          </AlertDialogFooter>
+  1287→        </AlertDialogContent>
+  1288→      </AlertDialog>
+  1289→
+  1290→      {/* Group Checkout Confirmation Dialog */}
+  1291→      <AlertDialog
+  1292→        open={!!checkoutTarget}
+  1293→        onOpenChange={(open) => { if (!open) setCheckoutTarget(null); }}
+  1294→      >
+  1295→        <AlertDialogContent>
+  1296→          <AlertDialogHeader>
+  1297→            <AlertDialogTitle className="flex items-center gap-2">
+  1298→              <LogOut className="h-5 w-5 text-orange-500" />
+  1299→              Group Check-out
+  1300→            </AlertDialogTitle>
+  1301→            <AlertDialogDescription>
+  1302→              Check out <span className="font-semibold">all active reservations</span> for{" "}
+  1303→              <span className="font-semibold">{checkoutTarget?.name}</span>?{" "}
+  1304→              This will complete {checkoutTarget?.reservations?.filter((r) => r.status === "ACTIVE").length || 0} reservation(s)
+  1305→              and free up the rooms.
+  1306→            </AlertDialogDescription>
+  1307→          </AlertDialogHeader>
+  1308→          <AlertDialogFooter>
+  1309→            <AlertDialogCancel disabled={checkingOut}>Cancel</AlertDialogCancel>
+  1310→            <AlertDialogAction
+  1311→              onClick={handleGroupCheckout}
+  1312→              disabled={checkingOut}
+  1313→              className="bg-orange-600 hover:bg-orange-700"
+  1314→            >
+  1315→              {checkingOut ? (
+  1316→                <span className="flex items-center gap-1.5">
+  1317→                  <Loader2 className="h-4 w-4 animate-spin" /> Checking out...
+  1318→                </span>
+  1319→              ) : (
+  1320→                "Check-out All"
+  1321→              )}
+  1322→            </AlertDialogAction>
+  1323→          </AlertDialogFooter>
+  1324→        </AlertDialogContent>
+  1325→      </AlertDialog>
+  1326→
+  1327→      {/* Group Payment Dialog */}
+  1328→      <Dialog open={paymentOpen} onOpenChange={(open) => {
+  1329→        if (!open) { setPaymentGroupId(null); setPaymentForm({ amount: "", method: "CASH", referenceNo: "", notes: "" }); }
+  1330→        setPaymentOpen(open);
+  1331→      }}>
+  1332→        <DialogContent className="sm:max-w-[460px]">
+  1333→          <DialogHeader>
+  1334→            <DialogTitle className="flex items-center gap-2">
+  1335→              <CreditCard className="h-5 w-5 text-blue-500" />
+  1336→              Group Payment
+  1337→            </DialogTitle>
+  1338→            <DialogDescription>
+  1339→              Record a payment for the entire group. It will be distributed proportionally across reservations.
+  1340→            </DialogDescription>
+  1341→          </DialogHeader>
+  1342→          <div className="grid gap-4 py-2">
+  1343→            <div className="grid gap-2">
+  1344→              <Label>Amount (ETB) <span className="text-destructive">*</span></Label>
+  1345→              <div className="relative">
+  1346→                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+  1347→                <Input
+  1348→                  type="number"
+  1349→                  min="1"
+  1350→                  value={paymentForm.amount}
+  1351→                  onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+  1352→                  className="pl-9"
+  1353→                  placeholder="0"
+  1354→                />
+  1355→              </div>
+  1356→            </div>
+  1357→            <div className="grid gap-2">
+  1358→              <Label>Payment Method <span className="text-destructive">*</span></Label>
+  1359→              <Select value={paymentForm.method} onValueChange={(v) => setPaymentForm({ ...paymentForm, method: v })}>
+  1360→                <SelectTrigger>
+  1361→                  <SelectValue />
+  1362→                </SelectTrigger>
+  1363→                <SelectContent>
+  1364→                  <SelectItem value="CASH">Cash</SelectItem>
+  1365→                  <SelectItem value="TRANSFER">Bank Transfer</SelectItem>
+  1366→                  <SelectItem value="CARD">Card</SelectItem>
+  1367→                  <SelectItem value="MOBILE">Mobile Money</SelectItem>
+  1368→                </SelectContent>
+  1369→              </Select>
+  1370→            </div>
+  1371→            <div className="grid gap-2">
+  1372→              <Label>Reference No</Label>
+  1373→              <Input
+  1374→                value={paymentForm.referenceNo}
+  1375→                onChange={(e) => setPaymentForm({ ...paymentForm, referenceNo: e.target.value })}
+  1376→                placeholder="Transaction reference (optional)"
+  1377→              />
+  1378→            </div>
+  1379→            <div className="grid gap-2">
+  1380→              <Label>Notes</Label>
+  1381→              <Input
+  1382→                value={paymentForm.notes}
+  1383→                onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
+  1384→                placeholder="Payment notes (optional)"
+  1385→              />
+  1386→            </div>
+  1387→          </div>
+  1388→          <DialogFooter>
+  1389→            <Button
+  1390→              variant="outline"
+  1391→              onClick={() => { setPaymentOpen(false); setPaymentGroupId(null); }}
+  1392→              disabled={paying}
+  1393→            >
+  1394→              Cancel
+  1395→            </Button>
+  1396→            <Button
+  1397→              onClick={handleGroupPayment}
+  1398→              disabled={paying || !paymentForm.amount || Number(paymentForm.amount) <= 0}
+  1399→            >
+  1400→              {paying ? (
+  1401→                <span className="flex items-center gap-1.5">
+  1402→                  <Loader2 className="h-4 w-4 animate-spin" /> Processing...
+  1403→                </span>
+  1404→              ) : (
+  1405→                <span className="flex items-center gap-1.5">
+  1406→                  <CreditCard className="h-4 w-4" /> Record Payment
+  1407→                </span>
+  1408→              )}
+  1409→            </Button>
+  1410→          </DialogFooter>
+  1411→        </DialogContent>
+  1412→      </Dialog>
+  1413→
+  1414→      {/* Reservation Detail Dialog */}
+  1415→      <Dialog open={!!detailRes} onOpenChange={(open) => { if (!open) setDetailRes(null); }}>
+  1416→        <DialogContent className="sm:max-w-[500px]">
+  1417→          <DialogHeader>
+  1418→            <DialogTitle className="flex items-center gap-2">
+  1419→              <Eye className="h-5 w-5" />
+  1420→              Reservation Detail
+  1421→            </DialogTitle>
+  1422→          </DialogHeader>
+  1423→          {detailRes && (
+  1424→            <div className="space-y-4">
+  1425→              {/* Guest info */}
+  1426→              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  1427→                <div className="space-y-1">
+  1428→                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Guest</p>
+  1429→                  <p className="text-sm font-medium">{detailRes.guest?.name ?? "Unknown"}</p>
+  1430→                  {detailRes.guest?.phone && <p className="text-xs text-muted-foreground">{detailRes.guest.phone}</p>}
+  1431→                  {detailRes.guest?.email && <p className="text-xs text-muted-foreground">{detailRes.guest.email}</p>}
+  1432→                </div>
+  1433→                <div className="space-y-1">
+  1434→                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Room</p>
+  1435→                  <p className="text-sm font-medium">
+  1436→                    {detailRes.room ? `${detailRes.room.number}${detailRes.room.name ? ` - ${detailRes.room.name}` : ""}` : "Not assigned"}
+  1437→                  </p>
+  1438→                  {detailRes.room?.type && (
+  1439→                    <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 text-xs">
+  1440→                      {detailRes.room.type}
+  1441→                    </Badge>
+  1442→                  )}
+  1443→                </div>
+  1444→              </div>
+  1445→
+  1446→              {/* Dates */}
+  1447→              <div className="grid grid-cols-2 gap-4">
+  1448→                <div className="space-y-1">
+  1449→                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Check-in</p>
+  1450→                  <p className="text-sm font-medium">{formatDate(detailRes.checkIn)}</p>
+  1451→                </div>
+  1452→                <div className="space-y-1">
+  1453→                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Check-out</p>
+  1454→                  <p className="text-sm font-medium">{formatDate(detailRes.checkOut)}</p>
+  1455→                </div>
+  1456→              </div>
+  1457→
+  1458→              {/* Cost and payment */}
+  1459→              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 rounded-lg border p-3 bg-muted/30">
+  1460→                <div className="space-y-1">
+  1461→                  <p className="text-xs text-muted-foreground">Total Cost</p>
+  1462→                  <p className="text-sm font-bold">{detailRes.totalCost?.toLocaleString() ?? 0} ETB</p>
+  1463→                </div>
+  1464→                <div className="space-y-1">
+  1465→                  <p className="text-xs text-muted-foreground">Paid</p>
+  1466→                  <p className="text-sm font-medium text-emerald-600">{detailRes.paidAmount?.toLocaleString() ?? 0} ETB</p>
+  1467→                </div>
+  1468→                <div className="space-y-1">
+  1469→                  <p className="text-xs text-muted-foreground">Balance</p>
+  1470→                  <p className={`text-sm font-bold ${(detailRes.balance ?? detailRes.totalCost ?? 0) > 0 ? "text-rose-600" : "text-emerald-600"}`}>
+  1471→                    {Math.max(0, detailRes.balance ?? detailRes.totalCost ?? 0).toLocaleString()} ETB
+  1472→                  </p>
+  1473→                </div>
+  1474→              </div>
+  1475→
+  1476→              {/* Status row */}
+  1477→              <div className="flex items-center gap-3">
+  1478→                <div className="space-y-0.5">
+  1479→                  <p className="text-xs text-muted-foreground">Status</p>
+  1480→                  <Badge
+  1481→                    variant="outline"
+  1482→                    className={RESERVATION_STATUS_BADGE[detailRes.status] ?? "bg-gray-100 text-gray-700 border-gray-200"}
+  1483→                  >
+  1484→                    {detailRes.status}
+  1485→                  </Badge>
+  1486→                </div>
+  1487→                {detailRes.paymentStatus && (
+  1488→                  <div className="space-y-0.5">
+  1489→                    <p className="text-xs text-muted-foreground">Payment</p>
+  1490→                    <Badge
+  1491→                      variant="outline"
+  1492→                      className={
+  1493→                        detailRes.paymentStatus === "PAID"
+  1494→                          ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+  1495→                          : detailRes.paymentStatus === "PARTIAL"
+  1496→                          ? "bg-amber-100 text-amber-800 border-amber-200"
+  1497→                          : "bg-gray-100 text-gray-600 border-gray-200"
+  1498→                      }
+  1499→                    >
+  1500→                      {detailRes.paymentStatus}
+  1501→                    </Badge>
+  1502→                  </div>
+  1503→                )}
+  1504→              </div>
+  1505→
+  1506→              {detailRes.room?.pricePerNight && detailRes.nights && (
+  1507→                <div className="text-xs text-muted-foreground border-l-2 border-muted pl-3">
+  1508→                  {detailRes.nights} night(s) × {detailRes.room.pricePerNight.toLocaleString()} ETB/night = {detailRes.totalCost?.toLocaleString()} ETB
+  1509→                </div>
+  1510→              )}
+  1511→            </div>
+  1512→          )}
+  1513→        </DialogContent>
+  1514→      </Dialog>
+  1515→    </div>
+  1516→  );
+  1517→}
+  1518→

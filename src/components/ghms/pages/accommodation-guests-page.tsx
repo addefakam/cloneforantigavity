@@ -628,6 +628,7 @@ export default function AccommodationGuestsPage() {
                     <div>
                       <Label className="text-xs">Second Guest Phone *</Label>
                       <Input
+                        type="tel"
                         value={resForm.secondGuestPhone}
                         onChange={(e) => setResForm({ ...resForm, secondGuestPhone: e.target.value })}
                         placeholder="Phone number"

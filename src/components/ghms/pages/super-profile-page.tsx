@@ -217,6 +217,7 @@ export default function SuperProfilePage() {
                   </Label>
                   <Input
                     id="profile-phone"
+                    type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="+251..."

@@ -1,0 +1,671 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect } from "react";
+     4→import { useAppStore } from "@/lib/store";
+     5→import { apiUpdateUser, apiUpdateSettings } from "@/lib/api";
+     6→import { toast } from "sonner";
+     7→import { Button } from "@/components/ui/button";
+     8→import { Input } from "@/components/ui/input";
+     9→import { Label } from "@/components/ui/label";
+    10→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+    11→import { Separator } from "@/components/ui/separator";
+    12→import {
+    13→  Select,
+    14→  SelectContent,
+    15→  SelectItem,
+    16→  SelectTrigger,
+    17→  SelectValue,
+    18→} from "@/components/ui/select";
+    19→import {
+    20→  Save,
+    21→  Loader2,
+    22→  User,
+    23→  Shield,
+    24→  Lock,
+    25→  Eye,
+    26→  EyeOff,
+    27→  Mail,
+    28→  Phone,
+    29→  BadgeCheck,
+    30→  UserCog,
+    31→  ArrowRight,
+    32→  Globe,
+    33→  Building2,
+    34→  Clock,
+    35→} from "lucide-react";
+    36→import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+    37→import { Badge } from "@/components/ui/badge";
+    38→
+    39→// ═══════════════════════════════════════════════════════
+    40→// Shared helper
+    41→// ═══════════════════════════════════════════════════════
+    42→
+    43→function getInitials(n: string | undefined | null) {
+    44→  if (!n) return "?";
+    45→  return n
+    46→    .split(" ")
+    47→    .map((w) => w[0])
+    48→    .join("")
+    49→    .toUpperCase()
+    50→    .slice(0, 2);
+    51→}
+    52→
+    53→// ═══════════════════════════════════════════════════════
+    54→// Provider Settings (OPERATOR / STAFF)
+    55→// Personal profile + password + link to staff management
+    56→// ═══════════════════════════════════════════════════════
+    57→
+    58→function ProviderSettings() {
+    59→  const { currentUser, setCurrentUser, triggerRefresh, setCurrentPage } =
+    60→    useAppStore();
+    61→
+    62→  // Profile form
+    63→  const [name, setName] = useState(currentUser?.name || "");
+    64→  const [username, setUsername] = useState(currentUser?.username || "");
+    65→  const [saving, setSaving] = useState(false);
+    66→
+    67→  // Password form
+    68→  const [currentPassword, setCurrentPassword] = useState("");
+    69→  const [newPassword, setNewPassword] = useState("");
+    70→  const [confirmPassword, setConfirmPassword] = useState("");
+    71→  const [showCurrent, setShowCurrent] = useState(false);
+    72→  const [showNew, setShowNew] = useState(false);
+    73→  const [changingPassword, setChangingPassword] = useState(false);
+    74→
+    75→  useEffect(() => {
+    76→    if (currentUser) {
+    77→      setName(currentUser.name);
+    78→      setUsername(currentUser.username);
+    79→    }
+    80→  }, [currentUser]);
+    81→
+    82→  const handleProfileSave = async () => {
+    83→    if (!currentUser) return;
+    84→    if (!name.trim()) {
+    85→      toast.error("Name is required");
+    86→      return;
+    87→    }
+    88→    if (!username.trim()) {
+    89→      toast.error("Username is required");
+    90→      return;
+    91→    }
+    92→    if (username.length < 3) {
+    93→      toast.error("Username must be at least 3 characters");
+    94→      return;
+    95→    }
+    96→
+    97→    setSaving(true);
+    98→    try {
+    99→      await apiUpdateUser(currentUser.id, {
+   100→        name: name.trim(),
+   101→        username: username.trim(),
+   102→      });
+   103→      setCurrentUser({
+   104→        ...currentUser,
+   105→        name: name.trim(),
+   106→        username: username.trim(),
+   107→      });
+   108→      toast.success("Profile updated successfully");
+   109→      triggerRefresh();
+   110→    } catch (err: unknown) {
+   111→      const msg =
+   112→        err instanceof Error ? err.message : "Failed to update profile";
+   113→      toast.error(msg);
+   114→    } finally {
+   115→      setSaving(false);
+   116→    }
+   117→  };
+   118→
+   119→  const handlePasswordChange = async () => {
+   120→    if (!currentUser) return;
+   121→    if (!currentPassword) {
+   122→      toast.error("Current password is required");
+   123→      return;
+   124→    }
+   125→    if (!newPassword) {
+   126→      toast.error("New password is required");
+   127→      return;
+   128→    }
+   129→    if (newPassword.length < 6) {
+   130→      toast.error("New password must be at least 6 characters");
+   131→      return;
+   132→    }
+   133→    if (newPassword !== confirmPassword) {
+   134→      toast.error("New passwords do not match");
+   135→      return;
+   136→    }
+   137→    if (currentPassword === newPassword) {
+   138→      toast.error("New password must be different from current password");
+   139→      return;
+   140→    }
+   141→
+   142→    setChangingPassword(true);
+   143→    try {
+   144→      await apiUpdateUser(currentUser.id, {
+   145→        password: newPassword,
+   146→      });
+   147→      toast.success("Password changed successfully");
+   148→      setCurrentPassword("");
+   149→      setNewPassword("");
+   150→      setConfirmPassword("");
+   151→      setShowCurrent(false);
+   152→      setShowNew(false);
+   153→    } catch (err: unknown) {
+   154→      const msg =
+   155→        err instanceof Error ? err.message : "Failed to change password";
+   156→      toast.error(msg);
+   157→    } finally {
+   158→      setChangingPassword(false);
+   159→    }
+   160→  };
+   161→
+   162→  const roleLabel =
+   163→    currentUser?.role === "OPERATOR" ? "Operator" : "Staff";
+   164→  const roleBadgeClass =
+   165→    currentUser?.role === "OPERATOR"
+   166→      ? "bg-blue-100 text-blue-700 border-blue-200"
+   167→      : "bg-slate-100 text-slate-600 border-slate-200";
+   168→
+   169→  return (
+   170→    <div className="flex justify-center p-4 md:p-6">
+   171→      <div className="w-full max-w-2xl space-y-6">
+   172→        <div>
+   173→          <h1 className="text-2xl font-bold tracking-tight">My Profile</h1>
+   174→          <p className="text-sm text-muted-foreground">
+   175→            Manage your personal account and staff accounts.
+   176→          </p>
+   177→        </div>
+   178→
+   179→        {/* Profile Card */}
+   180→        <Card>
+   181→          <CardHeader>
+   182→            <CardTitle className="flex items-center gap-2">
+   183→              <User className="h-5 w-5" />
+   184→              Profile Information
+   185→            </CardTitle>
+   186→            <CardDescription>
+   187→              Update your personal details.
+   188→            </CardDescription>
+   189→          </CardHeader>
+   190→          <CardContent className="space-y-5">
+   191→            <div className="flex items-center gap-4">
+   192→              <Avatar className="h-16 w-16 ring-2 ring-primary/20">
+   193→                <AvatarFallback
+   194→                  className="bg-primary/10 text-lg font-bold text-primary"
+   195→                >
+   196→                  {getInitials(name || "OP")}
+   197→                </AvatarFallback>
+   198→              </Avatar>
+   199→              <div>
+   200→                <p className="font-semibold text-slate-900">
+   201→                  {name || "Operator"}
+   202→                </p>
+   203→                <div className="mt-1 flex items-center gap-2">
+   204→                  <Badge
+   205→                    variant="outline"
+   206→                    className={`${roleBadgeClass} text-xs font-semibold`}
+   207→                  >
+   208→                    <Shield className="mr-1 size-3" />
+   209→                    {roleLabel}
+   210→                  </Badge>
+   211→                  {currentUser?.providerName && (
+   212→                    <Badge variant="outline" className="text-xs">
+   213→                      {currentUser.providerName}
+   214→                    </Badge>
+   215→                  )}
+   216→                </div>
+   217→                <p className="mt-1 text-xs text-slate-400">
+   218→                  @{currentUser?.username}
+   219→                </p>
+   220→              </div>
+   221→            </div>
+   222→
+   223→            <Separator />
+   224→
+   225→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   226→              <div className="grid gap-2">
+   227→                <Label htmlFor="op-name">
+   228→                  <User className="inline mr-1.5 size-3.5" />
+   229→                  Full Name
+   230→                </Label>
+   231→                <Input
+   232→                  id="op-name"
+   233→                  value={name}
+   234→                  onChange={(e) => setName(e.target.value)}
+   235→                  placeholder="Your full name"
+   236→                />
+   237→              </div>
+   238→              <div className="grid gap-2">
+   239→                <Label htmlFor="op-username">
+   240→                  <BadgeCheck className="inline mr-1.5 size-3.5" />
+   241→                  Username
+   242→                </Label>
+   243→                <Input
+   244→                  id="op-username"
+   245→                  value={username}
+   246→                  onChange={(e) => setUsername(e.target.value)}
+   247→                  placeholder="Username"
+   248→                />
+   249→              </div>
+   250→            </div>
+   251→
+   252→            <div className="flex justify-end pt-1">
+   253→              <Button onClick={handleProfileSave} disabled={saving}>
+   254→                {saving ? (
+   255→                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+   256→                ) : (
+   257→                  <Save className="mr-2 h-4 w-4" />
+   258→                )}
+   259→                Save Profile
+   260→              </Button>
+   261→            </div>
+   262→          </CardContent>
+   263→        </Card>
+   264→
+   265→        {/* Security Card */}
+   266→        <Card>
+   267→          <CardHeader>
+   268→            <CardTitle className="flex items-center gap-2">
+   269→              <Lock className="h-5 w-5" />
+   270→              Change Password
+   271→            </CardTitle>
+   272→            <CardDescription>
+   273→              Update your password to keep your account secure.
+   274→            </CardDescription>
+   275→          </CardHeader>
+   276→          <CardContent className="space-y-4">
+   277→            <div className="grid gap-2">
+   278→              <Label htmlFor="op-current-pw">Current Password</Label>
+   279→              <div className="relative">
+   280→                <Input
+   281→                  id="op-current-pw"
+   282→                  type={showCurrent ? "text" : "password"}
+   283→                  value={currentPassword}
+   284→                  onChange={(e) => setCurrentPassword(e.target.value)}
+   285→                  placeholder="Enter current password"
+   286→                  className="pr-10"
+   287→                />
+   288→                <button
+   289→                  type="button"
+   290→                  onClick={() => setShowCurrent(!showCurrent)}
+   291→                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+   292→                >
+   293→                  {showCurrent ? (
+   294→                    <EyeOff className="size-4" />
+   295→                  ) : (
+   296→                    <Eye className="size-4" />
+   297→                  )}
+   298→                </button>
+   299→              </div>
+   300→            </div>
+   301→
+   302→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   303→              <div className="grid gap-2">
+   304→                <Label htmlFor="op-new-pw">New Password</Label>
+   305→                <div className="relative">
+   306→                  <Input
+   307→                    id="op-new-pw"
+   308→                    type={showNew ? "text" : "password"}
+   309→                    value={newPassword}
+   310→                    onChange={(e) => setNewPassword(e.target.value)}
+   311→                    placeholder="Min. 6 characters"
+   312→                    className="pr-10"
+   313→                  />
+   314→                  <button
+   315→                    type="button"
+   316→                    onClick={() => setShowNew(!showNew)}
+   317→                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+   318→                  >
+   319→                    {showNew ? (
+   320→                      <EyeOff className="size-4" />
+   321→                    ) : (
+   322→                      <Eye className="size-4" />
+   323→                    )}
+   324→                  </button>
+   325→                </div>
+   326→              </div>
+   327→              <div className="grid gap-2">
+   328→                <Label htmlFor="op-confirm-pw">Confirm New Password</Label>
+   329→                <Input
+   330→                  id="op-confirm-pw"
+   331→                  type="password"
+   332→                  value={confirmPassword}
+   333→                  onChange={(e) => setConfirmPassword(e.target.value)}
+   334→                  placeholder="Re-enter new password"
+   335→                />
+   336→              </div>
+   337→            </div>
+   338→
+   339→            {newPassword &&
+   340→              confirmPassword &&
+   341→              newPassword !== confirmPassword && (
+   342→                <p className="text-xs text-rose-500 font-medium">
+   343→                  Passwords do not match
+   344→                </p>
+   345→              )}
+   346→
+   347→            {newPassword &&
+   348→              newPassword.length > 0 &&
+   349→              newPassword.length < 6 && (
+   350→                <p className="text-xs text-rose-500 font-medium">
+   351→                  Password must be at least 6 characters
+   352→                </p>
+   353→              )}
+   354→
+   355→            <div className="flex justify-end pt-1">
+   356→              <Button
+   357→                variant="outline"
+   358→                onClick={handlePasswordChange}
+   359→                disabled={
+   360→                  changingPassword ||
+   361→                  !currentPassword ||
+   362→                  !newPassword ||
+   363→                  !confirmPassword
+   364→                }
+   365→              >
+   366→                {changingPassword ? (
+   367→                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+   368→                ) : (
+   369→                  <Lock className="mr-2 h-4 w-4" />
+   370→                )}
+   371→                Update Password
+   372→              </Button>
+   373→            </div>
+   374→          </CardContent>
+   375→        </Card>
+   376→
+   377→        {/* Staff Account Management (OPERATOR only) */}
+   378→        {currentUser?.role === "OPERATOR" && (
+   379→          <Card>
+   380→            <CardHeader>
+   381→              <CardTitle className="flex items-center gap-2">
+   382→                <UserCog className="h-5 w-5" />
+   383→                Staff Account Management
+   384→              </CardTitle>
+   385→              <CardDescription>
+   386→                Create, edit, and manage staff accounts you have created.
+   387→              </CardDescription>
+   388→            </CardHeader>
+   389→            <CardContent>
+   390→              <Button
+   391→                variant="outline"
+   392→                className="w-full sm:w-auto"
+   393→                onClick={() => setCurrentPage("users")}
+   394→              >
+   395→                <UserCog className="mr-2 h-4 w-4" />
+   396→                Go to Account Management
+   397→                <ArrowRight className="ml-2 h-4 w-4" />
+   398→              </Button>
+   399→            </CardContent>
+   400→          </Card>
+   401→        )}
+   402→      </div>
+   403→    </div>
+   404→  );
+   405→}
+   406→
+   407→// ═══════════════════════════════════════════════════════
+   408→// SUPERUSER Profile Settings
+   409→// ═══════════════════════════════════════════════════════
+   410→
+   411→function SuperuserSettings() {
+   412→  const { currentUser, setCurrentUser, triggerRefresh } = useAppStore();
+   413→
+   414→  const [name, setName] = useState(currentUser?.name || "");
+   415→  const [username, setUsername] = useState(currentUser?.username || "");
+   416→  const [email, setEmail] = useState("");
+   417→  const [phone, setPhone] = useState("");
+   418→  const [saving, setSaving] = useState(false);
+   419→
+   420→  const [currentPassword, setCurrentPassword] = useState("");
+   421→  const [newPassword, setNewPassword] = useState("");
+   422→  const [confirmPassword, setConfirmPassword] = useState("");
+   423→  const [showCurrent, setShowCurrent] = useState(false);
+   424→  const [showNew, setShowNew] = useState(false);
+   425→  const [changingPassword, setChangingPassword] = useState(false);
+   426→
+   427→  const [appName, setAppName] = useState("GHMS");
+   428→  const [defaultCurrency, setDefaultCurrency] = useState("ETB");
+   429→  const [defaultLanguage, setDefaultLanguage] = useState("en");
+   430→  const [savingSystem, setSavingSystem] = useState(false);
+   431→
+   432→  useEffect(() => {
+   433→    if (currentUser) {
+   434→      setName(currentUser.name);
+   435→      setUsername(currentUser.username);
+   436→    }
+   437→  }, [currentUser]);
+   438→
+   439→  const handleProfileSave = async () => {
+   440→    if (!currentUser) return;
+   441→    if (!name.trim()) { toast.error("Name is required"); return; }
+   442→    if (!username.trim()) { toast.error("Username is required"); return; }
+   443→    if (username.length < 3) { toast.error("Username must be at least 3 characters"); return; }
+   444→
+   445→    setSaving(true);
+   446→    try {
+   447→      const data: Record<string, unknown> = { name: name.trim(), username: username.trim() };
+   448→      if (email.trim()) data.email = email.trim();
+   449→      if (phone.trim()) data.phone = phone.trim();
+   450→      await apiUpdateUser(currentUser.id, data);
+   451→      setCurrentUser({ ...currentUser, name: name.trim(), username: username.trim() });
+   452→      toast.success("Profile updated successfully");
+   453→      triggerRefresh();
+   454→    } catch (err: unknown) {
+   455→      const msg = err instanceof Error ? err.message : "Failed to update profile";
+   456→      toast.error(msg);
+   457→    } finally {
+   458→      setSaving(false);
+   459→    }
+   460→  };
+   461→
+   462→  const handlePasswordChange = async () => {
+   463→    if (!currentUser) return;
+   464→    if (!currentPassword) { toast.error("Current password is required"); return; }
+   465→    if (!newPassword) { toast.error("New password is required"); return; }
+   466→    if (newPassword.length < 6) { toast.error("New password must be at least 6 characters"); return; }
+   467→    if (newPassword !== confirmPassword) { toast.error("New passwords do not match"); return; }
+   468→    if (currentPassword === newPassword) { toast.error("New password must be different from current password"); return; }
+   469→
+   470→    setChangingPassword(true);
+   471→    try {
+   472→      await apiUpdateUser(currentUser.id, { password: newPassword });
+   473→      toast.success("Password changed successfully");
+   474→      setCurrentPassword(""); setNewPassword(""); setConfirmPassword("");
+   475→      setShowCurrent(false); setShowNew(false);
+   476→    } catch (err: unknown) {
+   477→      const msg = err instanceof Error ? err.message : "Failed to change password";
+   478→      toast.error(msg);
+   479→    } finally {
+   480→      setChangingPassword(false);
+   481→    }
+   482→  };
+   483→
+   484→  const handleSystemSave = async () => {
+   485→    setSavingSystem(true);
+   486→    try {
+   487→      await apiUpdateSettings({ guestHouseName: appName, currency: defaultCurrency, language: defaultLanguage });
+   488→      toast.success("System settings saved");
+   489→      triggerRefresh();
+   490→    } catch (err: unknown) {
+   491→      const msg = err instanceof Error ? err.message : "Failed to save system settings";
+   492→      toast.error(msg);
+   493→    } finally {
+   494→      setSavingSystem(false);
+   495→    }
+   496→  };
+   497→
+   498→  return (
+   499→    <div className="flex justify-center p-4 md:p-6">
+   500→      <div className="w-full max-w-2xl space-y-6">
+   501→        <div>
+   502→          <h1 className="text-2xl font-bold tracking-tight">My Profile</h1>
+   503→          <p className="text-sm text-muted-foreground">
+   504→            Manage your System Admin account and preferences.
+   505→          </p>
+   506→        </div>
+   507→
+   508→        <Card>
+   509→          <CardHeader>
+   510→            <CardTitle className="flex items-center gap-2">
+   511→              <User className="h-5 w-5" />
+   512→              Profile Information
+   513→            </CardTitle>
+   514→            <CardDescription>Update your personal details and contact information.</CardDescription>
+   515→          </CardHeader>
+   516→          <CardContent className="space-y-5">
+   517→            <div className="flex items-center gap-4">
+   518→              <Avatar className="h-16 w-16 ring-2 ring-primary/20">
+   519→                <AvatarFallback className="bg-primary/10 text-lg font-bold text-primary">
+   520→                  {getInitials(name || "SA")}
+   521→                </AvatarFallback>
+   522→              </Avatar>
+   523→              <div>
+   524→                <p className="font-semibold text-slate-900">{name || "System Admin"}</p>
+   525→                <div className="mt-1 flex items-center gap-2">
+   526→                  <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-200 text-xs font-semibold">
+   527→                    <Shield className="mr-1 size-3" />Superuser
+   528→                  </Badge>
+   529→                  <Badge variant="outline" className="text-xs">
+   530→                    <BadgeCheck className="mr-1 size-3 text-emerald-500" />System Administrator
+   531→                  </Badge>
+   532→                </div>
+   533→                <p className="mt-1 text-xs text-slate-400">@{currentUser?.username}</p>
+   534→              </div>
+   535→            </div>
+   536→            <Separator />
+   537→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   538→              <div className="grid gap-2">
+   539→                <Label htmlFor="su-name"><User className="inline mr-1.5 size-3.5" />Full Name</Label>
+   540→                <Input id="su-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your full name" />
+   541→              </div>
+   542→              <div className="grid gap-2">
+   543→                <Label htmlFor="su-username"><BadgeCheck className="inline mr-1.5 size-3.5" />Username</Label>
+   544→                <Input id="su-username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" />
+   545→              </div>
+   546→            </div>
+   547→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   548→              <div className="grid gap-2">
+   549→                <Label htmlFor="su-email"><Mail className="inline mr-1.5 size-3.5" />Email Address</Label>
+   550→                <Input id="su-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@example.com" />
+   551→              </div>
+   552→              <div className="grid gap-2">
+   553→                <Label htmlFor="su-phone"><Phone className="inline mr-1.5 size-3.5" />Phone Number</Label>
+   554→                <Input id="su-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+251..." />
+   555→              </div>
+   556→            </div>
+   557→            <div className="flex justify-end pt-1">
+   558→              <Button onClick={handleProfileSave} disabled={saving}>
+   559→                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+   560→                Save Profile
+   561→              </Button>
+   562→            </div>
+   563→          </CardContent>
+   564→        </Card>
+   565→
+   566→        <Card>
+   567→          <CardHeader>
+   568→            <CardTitle className="flex items-center gap-2"><Lock className="h-5 w-5" />Change Password</CardTitle>
+   569→            <CardDescription>Update your password to keep your account secure.</CardDescription>
+   570→          </CardHeader>
+   571→          <CardContent className="space-y-4">
+   572→            <div className="grid gap-2">
+   573→              <Label htmlFor="su-current-pw">Current Password</Label>
+   574→              <div className="relative">
+   575→                <Input id="su-current-pw" type={showCurrent ? "text" : "password"} value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="Enter current password" className="pr-10" />
+   576→                <button type="button" onClick={() => setShowCurrent(!showCurrent)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+   577→                  {showCurrent ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+   578→                </button>
+   579→              </div>
+   580→            </div>
+   581→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   582→              <div className="grid gap-2">
+   583→                <Label htmlFor="su-new-pw">New Password</Label>
+   584→                <div className="relative">
+   585→                  <Input id="su-new-pw" type={showNew ? "text" : "password"} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Min. 6 characters" className="pr-10" />
+   586→                  <button type="button" onClick={() => setShowNew(!showNew)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+   587→                    {showNew ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+   588→                  </button>
+   589→                </div>
+   590→              </div>
+   591→              <div className="grid gap-2">
+   592→                <Label htmlFor="su-confirm-pw">Confirm New Password</Label>
+   593→                <Input id="su-confirm-pw" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Re-enter new password" />
+   594→              </div>
+   595→            </div>
+   596→            {newPassword && confirmPassword && newPassword !== confirmPassword && (
+   597→              <p className="text-xs text-rose-500 font-medium">Passwords do not match</p>
+   598→            )}
+   599→            {newPassword && newPassword.length > 0 && newPassword.length < 6 && (
+   600→              <p className="text-xs text-rose-500 font-medium">Password must be at least 6 characters</p>
+   601→            )}
+   602→            <div className="flex justify-end pt-1">
+   603→              <Button variant="outline" onClick={handlePasswordChange} disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}>
+   604→                {changingPassword ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lock className="mr-2 h-4 w-4" />}
+   605→                Update Password
+   606→              </Button>
+   607→            </div>
+   608→          </CardContent>
+   609→        </Card>
+   610→
+   611→        <Card>
+   612→          <CardHeader>
+   613→            <CardTitle className="flex items-center gap-2"><Globe className="h-5 w-5" />System Preferences</CardTitle>
+   614→            <CardDescription>Configure default settings for the entire system.</CardDescription>
+   615→          </CardHeader>
+   616→          <CardContent className="space-y-4">
+   617→            <div className="grid gap-2">
+   618→              <Label htmlFor="su-appname"><Building2 className="inline mr-1.5 size-3.5" />Application Name</Label>
+   619→              <Input id="su-appname" value={appName} onChange={(e) => setAppName(e.target.value)} placeholder="GHMS" />
+   620→              <p className="text-xs text-slate-400">Displayed in the sidebar and browser tab.</p>
+   621→            </div>
+   622→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   623→              <div className="grid gap-2">
+   624→                <Label htmlFor="su-currency"><Clock className="inline mr-1.5 size-3.5" />Default Currency</Label>
+   625→                <Select value={defaultCurrency} onValueChange={setDefaultCurrency}>
+   626→                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+   627→                  <SelectContent>
+   628→                    <SelectItem value="ETB">ETB (Birr)</SelectItem>
+   629→                    <SelectItem value="USD">USD (Dollar)</SelectItem>
+   630→                    <SelectItem value="EUR">EUR (Euro)</SelectItem>
+   631→                  </SelectContent>
+   632→                </Select>
+   633→              </div>
+   634→              <div className="grid gap-2">
+   635→                <Label htmlFor="su-language"><Globe className="inline mr-1.5 size-3.5" />Default Language</Label>
+   636→                <Select value={defaultLanguage} onValueChange={setDefaultLanguage}>
+   637→                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+   638→                  <SelectContent>
+   639→                    <SelectItem value="en">English</SelectItem>
+   640→                    <SelectItem value="am">Amharic</SelectItem>
+   641→                  </SelectContent>
+   642→                </Select>
+   643→              </div>
+   644→            </div>
+   645→            <div className="flex justify-end pt-1">
+   646→              <Button onClick={handleSystemSave} disabled={savingSystem}>
+   647→                {savingSystem ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+   648→                Save System Settings
+   649→              </Button>
+   650→            </div>
+   651→          </CardContent>
+   652→        </Card>
+   653→      </div>
+   654→    </div>
+   655→  );
+   656→}
+   657→
+   658→// ═══════════════════════════════════════════════════════
+   659→// Settings Page — Role Router
+   660→// ═══════════════════════════════════════════════════════
+   661→
+   662→export default function SettingsPage() {
+   663→  const currentUser = useAppStore((s) => s.currentUser);
+   664→
+   665→  if (currentUser?.role === "SUPERUSER") {
+   666→    return <SuperuserSettings />;
+   667→  }
+   668→
+   669→  return <ProviderSettings />;
+   670→}
+   671→

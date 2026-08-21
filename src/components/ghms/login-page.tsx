@@ -6,6 +6,7 @@ import { Building2, KeyRound, UserPlus, LogIn, Upload } from "lucide-react";
 
 import { useAppStore } from "@/lib/store";
 import { apiAuth, apiRegisterProvider } from "@/lib/api";
+import { isValidPhone, isValidEmail } from "@/lib/utils";
 
 import {
   Card,
@@ -106,6 +107,14 @@ export default function LoginPage() {
       !regWoreda
     ) {
       toast.error("Please fill in all required fields.");
+      return;
+    }
+    if (!isValidPhone(regPhone)) {
+      toast.error("Invalid phone number format (7-15 digits)");
+      return;
+    }
+    if (!isValidEmail(regEmail)) {
+      toast.error("Invalid email address format");
       return;
     }
     setRegLoading(true);
@@ -262,6 +271,7 @@ export default function LoginPage() {
                         <Label htmlFor="reg-phone">Phone *</Label>
                         <Input
                           id="reg-phone"
+                          type="tel"
                           placeholder="Phone number"
                           value={regPhone}
                           onChange={(e) => setRegPhone(e.target.value)}

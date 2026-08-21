@@ -36,6 +36,8 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 
+import { isValidPhone, isValidEmail } from "@/lib/utils";
+
 // ═══════════════════════════════════════════════════════
 // Shared helper
 // ═══════════════════════════════════════════════════════
@@ -441,6 +443,14 @@ function SuperuserSettings() {
     if (!name.trim()) { toast.error("Name is required"); return; }
     if (!username.trim()) { toast.error("Username is required"); return; }
     if (username.length < 3) { toast.error("Username must be at least 3 characters"); return; }
+    if (phone.trim() && !isValidPhone(phone)) {
+      toast.error("Invalid phone number format (7-15 digits)");
+      return;
+    }
+    if (email.trim() && !isValidEmail(email)) {
+      toast.error("Invalid email address format");
+      return;
+    }
 
     setSaving(true);
     try {

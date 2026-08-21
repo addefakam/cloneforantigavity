@@ -76,6 +76,7 @@ import {
   Users,
 } from "lucide-react";
 import AddressFields, { getEmptyAddress, AddressDisplay } from "@/components/shared/address-fields";
+import { isValidPhone, isValidEmail } from "@/lib/utils";
 import { usePagination } from "@/hooks/use-pagination";
 import { PaginationControls } from "@/components/shared/pagination-controls";
 
@@ -174,8 +175,28 @@ export default function GuestsPage() {
   };
 
   const handleSave = async () => {
-    if (!form.name || !form.phone) {
-      toast.error("Name and phone are required");
+    if (!form.name || !form.name.trim()) {
+      toast.error("Full name is required");
+      return;
+    }
+    if (!form.phone || !form.phone.trim()) {
+      toast.error("Phone number is required");
+      return;
+    }
+    if (!isValidPhone(form.phone)) {
+      toast.error("Invalid phone number. Use format like +251 9XX XXX XXX (7-15 digits)");
+      return;
+    }
+    if (!isValidEmail(form.email)) {
+      toast.error("Invalid email address format");
+      return;
+    }
+    if (!form.idType) {
+      toast.error("ID type is required");
+      return;
+    }
+    if (!form.nationality || !form.nationality.trim()) {
+      toast.error("Nationality is required");
       return;
     }
     try {
@@ -608,6 +629,7 @@ export default function GuestsPage() {
                 </Label>
                 <Input
                   id="guest-phone"
+                  type="tel"
                   placeholder="+251 9XX XXX XXX"
                   value={form.phone}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
@@ -628,7 +650,7 @@ export default function GuestsPage() {
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="guest-id-type">ID Type</Label>
+                <Label htmlFor="guest-id-type">ID Type <span className="text-rose-500">*</span></Label>
                 <Select
                   value={form.idType}
                   onValueChange={(v) => setForm({ ...form, idType: v })}
@@ -657,7 +679,7 @@ export default function GuestsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="guest-nationality">Nationality</Label>
+              <Label htmlFor="guest-nationality">Nationality <span className="text-rose-500">*</span></Label>
               <Input
                 id="guest-nationality"
                 placeholder="e.g. Ethiopian"

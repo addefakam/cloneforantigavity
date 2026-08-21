@@ -927,6 +927,7 @@ export default function SuperUserManagementPage() {
                 <Label htmlFor="su-phone">Phone</Label>
                 <Input
                   id="su-phone"
+                  type="tel"
                   value={form.phone}
                   onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
                   placeholder="+251..."

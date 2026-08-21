@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAuthContext, getProviderFilter, checkWritePermission, AuthError } from "@/lib/tenant";
 import { composeAddress } from "@/lib/ethiopian-admin-divisions";
+import { isValidPhone, isValidEmail } from "@/lib/utils";
 
 export async function PUT(
   req: NextRequest,
@@ -23,6 +24,15 @@ export async function PUT(
     }
 
     const { name, phone, email, idNumber, idType, nationality, region, zone, woreda, kebele, houseNumber, streetName, plateNumber, weapon, address, notes, vip } = body;
+
+    // Validate phone format if provided
+    if (phone !== undefined && !isValidPhone(phone)) {
+      return NextResponse.json({ error: "Invalid phone number format" }, { status: 400 });
+    }
+    // Validate email format if provided
+    if (email !== undefined && email && !isValidEmail(email)) {
+      return NextResponse.json({ error: "Invalid email address format" }, { status: 400 });
+    }
 
     // Auto-compose address from normalized fields
     const composedAddress = address !== undefined

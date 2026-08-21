@@ -137,3 +137,43 @@ Stage Summary:
 - Webhook is public (no JWT required) — Chapa calls it server-to-server
 - Pending payments tracked with [CHAPA PENDING] tag, verified with [CHAPA VERIFIED] tag
 - Superuser gets notification on both initiation and verification
+
+---
+Task ID: 6
+Agent: Main Agent
+Task: Make nationality & ID type required on guest registration + validate all phone/email per standard
+
+Work Log:
+- Created shared validation utilities in src/lib/utils.ts: isValidPhone() (E.164, 7-15 digits), isValidEmail() (RFC 5322 simplified)
+- Made nationality & ID Type required fields in guests-page.tsx: added red asterisk labels + validation in handleSave
+- Made nationality & ID Type required in reservations-page.tsx inline guest form: labels + step1Valid + handleCreate validation
+- Added phone validation (isValidPhone) to all form submit handlers: guests, reservations, group bookings, login/register, settings
+- Added email validation (isValidEmail) to all form submit handlers where email is collected
+- Added type="tel" to 12 phone inputs that were missing it (all except settings-page which already had it)
+- Updated backend API validation: guests/route.ts POST (phone, email, nationality, idType), guests/[id]/route.ts PUT (phone, email), settings/route.ts PUT (phone, email)
+- Backend validation returns 400 with descriptive error messages
+
+Files modified (14 total):
+- src/lib/utils.ts — added isValidPhone, isValidEmail
+- src/components/ghms/pages/guests-page.tsx — required labels + validation + type=tel
+- src/components/ghms/pages/reservations-page.tsx — required labels + validation + type=tel + step1Valid
+- src/components/ghms/pages/group-bookings-page.tsx — validation + type=tel on 3 phone inputs
+- src/components/ghms/login-page.tsx — phone/email validation + type=tel
+- src/components/ghms/pages/providers-page.tsx — type=tel
+- src/components/ghms/pages/super-profile-page.tsx — type=tel
+- src/components/ghms/pages/super-user-management-page.tsx — type=tel
+- src/components/ghms/pages/suspected-persons-page.tsx — type=tel
+- src/components/ghms/pages/daytime-page.tsx — type=tel
+- src/components/ghms/pages/accommodation-guests-page.tsx — type=tel
+- src/components/ghms/pages/settings-page.tsx — phone/email validation
+- src/app/api/guests/route.ts — backend phone/email/nationality/idType validation
+- src/app/api/guests/[id]/route.ts — backend phone/email validation on update
+- src/app/api/settings/route.ts — backend phone/email validation
+
+Stage Summary:
+- Nationality and ID Type are now required (red asterisk) on all guest registration forms
+- All phone numbers validated: 7-15 digits, international format with optional + prefix
+- All email addresses validated: standard user@domain.tld format (only when provided)
+- All 14 phone inputs now use type="tel" for mobile numeric keyboard
+- Frontend + backend双重验证 (dual-layer validation)
+- No new TypeScript errors introduced

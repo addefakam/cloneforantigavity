@@ -694,7 +694,7 @@ export default function DaytimePage() {
               </div>
               <div className="space-y-2">
                 <Label>Phone</Label>
-                <Input placeholder="Phone number" value={bkForm.guestPhone} onChange={(e) => setBkForm({ ...bkForm, guestPhone: e.target.value })} />
+                <Input type="tel" placeholder="Phone number" value={bkForm.guestPhone} onChange={(e) => setBkForm({ ...bkForm, guestPhone: e.target.value })} />
               </div>
             </div>
             <div className="grid grid-cols-3 gap-4">

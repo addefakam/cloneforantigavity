@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAuthContext, getProviderFilter, checkWritePermission, AuthError } from "@/lib/tenant";
 import { uploadFile } from "@/lib/storage";
+import { isValidPhone, isValidEmail } from "@/lib/utils";
 
 const DEFAULT_SETTINGS = {
   guestHouseName: "Guest House",
@@ -87,6 +88,15 @@ export async function PUT(req: NextRequest) {
     const existing = await db.settings.findFirst({
       where: providerId ? { providerId } : {},
     });
+
+    // Validate phone format if provided
+    if (body.phone && !isValidPhone(body.phone)) {
+      return NextResponse.json({ error: "Invalid phone number format" }, { status: 400 });
+    }
+    // Validate email format if provided
+    if (body.email && !isValidEmail(body.email)) {
+      return NextResponse.json({ error: "Invalid email address format" }, { status: 400 });
+    }
 
     const data = {
       guestHouseName: body.guestHouseName ?? DEFAULT_SETTINGS.guestHouseName,

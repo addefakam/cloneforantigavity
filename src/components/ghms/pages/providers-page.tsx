@@ -740,6 +740,7 @@ export default function ProvidersPage() {
               <div className="grid gap-1.5">
                 <Label className="text-sm">Phone <span className="text-rose-500">*</span></Label>
                 <Input
+                  type="tel"
                   value={registerForm.phone}
                   onChange={(e) => setRegisterForm((f) => ({ ...f, phone: e.target.value }))}
                   placeholder="+251..."

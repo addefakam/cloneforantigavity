@@ -882,6 +882,7 @@ export default function SuspectedPersonsPage() {
                 <Label htmlFor="sp-phone">Phone</Label>
                 <Input
                   id="sp-phone"
+                  type="tel"
                   placeholder="Phone number"
                   value={form.phone}
                   onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}

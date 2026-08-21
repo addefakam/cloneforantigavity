@@ -88,6 +88,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import AddressFields from "@/components/shared/address-fields";
+import { isValidPhone, isValidEmail } from "@/lib/utils";
 
 interface GuestOption {
   id: string;
@@ -303,9 +304,11 @@ export default function ReservationsPage() {
     if (guestMode === "existing") return !!selectedGuestId;
     return !!(
       newGuestForm.name.trim() &&
-      newGuestForm.phone.trim()
+      newGuestForm.phone.trim() &&
+      newGuestForm.nationality.trim() &&
+      newGuestForm.idType
     );
-  }, [guestMode, selectedGuestId, newGuestForm.name, newGuestForm.phone]);
+  }, [guestMode, selectedGuestId, newGuestForm.name, newGuestForm.phone, newGuestForm.nationality, newGuestForm.idType]);
 
   // Filtered reservations
   const filtered = useMemo(() => {
@@ -364,8 +367,28 @@ export default function ReservationsPage() {
       toast.error("Check-out must be after check-in");
       return;
     }
-    if (guestMode === "new" && (!newGuestForm.name || !newGuestForm.phone)) {
-      toast.error("Guest name and phone are required");
+    if (guestMode === "new" && (!newGuestForm.name || !newGuestForm.name.trim())) {
+      toast.error("Guest full name is required");
+      return;
+    }
+    if (guestMode === "new" && (!newGuestForm.phone || !newGuestForm.phone.trim())) {
+      toast.error("Guest phone is required");
+      return;
+    }
+    if (guestMode === "new" && !isValidPhone(newGuestForm.phone)) {
+      toast.error("Invalid guest phone number format (7-15 digits)");
+      return;
+    }
+    if (guestMode === "new" && !isValidEmail(newGuestForm.email)) {
+      toast.error("Invalid guest email address format");
+      return;
+    }
+    if (guestMode === "new" && (!newGuestForm.nationality || !newGuestForm.nationality.trim())) {
+      toast.error("Guest nationality is required");
+      return;
+    }
+    if (guestMode === "new" && (!newGuestForm.idType || newGuestForm.idType === "")) {
+      toast.error("Guest ID type is required");
       return;
     }
     if (guestMode !== "new" && !selectedGuestId) {
@@ -377,6 +400,10 @@ export default function ReservationsPage() {
     if (isDoubleRoom && !createForm.exceptionallyReserved) {
       if (!createForm.secondGuestName.trim() || !createForm.secondGuestPhone.trim()) {
         toast.error("Second guest name and phone are required for double/twin rooms");
+        return;
+      }
+      if (!isValidPhone(createForm.secondGuestPhone)) {
+        toast.error("Invalid second guest phone number format (7-15 digits)");
         return;
       }
     }
@@ -978,7 +1005,7 @@ export default function ReservationsPage() {
                     </div>
                     <div className="space-y-1.5">
                       <Label>Phone <span className="text-rose-500">*</span></Label>
-                      <Input placeholder="+251 9XX XXX XXX" value={newGuestForm.phone} onChange={(e) => setNewGuestForm({ ...newGuestForm, phone: e.target.value })} />
+                      <Input type="tel" placeholder="+251 9XX XXX XXX" value={newGuestForm.phone} onChange={(e) => setNewGuestForm({ ...newGuestForm, phone: e.target.value })} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -987,13 +1014,13 @@ export default function ReservationsPage() {
                       <Input type="email" placeholder="guest@email.com" value={newGuestForm.email} onChange={(e) => setNewGuestForm({ ...newGuestForm, email: e.target.value })} />
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Nationality</Label>
+                      <Label>Nationality <span className="text-rose-500">*</span></Label>
                       <Input placeholder="Ethiopian" value={newGuestForm.nationality} onChange={(e) => setNewGuestForm({ ...newGuestForm, nationality: e.target.value })} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label>ID Type</Label>
+                      <Label>ID Type <span className="text-rose-500">*</span></Label>
                       <Select value={newGuestForm.idType} onValueChange={(v) => setNewGuestForm({ ...newGuestForm, idType: v })}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -1115,7 +1142,7 @@ export default function ReservationsPage() {
                           </div>
                           <div className="space-y-1.5">
                             <Label>Second Guest Phone <span className="text-rose-500">*</span></Label>
-                            <Input placeholder="Phone number" value={createForm.secondGuestPhone} onChange={(e) => setCreateForm({ ...createForm, secondGuestPhone: e.target.value })} />
+                            <Input type="tel" placeholder="Phone number" value={createForm.secondGuestPhone} onChange={(e) => setCreateForm({ ...createForm, secondGuestPhone: e.target.value })} />
                           </div>
                         </div>
                         <div className="space-y-1.5">
