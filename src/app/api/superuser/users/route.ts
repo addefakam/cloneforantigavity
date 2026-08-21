@@ -3,6 +3,7 @@ import { ensureDatabase } from "@/lib/init-db";
 import { db } from "@/lib/db";
 import { getAuthContext, AuthError } from "@/lib/tenant";
 import { hashPassword } from "@/lib/auth-utils";
+import { isValidPhone, isValidEmail } from "@/lib/utils";
 
 // GET /api/superuser/users — List ALL users across all providers with stats
 export async function GET(req: NextRequest) {
@@ -141,6 +142,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Note: providerId is optional for OPERATOR/STAFF — they can be assigned later
+
+    // Validate phone/email format if provided
+    if (email && !isValidEmail(email)) {
+      return NextResponse.json({ error: "Invalid email address format" }, { status: 400 });
+    }
+    if (phone && !isValidPhone(phone)) {
+      return NextResponse.json({ error: "Invalid phone number format. Use 7-15 digits with optional + prefix." }, { status: 400 });
+    }
 
     // Check username uniqueness
     const existing = await db.user.findUnique({ where: { username } });

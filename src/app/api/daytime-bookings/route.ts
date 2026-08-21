@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAuthContext, getProviderFilter, checkWritePermission, AuthError } from "@/lib/tenant";
 import { checkSuspectMatch } from "@/lib/suspect-check";
+import { isValidPhone } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
   try {
@@ -66,6 +67,13 @@ export async function POST(req: NextRequest) {
     if (!serviceId || !guestName || !date || !time) {
       return NextResponse.json(
         { error: "serviceId, guestName, date, and time are required" },
+        { status: 400 }
+      );
+    }
+
+    if (guestPhone && !isValidPhone(guestPhone)) {
+      return NextResponse.json(
+        { error: "Invalid phone number format. Use 7-15 digits with optional + prefix." },
         { status: 400 }
       );
     }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAuthContext, getProviderFilter, checkWritePermission, AuthError } from "@/lib/tenant";
+import { isValidPhone } from "@/lib/utils";
 
 export async function PUT(
   req: NextRequest,
@@ -19,6 +20,14 @@ export async function PUT(
     });
     if (!existing) {
       return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+    }
+
+    // Validate phone if being updated
+    if (body.guestPhone !== undefined && body.guestPhone && !isValidPhone(body.guestPhone)) {
+      return NextResponse.json(
+        { error: "Invalid phone number format. Use 7-15 digits with optional + prefix." },
+        { status: 400 }
+      );
     }
 
     const booking = await db.daytimeBooking.update({

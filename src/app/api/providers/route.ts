@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getAuthContext, AuthError } from "@/lib/tenant";
 import { hashPassword } from "@/lib/auth-utils";
 import { uploadFile } from "@/lib/storage";
+import { isValidPhone, isValidEmail } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
   try {
@@ -75,6 +76,18 @@ export async function POST(req: NextRequest) {
       if (!name?.trim() || !ownerName?.trim() || !phone?.trim()) {
         return NextResponse.json(
           { error: "Guesthouse name, owner name, and phone are required" },
+          { status: 400 }
+        );
+      }
+      if (!isValidPhone(phone.trim())) {
+        return NextResponse.json(
+          { error: "Invalid phone number format. Use 7-15 digits with optional + prefix." },
+          { status: 400 }
+        );
+      }
+      if (email?.trim() && !isValidEmail(email.trim())) {
+        return NextResponse.json(
+          { error: "Invalid email address format" },
           { status: 400 }
         );
       }
@@ -160,6 +173,19 @@ export async function POST(req: NextRequest) {
     if (!name || !ownerName || !phone || !username || !password) {
       return NextResponse.json(
         { error: "name, ownerName, phone, username, and password are required" },
+        { status: 400 }
+      );
+    }
+
+    if (!isValidPhone(phone.trim())) {
+      return NextResponse.json(
+        { error: "Invalid phone number format. Use 7-15 digits with optional + prefix." },
+        { status: 400 }
+      );
+    }
+    if (email?.trim() && !isValidEmail(email.trim())) {
+      return NextResponse.json(
+        { error: "Invalid email address format" },
         { status: 400 }
       );
     }

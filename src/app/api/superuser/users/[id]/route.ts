@@ -3,6 +3,7 @@ import { ensureDatabase } from "@/lib/init-db";
 import { db } from "@/lib/db";
 import { getAuthContext, AuthError } from "@/lib/tenant";
 import { hashPassword } from "@/lib/auth-utils";
+import { isValidPhone, isValidEmail } from "@/lib/utils";
 
 // GET /api/superuser/users/[id] — Get single user details
 export async function GET(
@@ -83,6 +84,14 @@ export async function PUT(
       if (dup) {
         return NextResponse.json({ error: "Username already exists" }, { status: 409 });
       }
+    }
+
+    // Validate phone/email format if provided
+    if (email !== undefined && email && !isValidEmail(email)) {
+      return NextResponse.json({ error: "Invalid email address format" }, { status: 400 });
+    }
+    if (phone !== undefined && phone && !isValidPhone(phone)) {
+      return NextResponse.json({ error: "Invalid phone number format. Use 7-15 digits with optional + prefix." }, { status: 400 });
     }
 
     const updateData: Record<string, unknown> = {};

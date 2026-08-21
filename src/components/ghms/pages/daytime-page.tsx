@@ -14,6 +14,7 @@ import {
   apiCreatePayment,
 } from "@/lib/api";
 import { toast } from "sonner";
+import { isValidPhone } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -299,6 +300,10 @@ export default function DaytimePage() {
     }
     const svc = services.find((s) => s.id === bkForm.serviceId);
     if (!svc) { toast.error("Selected service not found"); return; }
+    if (bkForm.guestPhone.trim() && !isValidPhone(bkForm.guestPhone)) {
+      toast.error("Invalid phone number. Use format like +251 9XX XXX XXX (7-15 digits)");
+      return;
+    }
 
     try {
       setBkSaving(true);

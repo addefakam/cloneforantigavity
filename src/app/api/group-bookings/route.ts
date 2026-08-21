@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getAuthContext, getProviderFilter, AuthError } from "@/lib/tenant";
 import { logStaffActivity, getLogUserInfo } from "@/lib/staff-log";
 import { ensureNewTables } from "@/lib/ensure-tables";
+import { isValidPhone, isValidEmail } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
   try {
@@ -81,6 +82,13 @@ export async function POST(req: NextRequest) {
 
     if (!name || !startDate || !endDate) {
       return NextResponse.json({ error: "Name, startDate, and endDate are required" }, { status: 400 });
+    }
+
+    if (contactPhone && !isValidPhone(contactPhone)) {
+      return NextResponse.json({ error: "Invalid phone number format. Use 7-15 digits with optional + prefix." }, { status: 400 });
+    }
+    if (contactEmail && !isValidEmail(contactEmail)) {
+      return NextResponse.json({ error: "Invalid email address format" }, { status: 400 });
     }
 
     const groupBooking = await db.groupBooking.create({

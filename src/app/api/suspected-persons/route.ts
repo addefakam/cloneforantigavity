@@ -5,6 +5,7 @@ import { requirePoliceMinRank } from "@/lib/police-permissions";
 import { ensureSuspectTables } from "@/lib/suspect-check";
 import { Prisma } from "@prisma/client";
 import { sql } from "@prisma/client";
+import { isValidPhone } from "@/lib/utils";
 
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE_SIZE = 5;
@@ -113,6 +114,10 @@ export async function POST(req: NextRequest) {
 
     if (!name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    }
+
+    if (phone && !isValidPhone(phone)) {
+      return NextResponse.json({ error: "Invalid phone number format. Use 7-15 digits with optional + prefix." }, { status: 400 });
     }
 
     // Keep the legacy single idNumber/idType for backwards compat

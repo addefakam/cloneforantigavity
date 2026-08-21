@@ -11,6 +11,7 @@ import {
   apiCreateReservation,
 } from "@/lib/api";
 import { toast } from "sonner";
+import { isValidPhone } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -239,6 +240,10 @@ export default function AccommodationGuestsPage() {
     if (selectedRoomIsDouble && !resForm.exceptionallyReserved) {
       if (!resForm.secondGuestName.trim() || !resForm.secondGuestPhone.trim()) {
         toast.error("Second guest name and phone are required for double/twin rooms. Use 'Exceptionally Reserved' for single occupancy.");
+        return;
+      }
+      if (!isValidPhone(resForm.secondGuestPhone)) {
+        toast.error("Invalid second guest phone number. Use format like +251 9XX XXX XXX (7-15 digits)");
         return;
       }
     }

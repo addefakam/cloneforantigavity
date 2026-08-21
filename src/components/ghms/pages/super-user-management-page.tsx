@@ -10,6 +10,7 @@ import {
   apiSuperGetProviders,
 } from "@/lib/api";
 import { toast } from "sonner";
+import { isValidPhone, isValidEmail } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -499,6 +500,14 @@ export default function SuperUserManagementPage() {
     // No provider validation needed here.
     if (form.role === "POLICE" && !form.policeRank) {
       toast.error("Please select a police rank");
+      return;
+    }
+    if (form.email.trim() && !isValidEmail(form.email)) {
+      toast.error("Invalid email address format");
+      return;
+    }
+    if (form.phone.trim() && !isValidPhone(form.phone)) {
+      toast.error("Invalid phone number. Use format like +251 9XX XXX XXX (7-15 digits)");
       return;
     }
 

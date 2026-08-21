@@ -4,6 +4,7 @@ import { getAuthContext, requirePolice, AuthError } from "@/lib/tenant";
 import { requirePoliceMinRank } from "@/lib/police-permissions";
 import { ensureSuspectTables } from "@/lib/suspect-check";
 import { sql } from "@prisma/client";
+import { isValidPhone } from "@/lib/utils";
 
 export async function GET(
   req: NextRequest,
@@ -61,6 +62,10 @@ export async function PUT(
     const { id } = await params;
     const body = await req.json();
     const { name, phone, idNumber, idType, nationality, address, description, severity, is_active, identifiers } = body;
+
+    if (phone !== undefined && phone && !isValidPhone(phone)) {
+      return NextResponse.json({ error: "Invalid phone number format. Use 7-15 digits with optional + prefix." }, { status: 400 });
+    }
 
     const person = await db.suspectedPerson.update({
       where: { id },

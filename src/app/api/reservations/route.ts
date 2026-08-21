@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getAuthContext, getProviderFilter, checkWritePermission, AuthError } from "@/lib/tenant";
 import { checkSuspectMatch } from "@/lib/suspect-check";
 import { runAnomalyDetection } from "@/lib/anomaly-engine";
+import { isValidPhone } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
   try {
@@ -92,6 +93,9 @@ export async function POST(req: NextRequest) {
       }
       if (!secondGuestPhone || !secondGuestPhone.trim()) {
         return NextResponse.json({ error: "DOUBLE_ROOM_SECOND_GUEST_REQUIRED", code: "DOUBLE_ROOM_SECOND_GUEST_REQUIRED", message: "Second guest phone is required for double/twin rooms. Select 'Exceptionally Reserved' if only one guest." }, { status: 400 });
+      }
+      if (!isValidPhone(secondGuestPhone.trim())) {
+        return NextResponse.json({ error: "Invalid second guest phone number format. Use 7-15 digits with optional + prefix." }, { status: 400 });
       }
     }
 

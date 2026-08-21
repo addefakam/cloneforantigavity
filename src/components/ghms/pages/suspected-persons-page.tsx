@@ -10,6 +10,7 @@ import {
   apiPoliceMovement,
 } from "@/lib/api";
 import { toast } from "sonner";
+import { isValidPhone } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -309,6 +310,10 @@ export default function SuspectedPersonsPage() {
     const validIds = (form.identifiers || []).filter((i: Identifier) => i.idNumber.trim());
     if (validIds.length === 0) {
       toast.error("At least one ID number is required");
+      return;
+    }
+    if (form.phone && form.phone.trim() && !isValidPhone(form.phone)) {
+      toast.error("Invalid phone number. Use format like +251 9XX XXX XXX (7-15 digits)");
       return;
     }
     setFormLoading(true);

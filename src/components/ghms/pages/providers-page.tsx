@@ -6,6 +6,7 @@ import { PaginationControls } from "@/components/shared/pagination-controls";
 import { useAppStore } from "@/lib/store";
 import { apiGetProviders, apiUpdateProvider, apiPoliceSuspendProvider, apiSuperCreateProvider, req } from "@/lib/api";
 import { toast } from "sonner";
+import { isValidPhone, isValidEmail } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -262,6 +263,14 @@ export default function ProvidersPage() {
     }
     if (registerForm.password.trim().length < 4) {
       toast.error("Password must be at least 4 characters");
+      return;
+    }
+    if (!isValidPhone(registerForm.phone)) {
+      toast.error("Invalid phone number. Use format like +251 9XX XXX XXX (7-15 digits)");
+      return;
+    }
+    if (registerForm.email.trim() && !isValidEmail(registerForm.email)) {
+      toast.error("Invalid email address format");
       return;
     }
     try {

@@ -16,6 +16,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
+import { isValidPhone, isValidEmail } from "@/lib/utils";
 import {
   User,
   Mail,
@@ -79,6 +80,14 @@ export default function SuperProfilePage() {
     }
     if (newPassword && newPassword.length < 6) {
       toast.error("New password must be at least 6 characters");
+      return;
+    }
+    if (email.trim() && !isValidEmail(email)) {
+      toast.error("Invalid email address format");
+      return;
+    }
+    if (phone.trim() && !isValidPhone(phone)) {
+      toast.error("Invalid phone number. Use format like +251 9XX XXX XXX (7-15 digits)");
       return;
     }
 
