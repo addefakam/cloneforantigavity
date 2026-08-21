@@ -261,6 +261,10 @@ export default function MySubscriptionPage() {
       toast.error("Please fill in all required fields");
       return;
     }
+    if (!isChapaMethod && !payRef.trim()) {
+      toast.error("Transfer reference number is required");
+      return;
+    }
     setSubmitting(true);
     try {
       await apiSubmitPayment({
@@ -841,7 +845,7 @@ export default function MySubscriptionPage() {
                   {/* Reference number */}
                   <div>
                     <Label className="text-xs font-medium">
-                      Reference / Transaction Number
+                      Reference / Transaction Number <span className="text-rose-500">*</span>
                     </Label>
                     <Input
                       value={payRef}
@@ -903,7 +907,7 @@ export default function MySubscriptionPage() {
                   disabled={
                     isChapaMethod
                       ? !payAmount || Number(payAmount) <= 0 || submitting
-                      : !payMethod || !payAmount || Number(payAmount) <= 0 || submitting
+                      : !payMethod || !payAmount || Number(payAmount) <= 0 || !payRef.trim() || submitting
                   }
                   className={isChapaMethod ? "flex-1 sm:flex-none bg-violet-600 hover:bg-violet-700" : "flex-1 sm:flex-none"}
                 >
