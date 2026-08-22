@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -147,6 +148,7 @@ const emptyRegisterForm: RegisterForm = {
 };
 
 export default function ProvidersPage() {
+  const { t } = useTranslation();
   const { refreshKey, triggerRefresh, currentUser } = useAppStore();
   const isSuperuser = currentUser?.role === "SUPERUSER";
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -459,12 +461,12 @@ export default function ProvidersPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Provider Name</TableHead>
-                    <TableHead>Address</TableHead>
-                    <TableHead>Owner</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>{t('thproviderName', 'Provider Name')}</TableHead>
+                    <TableHead>{t('thaddress', 'Address')}</TableHead>
+                    <TableHead>{t('thowner', 'Owner')}</TableHead>
+                    <TableHead>{t('thphone', 'Phone')}</TableHead>
+                    <TableHead>{t('thstatus', 'Status')}</TableHead>
+                    <TableHead>{t('thactions', 'Actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -623,7 +625,7 @@ export default function ProvidersPage() {
                 <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-1.5">
                   <div className="flex items-center gap-2">
                     <XCircle className="h-4 w-4 text-red-500" />
-                    <Label className="text-red-700 text-xs font-semibold">Rejection Reason</Label>
+                    <Label>{t('lblrejectionReason', 'Rejection Reason')}</Label>
                   </div>
                   <p className="text-sm text-red-800 leading-relaxed pl-6">{selectedProvider.rejectionReason}</p>
                 </div>
@@ -632,7 +634,7 @@ export default function ProvidersPage() {
                 <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 space-y-1.5">
                   <div className="flex items-center gap-2">
                     <AlertTriangle className="h-4 w-4 text-orange-500" />
-                    <Label className="text-orange-700 text-xs font-semibold">Suspension Reason</Label>
+                    <Label>{t('lblsuspensionReason', 'Suspension Reason')}</Label>
                   </div>
                   <p className="text-sm text-orange-800 leading-relaxed pl-6">{(selectedProvider as any).suspensionReason}</p>
                   <div className="pl-6 flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
@@ -662,7 +664,7 @@ export default function ProvidersPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="reject-reason" className="text-xs sm:text-sm">Rejection Reason *</Label>
+            <Label>{t('lblrejectionReason', 'Rejection Reason')} *</Label>
             <Textarea id="reject-reason" placeholder="Enter the reason for rejection..." value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} rows={3} className="text-sm" />
           </div>
           <DialogFooter className="flex-col gap-2 sm:flex-row">
@@ -767,7 +769,7 @@ export default function ProvidersPage() {
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label className="text-sm">Type</Label>
+                <Label>{t('lbltype', 'Type')}</Label>
                 <div className="flex flex-wrap gap-1.5">
                   {GUESTHOUSE_TYPES.map((t) => (
                     <button
